@@ -186,6 +186,26 @@ ended by its author, received 1 span(s) still open: lab.compute.
 
 </Callout>
 
+## Runtime snapshots for a shell bug report
+
+Call `runtime.getSnapshot()` when your shell collects a bug report.
+
+```ts shared title="src/shell/diagnostics.ts (adapted)"
+const runtimeSnapshot = runtime.getSnapshot()
+const attachment = JSON.stringify(runtimeSnapshot, null, 2)
+```
+
+Append `attachment` as a JSON code block in your report, or send it through your shell's issue tracker integration.
+The example shell includes it in the bug dialog's copied Markdown report and both **Copy diagnostics** actions.
+The dialog captures when it opens. The copy actions capture when they run.
+
+Use `runtimeSnapshot.mounts` to describe current placements, including Widgets and failed mounts.
+An empty list means no placements. A URL names a page, but cannot tell you which definitions actually mounted.
+
+Review rejection reasons and redact sensitive text before sharing.
+Your shell adds deployment context and decides where reports go. Snapshots need no telemetry collector.
+See [Runtime snapshots](/docs/reference/hooks-and-components#runtime-snapshots) for fields, lifecycle states and framework exports.
+
 ## Related
 
 - [Telemetry API](/docs/reference/hooks-and-components#usetelemetry) — service fields and framework exports.

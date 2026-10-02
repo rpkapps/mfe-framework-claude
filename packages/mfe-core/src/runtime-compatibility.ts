@@ -5,9 +5,9 @@
 import type { DefinitionIdentity } from './definition.ts'
 import { createMfeError, describeValue } from './errors.ts'
 
-export const RUNTIME_API_VERSION = '1.1.0'
+export const RUNTIME_API_VERSION = '1.2.0'
 /** Conservative baseline for adapters built with this framework release. */
-export const RUNTIME_API_REQUIREMENT = '>=1.1.0 <2.0.0'
+export const RUNTIME_API_REQUIREMENT = '>=1.2.0 <2.0.0'
 
 type Version = readonly [number, number, number]
 type Operator = '=' | '>' | '>=' | '<' | '<='

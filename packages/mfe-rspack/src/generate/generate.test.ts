@@ -2,6 +2,8 @@ import { join, sep } from 'node:path'
 
 import { afterEach, describe, expect, it } from 'vitest'
 
+import { RUNTIME_API_REQUIREMENT } from '@company/mfe-core/runtime-compatibility'
+
 import { planContainer, type ContainerPlan } from '../plan.ts'
 import { cleanupContainers, createContainer } from '../testing/fixtures.ts'
 import { generateContainer } from './container.ts'
@@ -274,7 +276,7 @@ describe('the registry entry the build publishes', () => {
       entries: { operations: './app' },
       framework: 'react',
       shareScopes: ['default', 'react@19.3.0'],
-      requiresRuntime: '>=1.1.0 <2.0.0',
+      requiresRuntime: RUNTIME_API_REQUIREMENT,
       definitions: [
         {
           id: 'operations',
@@ -291,7 +293,7 @@ describe('the registry entry the build publishes', () => {
     })
     expect(plan.generated.descriptor).not.toHaveProperty('contractMajor')
     expect(plan.generated.frameworkMetadata).not.toHaveProperty('major')
-    expect(plan.generated.frameworkMetadata.requiresRuntime).toBe('>=1.1.0 <2.0.0')
+    expect(plan.generated.frameworkMetadata.requiresRuntime).toBe(RUNTIME_API_REQUIREMENT)
   })
 
   it('carries capability metadata on the App only', () => {

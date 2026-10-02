@@ -142,10 +142,10 @@ describe('runtime compatibility before entry interpretation', () => {
       definitionVersion: '7.2.0',
     })
     expect(rejectedEntry(registry, 'future').error.message).toContain('runtime API >=2.0.0 <3.0.0')
-    expect(rejectedEntry(registry, 'future').error.message).toContain('runtime API 1.1.0')
+    expect(rejectedEntry(registry, 'future').error.message).toContain('runtime API 1.2.0')
   })
 
-  it.each(['>=1.2.0 <2.0.0', '<1.0.0'])(
+  it.each(['>=1.3.0 <2.0.0', '<1.0.0'])(
     'rejects the unsatisfied range %s without asking an adapter to parse',
     requiresRuntime => {
       const first = framework()
@@ -287,7 +287,7 @@ describe('recognising an entry', () => {
           id: 'reports',
           operation: 'check shell runtime compatibility',
           expected: 'runtime API >=2.0.0 <3.0.0',
-          observed: 'runtime API 1.1.0',
+          observed: 'runtime API 1.2.0',
           repair: 'Upgrade the shell or rebuild the container for its runtime API.',
         })
       },

@@ -27,10 +27,12 @@ import type { DiagnosticsHub } from '../diagnostics.ts'
 import { withAdapterLoadHooks } from '../loader/adapter-load-hooks.ts'
 import { SharedContainerLoader, type ContainerLoader } from '../loader/container-loader.ts'
 import { withRuntimeApiCompatibility } from '../loader/runtime-compatibility.ts'
+import { RuntimeMountStore } from '../mount/runtime-mount-store.ts'
 import { BoundaryNavigator } from '../navigation/boundary-navigator.ts'
 import type { ShellStateStore } from '../shell-state/shell-state-store.ts'
 import type { MfeStorageStore } from '../storage/storage-store.ts'
 import type { MfeRuntime } from './create-runtime.ts'
+import { readRuntimeSnapshot } from './runtime-snapshot.ts'
 
 /** A rejected entry never removes unrelated valid ones, so each is reported and the rest load. */
 export function reportRejectedEntries(registry: Registry, diagnostics: DiagnosticsHub): void {
@@ -70,6 +72,7 @@ export interface AssembledRuntime {
 
 export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
   const { diagnostics, shellState, storage } = parts
+  const mounts = new RuntimeMountStore()
 
   const navigator = new BoundaryNavigator({ bridge: parts.navigationBridge, diagnostics })
   const actions = new ActionRegistry({
@@ -135,6 +138,8 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
     ...withoutUndefined({ sharedState }),
     apiVersion: RUNTIME_API_VERSION,
     registry: parts.registry,
+    mounts,
+    getSnapshot: () => readRuntimeSnapshot(runtime.apiVersion, runtime.registry, mounts),
     loader: withRuntimeApiCompatibility(
       new SharedContainerLoader(withAdapterLoadHooks(parts.loader, parts.adapters), {
         deadlineMs: parts.deadlines?.load ?? DEFAULT_DEADLINES.load,
@@ -155,6 +160,7 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
   return {
     runtime,
     dispose: () => {
+      mounts.dispose()
       sharedState?.dispose()
       actions.dispose()
       breadcrumbs.dispose()

@@ -529,6 +529,43 @@ that component's Angular style scope. The adapter supplies no loading text, butt
 styles. Without a template a failed mount leaves an empty region; `(failed)` and diagnostics still
 report it. A rejected update keeps the last valid Widget on screen and emits `(inputRejected)`.
 
+### Runtime snapshots
+
+```ts
+runtime.getSnapshot(): RuntimeSnapshot
+```
+
+Returns a detached record of the runtime when called. Both adapter host surfaces export `RuntimeSnapshot` and its record types:
+`@company/mfe-react/host` and `@company/mfe-angular/host`.
+
+| Field               | What it contains                                                                                              |
+| ------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `apiVersion`        | The shell's runtime API version.                                                                              |
+| `capturedAt`        | Capture time, in milliseconds since the Unix epoch.                                                           |
+| `mounts`            | Current App and Widget placements, including pending and failed mounts.                                       |
+| `registry.entries`  | Accepted definitions, with `id`, `kind`, `adapter`, optional `version` and `build`, and an `overridden` flag. |
+| `registry.rejected` | Entries set aside, with `id`, `reason` and an optional `errorCode`.                                           |
+
+Each mount record has these fields:
+
+| Field                  | What it contains                                                                              |
+| ---------------------- | --------------------------------------------------------------------------------------------- |
+| `mountId`              | An opaque placement ID. Duplicate placements have different IDs. Retries keep the same ID.    |
+| `definitionId`, `kind` | The definition placed, and `app` or `widget`.                                                 |
+| `status`               | `pending`, `mounted` or `error`. Disposed placements are absent.                              |
+| `attempt`, `depth`     | The attempt number, starting at one, and nesting depth, starting at one for a host placement. |
+| `version`, `adapter`   | Optional loaded metadata. Before loading, the record uses available registry metadata.        |
+| `errorCode`            | The current failure code, when available.                                                     |
+
+Published builds carry optional `hash` and `time` fields. Registry versions can differ from the definition a placement loaded.
+Each call reads current state and returns independent records. The API has no subscription or diagnostic history.
+Use it when collecting a report. A UI subscription needs a reactive store instead.
+
+Snapshots omit application inputs and outputs, storage and identity. They also omit URLs, DOM nodes, services and raw errors or rejected sources.
+Rejection reasons remain developer-facing text. The shell reviews and redacts them before sharing.
+
+Recipe: [Runtime snapshots for a shell bug report](/docs/telemetry#runtime-snapshots-for-a-shell-bug-report).
+
 ## Where each hook may be called
 
 | Hook                                                                                                                                            | Inside a mount | On the host page |

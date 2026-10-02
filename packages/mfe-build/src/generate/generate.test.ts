@@ -518,7 +518,7 @@ describe('#mfe/meta', () => {
     expect(source).toContain(`export const buildHash = '${plan.generated.buildHash}'`)
     expect(source).toContain(`export const buildTime = '${BUILD_TIME}'`)
     expect(source).toContain("{ id: 'operations', kind: 'app', version: '2.1.0' },")
-    expect(source).toContain("export const requiresRuntime = '>=1.1.0 <2.0.0'")
+    expect(source).toContain(`export const requiresRuntime = '${RUNTIME_API_REQUIREMENT}'`)
     expect(source).not.toContain('contractMajor')
   })
 })
@@ -612,7 +612,7 @@ describe('the registry entry the build publishes', () => {
       entries: { operations: './app' },
       framework: 'acme',
       shareScopes: ['default', 'acme@19.3.0'],
-      requiresRuntime: '>=1.1.0 <2.0.0',
+      requiresRuntime: RUNTIME_API_REQUIREMENT,
       definitions: [
         {
           id: 'operations',
@@ -627,7 +627,7 @@ describe('the registry entry the build publishes', () => {
     })
     expect(plan.generated.descriptor).not.toHaveProperty('contractMajor')
     expect(plan.generated.frameworkMetadata).not.toHaveProperty('major')
-    expect(plan.generated.frameworkMetadata.requiresRuntime).toBe('>=1.1.0 <2.0.0')
+    expect(plan.generated.frameworkMetadata.requiresRuntime).toBe(RUNTIME_API_REQUIREMENT)
   })
 
   it('carries capability metadata on the App only', () => {

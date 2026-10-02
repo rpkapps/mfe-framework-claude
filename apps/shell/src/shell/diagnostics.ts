@@ -1,6 +1,7 @@
 /** Collected on demand, because a snapshot held from boot would describe a page that no longer exists. */
 
-import type { MfeRuntime, RegistryEntry } from '@company/mfe-react'
+import type { MfeRuntime } from '@company/mfe-react'
+import type { RuntimeDefinitionSnapshot, RuntimeSnapshot } from '@company/mfe-react/host'
 
 import { notices, workspace } from './workspace.ts'
 
@@ -8,6 +9,7 @@ export interface Diagnostics {
   readonly workspace: string
   readonly url: string
   readonly mounted: string
+  readonly runtimeSnapshot: RuntimeSnapshot
   readonly theme: string
   readonly user: string
   readonly groups: readonly string[]
@@ -24,31 +26,36 @@ export interface Diagnostics {
 }
 
 export function collectDiagnostics(runtime: MfeRuntime): Diagnostics {
-  const { entries, rejected } = runtime.registry
+  const runtimeSnapshot = runtime.getSnapshot()
+  const { entries, rejected } = runtimeSnapshot.registry
   const user = runtime.shellState.getUser()
-  const path = window.location.pathname
-  const mountedId = path.split('/').filter(Boolean)[0]
 
   return {
     workspace: workspace.name,
     url: window.location.href,
-    mounted: mountedId === undefined ? 'the widget dashboard' : mountedId,
+    mounted:
+      runtimeSnapshot.mounts.length === 0
+        ? 'none'
+        : runtimeSnapshot.mounts
+            .map(mount => `${mount.definitionId} (${mount.kind}, ${mount.status})`)
+            .join(', '),
+    runtimeSnapshot,
     theme: runtime.shellState.getTheme(),
     user: user?.id ?? 'not signed in',
     groups: runtime.shellState.getGroups(),
-    registryLoaded: entries.size,
+    registryLoaded: entries.length,
     registryRejected: rejected.map(entry => `${entry.id}: ${entry.reason}`),
-    builds: [...entries.values()].map(describeBuild),
+    builds: entries.map(describeBuild),
     registryError: notices.registryError === null ? null : notices.registryError.message,
     overrides: [...notices.overrides].map(([id, url]) => `${id} → ${url}`),
     viewport: `${String(window.innerWidth)}×${String(window.innerHeight)}`,
     userAgent: navigator.userAgent,
-    at: new Date().toISOString(),
+    at: new Date(runtimeSnapshot.capturedAt).toISOString(),
   }
 }
 
 /** One entry's build, as `<id>: <hash> · <time>`. */
-function describeBuild(entry: RegistryEntry): string {
+function describeBuild(entry: RuntimeDefinitionSnapshot): string {
   const build = entry.build
   if (build === undefined) return `${entry.id}: no build published`
   return `${entry.id}: ${build.hash ?? 'unknown hash'} · ${build.time ?? 'unknown time'}`
@@ -80,6 +87,12 @@ export function formatReport(summary: string, detail: string, diagnostics: Diagn
     list('Rejected', diagnostics.registryRejected, 'none'),
     list('Developer overrides', diagnostics.overrides, 'none'),
     list('Builds', diagnostics.builds, 'nothing loaded'),
+    '',
+    '## Runtime snapshot',
+    '',
+    '```json',
+    JSON.stringify(diagnostics.runtimeSnapshot, null, 2),
+    '```',
   ]
 
   return lines.join('\n')
