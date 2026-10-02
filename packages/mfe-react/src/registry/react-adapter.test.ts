@@ -180,15 +180,15 @@ describe('aroundLoad: the router global while a container evaluates', () => {
   it('is hidden during the evaluation and restored afterwards', async () => {
     const shellRouter = { id: 'shell' }
     owner.__TSR_ROUTER__ = shellRouter
-    let seenDuringLoad: boolean | undefined
+    let seenDuringLoad: unknown
 
     const loaded = await aroundLoad(() => {
-      seenDuringLoad = '__TSR_ROUTER__' in owner
+      seenDuringLoad = owner.__TSR_ROUTER__
       return Promise.resolve('module')
     })
 
     expect(loaded).toBe('module')
-    expect(seenDuringLoad).toBe(false)
+    expect(seenDuringLoad).toBeUndefined()
     expect(owner.__TSR_ROUTER__).toBe(shellRouter)
   })
 
@@ -220,5 +220,103 @@ describe('aroundLoad: the router global while a container evaluates', () => {
     await aroundLoad(() => Promise.resolve('module'))
 
     expect('__TSR_ROUTER__' in owner).toBe(false)
+  })
+
+  it('stays hidden until every overlapping container has finished evaluating', async () => {
+    const shellRouter = { id: 'shell' }
+    owner.__TSR_ROUTER__ = shellRouter
+    let finishFirst!: () => void
+    let finishSecond!: () => void
+    const first = aroundLoad(
+      () =>
+        new Promise<void>(resolve => {
+          finishFirst = resolve
+        }),
+    )
+    const second = aroundLoad(
+      () =>
+        new Promise<void>(resolve => {
+          finishSecond = resolve
+        }),
+    )
+
+    finishFirst()
+    await first
+    const seenBeforeSecondFinishes = owner.__TSR_ROUTER__
+    finishSecond()
+    await second
+
+    expect(seenBeforeSecondFinishes).toBeUndefined()
+    expect(owner.__TSR_ROUTER__).toBe(shellRouter)
+  })
+
+  it('hides routers published by another mount until evaluation ends', async () => {
+    owner.__TSR_ROUTER__ = { id: 'shell' }
+    const published = { id: 'another App mounted while this container was loading' }
+    let seenDuringLoad: unknown
+
+    await aroundLoad(async () => {
+      await Promise.resolve()
+      owner.__TSR_ROUTER__ = published
+      seenDuringLoad = owner.__TSR_ROUTER__
+      return 'module'
+    })
+
+    expect(seenDuringLoad).toBeUndefined()
+    expect(owner.__TSR_ROUTER__).toBe(published)
+  })
+
+  it('keeps the global hidden when an overlapping load fails', async () => {
+    const shellRouter = { id: 'shell' }
+    owner.__TSR_ROUTER__ = shellRouter
+    let finish!: () => void
+    const pending = aroundLoad(
+      () =>
+        new Promise<void>(resolve => {
+          finish = resolve
+        }),
+    )
+
+    await expect(aroundLoad(() => Promise.reject(new Error('load failed')))).rejects.toThrow(
+      'load failed',
+    )
+    const seenWhilePending = owner.__TSR_ROUTER__
+    finish()
+    await pending
+
+    expect(seenWhilePending).toBeUndefined()
+    expect(owner.__TSR_ROUTER__).toBe(shellRouter)
+  })
+
+  it('remembers a router published when the page initially had none', async () => {
+    const published = { id: 'first mounted App' }
+    let seenDuringLoad: unknown
+    await aroundLoad(() => {
+      owner.__TSR_ROUTER__ = published
+      seenDuringLoad = owner.__TSR_ROUTER__
+      return Promise.resolve('module')
+    })
+
+    expect(seenDuringLoad).toBeUndefined()
+    expect(owner.__TSR_ROUTER__).toBe(published)
+    expect(Object.getOwnPropertyDescriptor(owner, '__TSR_ROUTER__')?.get).toBeUndefined()
+  })
+
+  it('restores the original property descriptor after a synchronous failure', async () => {
+    Object.defineProperty(owner, '__TSR_ROUTER__', {
+      configurable: true,
+      enumerable: false,
+      writable: true,
+      value: { id: 'shell' },
+    })
+    const descriptor = Object.getOwnPropertyDescriptor(owner, '__TSR_ROUTER__')
+
+    await expect(
+      aroundLoad(() => {
+        throw new Error('evaluation failed')
+      }),
+    ).rejects.toThrow('evaluation failed')
+
+    expect(Object.getOwnPropertyDescriptor(owner, '__TSR_ROUTER__')).toEqual(descriptor)
   })
 })

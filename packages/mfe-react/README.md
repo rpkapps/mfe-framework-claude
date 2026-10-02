@@ -87,8 +87,9 @@ root.render(
 
 The shell lists every adapter; none is registered implicitly. `reactAdapter`
 recognises an entry whose `mfe` marker names `react`, and
-its `aroundLoad` hides TanStack Router's development global while a React
-container evaluates. `apps/shell/src/boot.tsx` is the worked example.
+its `aroundLoad` hides TanStack Router's development global until every overlapping React
+container load finishes, remembering routers published during those loads for restoration
+afterwards. `apps/shell/src/boot.tsx` is the worked example.
 
 ## Calling services from the shell
 
