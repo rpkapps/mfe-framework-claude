@@ -16,6 +16,7 @@ export async function verifySharedStateDevtools(browser) {
       await picker.click()
       await page.getByLabel('Find a shared-state key', { exact: true }).fill('well:selection')
       await page.getByRole('option', { name: 'well:selection', exact: true }).click()
+      await expect(page.locator('[data-slot="combobox-content"]')).toHaveCount(0)
     } else {
       await page.getByRole('button', { name: 'Inspect well:selection', exact: true }).click()
     }
