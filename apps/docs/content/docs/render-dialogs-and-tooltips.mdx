@@ -117,10 +117,12 @@ overlay renders, and it renders wrong.
 
 ## Check it works
 
-Open the overlay and inspect it. It sits in a `div` at the end of `<body>`. That element carries
-your definition id in its `data-mfe-scope` attribute, so your utilities apply inside it. Run
-`pnpm verify:page` for the browser checks. They assert that the overlay's nearest scoped ancestor
-is your container's own overlay root, and that your own CSS styled it.
+Mount your App or Widget in the separately running shell, open the overlay, and inspect it. Its
+nearest scoped ancestor should be your container's overlay root at the end of `<body>`, with your
+definition id in `data-mfe-scope`. Confirm your container's CSS applies inside the overlay and
+that changing the shell theme also updates it. Add those assertions to your own repository's
+browser integration tests against that shell; the framework repository's verification scripts
+are not required by your container.
 
 ## Related
 

@@ -16,10 +16,13 @@ its mount and overlay roots. This guide covers framework styling constraints.
 <Tab value="React">
 
 Keep `@tecton/react` in your container's dependencies. `pluginMfe()` needs its stylesheet scope plugin,
-even when your component renders no Tecton control. Use the workspace override to select the built design-system checkout.
+even when your component renders no Tecton control. Pin a published design-system version from your organization's registry
+in this container repository. Keep its peer dependencies compatible with your adapter release.
+Consumer repositories do not need a sibling checkout or the framework repository's workspace override.
 
 The build scans your source classes and generates one scoped stylesheet under `.mfe/`.
-Do not add a second stylesheet entry or `postcss.config`. Those bypass the generated scope.
+Keep your styles in that generated pipeline so the build applies the container scope. Avoid
+loading a separate global stylesheet that can affect the shell or other mounts.
 
 </Tab>
 <Tab value="Angular">
@@ -65,20 +68,34 @@ Follow [Render dialogs, menus and tooltips](/docs/render-dialogs-and-tooltips) f
 
 Switch the theme in the shell and confirm the container and its overlays follow it.
 Inspect the generated stylesheet and verify container rules stay inside the mount roots.
-Run `pnpm verify:page` for the repository's browser checks.
+Run your repository's browser integration test against the independently running shell.
+Check an overlay as well as the main container; passing a component test alone does not prove cross-origin styling.
 For PrimeNG, inspect the shell-supplied tokens and confirm every Angular container uses the same version.
 
 ## Errors
 
 <Callout type="error" title="The scope plugin could not be resolved">
 
-```text shared
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
+```text
 /work/alert-panel/package.json: the build failed to load the stylesheet scope plugin: expected to
 resolve '@tecton/react/postcss/scope' from the container or from the build plugin, found no copy of
 @tecton/react beside either.
 ```
 
-**Fix.** Keep `@tecton/react` in the React container's dependencies and build the linked checkout.
+**Fix.** Install a published `@tecton/react` release exposing `postcss/scope` in the React container repository.
+If your registry has no such release, the design-system owner must publish it before this repository can build independently.
+
+</Tab>
+<Tab value="Angular">
+
+The Angular Nx build uses the neutral CSS scope plugin. It does not require the React design system.
+Keep `withMfe()` in the Angular webpack configuration and install the build dependency named by its diagnostic.
+
+</Tab>
+</Tabs>
 
 </Callout>
 

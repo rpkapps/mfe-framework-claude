@@ -5,6 +5,7 @@ description: 'Scaffold a container, declare an App in src/mfe.ts, and have the s
 
 An App owns a prefix of the address bar and brings its own router. You declare it once, in the
 container's entry file, and the shell mounts it at whatever prefix it assigns.
+Create the container in your own consumer repository, using the [quickstart setup](/docs/quickstart).
 
 ## Steps
 
@@ -18,21 +19,21 @@ container's entry file, and the shell mounts it at whatever prefix it assigns.
 <Tab value="React">
 
 ```sh
-pnpm create @company/mfe examples/operations --id operations
+pnpm create @company/mfe apps/operations --id operations
 ```
 
 </Tab>
 <Tab value="Angular">
 
 ```sh title="terminal"
-nx g @company/mfe-nx:app operations --id operations --port 3001
+pnpm exec nx g @company/mfe-nx:app operations --id operations --port 3001
 ```
 
 </Tab>
 </Tabs>
 
-The id is lower-case letters, digits and single hyphens. It is also your storage prefix and your
-style scope, so pick one you can live with.
+Run the generator in your own consumer workspace. Before installing a React scaffold, replace its `workspace:*` and `catalog:` dependencies with compatible published versions.
+Angular generates published dependency ranges. Install with `pnpm install` in your consumer repository.
 
 </Step>
 
@@ -43,7 +44,7 @@ style scope, so pick one you can live with.
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">
 
-```ts title="examples/operations/src/mfe.ts"
+```ts title="apps/operations/src/mfe.ts"
 import { createApp, type AppRouterOptions, type MfeStaticData } from '@company/mfe-react'
 import { createRouter } from '@tanstack/react-router'
 
@@ -93,14 +94,15 @@ Both resolve paths under the boundary assigned by the shell.
 
 ### 3. Declare the dev port
 
-```json title="examples/operations/package.json" shared
+```json title="apps/operations/package.json" shared
 "mfe": {
   "port": 3001,
   "definitions": ["operations"]
 }
 ```
 
-The repository's registry builder reads this port. Angular's Nx generator also configures its `serve` target with the same port.
+This metadata records the local port and definition ids. Angular's Nx generator also configures its `serve` target with the same port.
+Register the generated container record with the shell separately. This package metadata does not register your App with a remote shell.
 
 </Step>
 
@@ -108,12 +110,12 @@ The repository's registry builder reads this port. Angular's Nx generator also c
 
 ## Check it works
 
-Run `pnpm dev` from the repository root and open `http://localhost:3000`. Your App is in the
-application finder at the top left, under the title the registry gives it. Opening it puts you at
-`http://localhost:3000/operations`, with your own routes below that.
+React runs `pnpm run generate`, `pnpm run build`, and `pnpm run dev` in its container directory.
+Angular runs `pnpm exec nx run operations:generate`, `pnpm exec nx build operations`, and `pnpm exec nx serve operations` in its consumer workspace.
+Hand the generated `mfe-registry.json` record to the shell owner, together with your manifest URL.
 
-The entry file is read, never run. Write `id`, `version`, `title` and `description` as plain
-strings, and export every definition from `src/mfe.ts`.
+Start the shell independently in its repository. Open `/operations` at that shell's origin after its registry includes your App.
+The entry file is read without executing it. Export every definition from `src/mfe.ts` and declare ids and metadata as literal strings.
 
 ## Errors
 

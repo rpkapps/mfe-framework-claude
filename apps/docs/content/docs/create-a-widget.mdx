@@ -5,19 +5,47 @@ description: 'Declare a Widget in src/mfe.ts, with its render function in its ow
 
 A Widget is a screen somebody else's page renders as a component: it takes props, emits the
 outputs it declares, and owns no URL. One container can export any number of Widgets.
+Use your own consumer repository and published framework packages. Start with the [quickstart workspace setup](/docs/quickstart).
 
 ## Steps
 
 <Steps>
 
 <Step>
-
-### 1. Write the render function
+### 1. Generate a Widget container in your repository
 
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">
 
-```tsx title="examples/alert-panel/src/alert-panel.tsx (trimmed)"
+```sh
+pnpm create @company/mfe apps/alert-panel --id alert-panel --template widget
+```
+
+Before installing, replace the generated `workspace:*` and `catalog:` dependencies with compatible published versions. Then run `pnpm install` in your consumer workspace.
+
+</Tab>
+<Tab value="Angular">
+
+```sh
+pnpm exec nx g @company/mfe-nx:widget alert-panel --port 3003
+pnpm install
+```
+
+Run this in your own Nx consumer workspace with the published `@company/mfe-nx` package installed.
+
+</Tab>
+</Tabs>
+
+</Step>
+
+<Step>
+
+### 2. Write the render function
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="src/alert-panel.tsx (trimmed)"
 import type { WidgetRenderProps } from '@company/mfe-react'
 import { Button } from '@tecton/react/components/button'
 import type { ReactNode } from 'react'
@@ -82,12 +110,12 @@ Angular declares matching component inputs and outputs. Every schema field must 
 
 <Step>
 
-### 2. Declare the Widget in the entry
+### 3. Declare the Widget in the entry
 
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">
 
-```ts title="examples/alert-panel/src/mfe.ts"
+```ts title="src/mfe.ts"
 import { createWidget } from '@company/mfe-react'
 import { BellIcon } from 'lucide-react'
 import { z } from 'zod'
@@ -155,17 +183,17 @@ The build reads `src/mfe.ts` and no other file, so export every definition from 
 
 <Step>
 
-### 3. Give the container a port and its ids
+### 4. Give the container a port and its ids
 
-```json title="examples/alert-panel/package.json" shared
+```json title="package.json" shared
 "mfe": {
   "port": 3003,
   "definitions": ["alert-panel"]
 }
 ```
 
-`port` is this container's dev-server port, and `definitions` lists the ids `pnpm dev` prints a
-shell override for.
+`port` identifies your container dev server. `definitions` lists the ids it exports.
+The shell registers the generated record separately from this package metadata.
 
 </Step>
 
@@ -173,9 +201,13 @@ shell override for.
 
 ## Check it works
 
-Run `pnpm dev` from the repository root, then open the shell at `http://localhost:3000`. The
-dashboard's catalogue lists your Widget by the `title`, `description` and `tags` you declared,
-before anything loads it. Add it from the catalogue to mount it on the page. If your definition declares an icon, the catalogue draws its published shapes beside the name.
+Build and serve the Widget in its own repository. React uses its generated `generate`, `build`, and `dev` package scripts.
+Angular uses `nx run alert-panel:generate`, `nx build alert-panel`, and `nx serve alert-panel` in its consumer workspace.
+Hand its generated `mfe-registry.json` record and manifest URL to the shell owner.
+
+Start the shell independently. After registration, its catalogue lists your Widget before downloading its code.
+Mount it with valid inputs and verify that its output reaches the consumer.
+Use a [local override](/docs/point-the-shell-at-your-dev-server) when the registry already includes your definition.
 
 ## Errors
 

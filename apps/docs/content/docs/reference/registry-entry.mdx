@@ -3,11 +3,11 @@ title: 'Registry entry'
 description: 'The record your build writes, the entry a shell reads, and how one becomes the other.'
 ---
 
-Your build writes one record per container. A shell turns each definition in it into one registry entry, and that entry is all the shell knows about you before it fetches anything. Nobody hand-writes either file.
+Each container build publishes `mfe-registry.json` with its assets. Your platform or shell-repository pipeline converts its definitions into registry entries. The shell reads that assembled registry before loading containers.
 
 ## The record your build writes
 
-```json title="examples/alert-panel/.mfe/mfe-registry.json"
+```json title="mfe-registry.json (published container artifact)"
 {
   "manifestUrl": "mf-manifest.json",
   "container": "example_alert_panel",
@@ -64,12 +64,12 @@ Each record in `definitions` holds `id` and `kind`, plus the optional `version`,
 
 ## The entry a shell reads
 
-```json title="apps/shell/public/registry.json"
+```json title="registry.json (one entry in the shell registry array)"
 {
   "id": "alert-panel",
   "kind": "widget",
   "mfe": { "framework": "react" },
-  "manifestUrl": "http://localhost:3003/mf-manifest.json",
+  "manifestUrl": "https://containers.example.com/alert-panel/1.4.0/mf-manifest.json",
   "container": "example_alert_panel",
   "expose": "./widgets/alert-panel",
   "shareScopes": ["default", "react@19.3.0"],
@@ -88,7 +88,7 @@ Each record in `definitions` holds `id` and `kind`, plus the optional `version`,
 | -------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `id`                                   | yes      | The definition id, under the usual character rule.                                                                         |
 | `kind`                                 | yes      | `"app"` or `"widget"`.                                                                                                     |
-| `mfe`                                  | yes      | `{ "framework": "react" }`. The framework marker picks the adapter that reads the entry.                                   |
+| `mfe`                                  | yes      | `{ "framework": "react" }` or `{ "framework": "angular" }`. The marker picks the entry adapter.                            |
 | `manifestUrl`                          | yes      | An absolute URL to the container's manifest.                                                                               |
 | `container`                            | yes      | The federation container name. The runtime's loader registers the remote under it.                                         |
 | `expose`                               | no       | The path the definition is published at. Defaults to `./app` or `./widgets/<id>`.                                          |
@@ -135,21 +135,37 @@ A route is `{ path, search? }`. `path` is App-relative and written the same way 
 
 A layout that adds no URL segment, a redirect and the `**` catch-all are not listed. The index route inside such a layout is. A parameter with a prefix or a suffix in its segment, such as `{$id}.json`, has no neutral spelling, so its route is not listed. Angular routes with a `matcher` or on a named outlet are not listed. Nor are the routes a lazy `loadChildren` module declares; the route that loads them is.
 
-## How the build's record becomes an entry
+## How a published record becomes a shell entry
 
-In this repository `tools/dev/build-registry.mjs` does the assembly. It reads what every container published and writes `apps/shell/public/registry.json`. For each definition it:
+Production assembly belongs to your platform or shell repository. Its release pipeline consumes each container's generated record from a published artifact or artifact URL. Container repositories need no checkout of the shell or framework source.
 
-1. resolves `manifestUrl` against the container's own origin,
-2. copies the `expose` path out of `entries`, and `framework` and `shareScopes` from the record,
-3. repeats the `build` block and generated `requiresRuntime` range onto every entry,
-4. carries `version`, `capabilities`, `routes`, `contract` and the four presentation fields across,
-5. applies the shell's own presentation last, so a deployment's wording wins.
+For each definition, the integration:
 
-A definition whose build names no `expose` path fails the assembly. Rebuild the container.
+1. Resolves `manifestUrl` against that artifact's deployment base URL, including any path prefix.
+2. Copies the definition's `id` and `kind`, and maps `entries[id]` to `expose`.
+3. Places the record's `framework` in `mfe.framework` and copies `container` and `shareScopes`.
+4. Preserves `requiresRuntime`, build metadata, versions, capabilities, routes and Widget contracts.
+5. Copies the generated presentation fields, then applies any shell-owned presentation overrides.
+
+For a record at `https://containers.example.com/alert-panel/1.4.0/mfe-registry.json`, a relative `mf-manifest.json` resolves beside that record. Keep its release path when assembling the absolute manifest URL.
+
+Publish the resulting array of entries at the registry URL your shell fetches. The shell uses its configured adapters to read that array. Updating a container artifact and updating this registry are separate release operations.
+
+A published definition must have an expose path in its generated `entries` map. Reject an incomplete record and rebuild its container. Preserve the generated contract rather than inventing replacement metadata.
+
+The framework supplies the record format and registry reader. Your platform supplies production registration, storage and aggregation. There is no required production aggregator CLI or registration endpoint in this package.
+
+### Framework demo harness
+
+`tools/dev/build-registry.mjs` is the framework repository's example implementation. It scans local `examples/` projects and reads their `.mfe/mfe-registry.json` files. It resolves URLs from their development ports and writes `apps/shell/public/registry.json`.
+
+That script also reads `apps/shell/registry.source.json` for demo presentation overrides and rejection fixtures. These paths and commands belong to the framework's combined demo harness. Independent container and shell repositories supply their own registry integration.
 
 ## Presentation overrides
 
-A deployment keeps its own wording in `registry.source.json`, keyed by definition id. It is merged over what the author declared.
+A production registry integration can apply shell-owned presentation overrides keyed by definition id. Your platform decides where to store them. Generated ids, contracts and deployment URLs remain authoritative.
+
+The framework demo stores its overrides in `apps/shell/registry.source.json`:
 
 ```json title="apps/shell/registry.source.json"
 {
@@ -160,11 +176,11 @@ A deployment keeps its own wording in `registry.source.json`, keyed by definitio
 }
 ```
 
-Nothing else in the registry is written here. Ids, kinds, versions, capabilities, container names and paths come from each container's own build.
+This demo file is not a required production configuration file. Its presentation block overrides only wording and icons. Contract fields come from each container’s generated record.
 
-## Fixtures
+## Demo rejection fixtures
 
-The same file carries a `fixtures` array of deliberately broken entries. They prove that a rejection stays with one entry: the shell keeps running, and every other entry still loads.
+The framework demo’s `registry.source.json` also carries deliberately broken entries in `fixtures`. They exercise independent entry rejection. Production registry assembly should exclude these test fixtures.
 
 ```json title="apps/shell/registry.source.json"
 {

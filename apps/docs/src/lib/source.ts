@@ -68,6 +68,8 @@ const NAV_LABELS: Record<string, string> = {
   '/docs/read-an-env-variable': 'Read values',
   '/docs/supply-values-per-deployment': 'Deployment values',
   '/docs/call-your-api': 'API requests',
+  '/docs/mark-a-url-as-your-api': 'API URL',
+  '/docs/fetch-with-tanstack-query': 'TanStack Query',
   '/docs/cancel-a-request-on-unmount': 'Cancel work',
   '/docs/run-the-shell-locally': 'Run locally',
   '/docs/point-the-shell-at-your-dev-server': 'Dev server',

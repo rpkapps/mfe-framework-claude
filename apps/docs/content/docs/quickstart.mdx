@@ -1,153 +1,196 @@
 ---
 title: 'Quickstart'
-description: 'Scaffold a container, start the shell, and watch your own App mount into it. About ten minutes.'
+description: 'Create a container in your own repository, build it, and connect its generated registry record to a separately running shell.'
 ---
 
-Run a React or Angular App inside the shell. React scaffolds a new container. Angular starts with the bundled Fieldwork example.
-For your own Angular container, use the [Nx generator](/docs/reference/mfe-nx#generate-a-container) in an Nx workspace.
+Build your container in its own repository. Install framework packages from your team's package registry.
+The shell runs in a separate repository and loads your container over HTTP.
+Your registry credentials and a compatible published framework release are prerequisites.
 
 ## Steps
 
 <Steps>
-
 <Step>
-
-### 1. Choose a container
+### 1. Create your consumer workspace
 
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">
 
 ```sh
-pnpm create @company/mfe examples/field-notes --id field-notes
+mkdir field-notes-workspace
+cd field-notes-workspace
+git init
 ```
+
+```json title="package.json"
+{ "name": "field-notes-workspace", "private": true }
+```
+
+```yaml title="pnpm-workspace.yaml"
+packages:
+  - apps/*
+```
+
+```json title="tsconfig.base.json"
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "noEmit": true
+  }
+}
+```
+
+The current React scaffolder requires a pnpm workspace and base TypeScript configuration. This workspace belongs to your container repository.
 
 </Tab>
 <Tab value="Angular">
 
-```sh title="terminal"
-# The Angular example is already present in this repository.
-cd examples/fieldwork
-cat src/mfe.ts
-cd ../..
+```sh
+pnpm dlx create-nx-workspace@22 field-notes-workspace --preset=apps --packageManager=pnpm --nxCloud=skip
+cd field-notes-workspace
+pnpm add -D @company/mfe-nx@^0.1.0
 ```
+
+Use the compatible framework version published by your team. This generator supports Nx 20–22 and Angular 19.
 
 </Tab>
 </Tabs>
 
-Run commands from the repository root. React ids use lower-case letters, digits and single hyphens. Pass `--template widget` for a React Widget.
+Configure your organization registry before resolving the scoped framework packages.
 
 </Step>
-
 <Step>
-
-### 2. Install the new package
-
-```sh shared
-pnpm install
-```
-
-`examples/*` is a workspace folder. Installation links the React scaffold and the bundled Angular packages.
-
-</Step>
-
-<Step>
-
-### 3. Generate the registry
-
-```sh shared
-pnpm run generate
-```
-
-Every container writes its own registry entry, and the root script assembles them into
-`apps/shell/public/registry.json`. Nobody hand-writes that file.
-
-</Step>
-
-<Step>
-
-### 4. Start the shell and every container
-
-```sh shared
-pnpm dev
-```
-
-The shell serves `http://localhost:3000`. Each container serves its own port. A React scaffold takes 3101. The Angular Fieldwork example uses 3007.
-
-</Step>
-
-<Step>
-
-### 5. Open your App
+### 2. Generate the container and prepare dependencies
 
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">
 
-```text
-http://localhost:3000/field-notes
+```sh
+pnpm create @company/mfe apps/field-notes --id field-notes
+```
+
+Before installing, edit `apps/field-notes/package.json`. The current template emits `workspace:*` for framework packages and `catalog:` for third-party packages.
+Replace every such value with a compatible published semver version or range. Your consumer workspace does not contain framework source packages.
+Keep the generated scripts, build configuration, and source files.
+
+</Tab>
+<Tab value="Angular">
+
+```sh
+pnpm exec nx g @company/mfe-nx:app field-notes --port 3101
+```
+
+The generator writes published dependency ranges, project targets, and `apps/field-notes/src/mfe.ts`.
+It updates your consumer workspace's package manifest. Review the generated versions before installation.
+
+</Tab>
+</Tabs>
+
+An id uses lower-case letters, digits, and single hyphens. Use the Widget generator or React `--template widget` for a Widget.
+
+</Step>
+<Step>
+### 3. Install and build your container
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```sh
+pnpm install
+cd apps/field-notes
+pnpm run generate
+pnpm run build
 ```
 
 </Tab>
 <Tab value="Angular">
 
-```text title="browser address"
-http://localhost:3000/fieldwork
+```sh
+pnpm install
+pnpm exec nx run field-notes:generate
+pnpm exec nx build field-notes
 ```
 
 </Tab>
 </Tabs>
 
-The shell owns `/` and `/$appId`. Everything below your id is yours to route.
+These commands run in your consumer repository. They generate the container's registry record and deployment files without building framework source.
 
 </Step>
+<Step>
+### 4. Start your dev server
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```sh
+# From apps/field-notes in your consumer repository.
+pnpm run dev
+```
+
+</Tab>
+<Tab value="Angular">
+
+```sh
+# From your Nx consumer workspace root.
+pnpm exec nx serve field-notes
+```
+
+</Tab>
+</Tabs>
+
+Your container serves its manifest at `http://localhost:3101/mf-manifest.json`.
+It does not start the shell.
+
+</Step>
+<Step>
+### 5. Register the container with the shell
+
+Hand `.mfe/mfe-registry.json` or the built `mfe-registry.json` to the shell owner.
+The shell's registry process combines that generated record with your container's manifest URL.
+It must list your definition before an App route or Widget mount can find it.
+
+Start the shell independently using its own repository's install and dev scripts.
+If the definition is already registered, use a [local override](/docs/point-the-shell-at-your-dev-server) to select your dev server.
+An override changes a URL. It does not create a missing registry entry.
+
+</Step>
+<Step>
+### 6. Open your App in the shell
+
+```text shared
+<your-shell-origin>/field-notes
+```
+
+Use the address supplied by the shell owner. Your App's routes resolve below the boundary the shell assigns.
+
+</Step>
 </Steps>
 
 ## Check it works
 
-The shell chrome stays at the top, and your App renders below it. The React scaffold and Angular Fieldwork example show the signed-in user. Press <Kbd>⌘</Kbd><Kbd>K</Kbd> to open
-the palette. Your App is listed under **Go to**, and the settings page the scaffold wrote is listed
-under **Application pages** as `field-notes settings` or `Fieldwork settings`.
+Your dev server serves `mf-manifest.json`. The separately running shell lists `field-notes` in its registry and application finder.
+Opening the App keeps the shell header visible and renders your home route below it.
+Your framework dependencies resolve from the package registry, with no links to a framework checkout.
 
 ## Errors
 
-<Callout type="error" title="Port 3000 already in use">
-
-```text shared
-Port 3000 already in use.
-```
-
-**Fix.** A dev server from an earlier run still holds it. The message prints the `lsof` command that
-names the process, and `kill <pid>` stops it.
-
-</Callout>
-
-<Callout type="error" title="not a usable definition id">
-
-```text shared
-"Field_Notes" is not a usable definition id. Ids are lower-case letters, digits and single hyphens,
-for example "alert-panel".
-```
-
-**Fix.** Pass `--id field-notes`. The id is also your storage prefix and your CSS scope value.
-
-</Callout>
-
-<Callout type="error" title="Nothing generated">
-
-```text shared
-Nothing generated for field-notes. Run `pnpm run generate` first: the registry is assembled
-from what each container generates, never hand-written.
-```
-
-**Fix.** Run `pnpm install`, then `pnpm run generate` again. The container needs its dependencies
-before it can generate anything.
-
-</Callout>
+If installation cannot resolve `workspace:*` or `catalog:`, finish replacing the React template's dependency references with published versions.
+If your definition is absent, hand over its generated record before configuring a local override.
+For a reported framework failure, [look up its code](/docs/reference/error-codes).
 
 ## Related
 
-- [Tutorial: build the operations App](/docs/tutorial) — routes, a settings page and a Widget.
-- [Architecture](/docs/architecture) — what you started, and where it runs.
-- [Create an App](/docs/create-an-app) — what the scaffolded `src/mfe.ts` declares.
-- [Run the shell with your container](/docs/run-the-shell-locally) — ports, and what `pnpm dev` starts.
-- [Point the shell at your dev server](/docs/point-the-shell-at-your-dev-server) — for a container the registry already knows.
+- [Create an App](/docs/create-an-app) — declare the entry and router.
+- [Create a Widget](/docs/create-a-widget) — declare a reusable component.
+- [Build and publish](/docs/build-and-publish) — deployment files and registration handoff.
+- [Angular build and scaffold](/docs/reference/mfe-nx) — generated Nx targets and version constraints.
+- [Local overrides](/docs/point-the-shell-at-your-dev-server) — replace an already registered manifest URL.

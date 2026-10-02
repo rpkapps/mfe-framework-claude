@@ -22,7 +22,7 @@ decides whether the shell loads you at all. Apps and Widgets carry the same thre
 <Tabs items={['React', 'Angular']} defaultIndex={0}>
 <Tab value="React">
 
-```ts title="examples/operations/src/mfe.ts (trimmed)"
+```ts title="Illustrative src/mfe.ts (trimmed)"
 export default createApp({
   id: 'operations',
   version: '2.1.0',
@@ -33,7 +33,7 @@ export default createApp({
 </Tab>
 <Tab value="Angular">
 
-```ts title="examples/fieldwork/src/mfe.ts (version example)"
+```ts title="Illustrative src/mfe.ts (version example)"
 import { createApp } from '@company/mfe-angular'
 import { AppComponent } from './app.component'
 import { routes } from './app.routes'
@@ -51,8 +51,8 @@ Angular supplies `component` and `routes`. The version names this release in dia
 </Tab>
 </Tabs>
 
-It has to be a plain string literal, and every message about this App then names it as
-`operations@2.1.0`.
+Use a plain string literal. Diagnostics name the corresponding definition, such as
+`operations@2.1.0` or `fieldwork@2.1.0`.
 
 </Step>
 
@@ -62,9 +62,9 @@ It has to be a plain string literal, and every message about this App then names
 <Tabs items={['React', 'Angular']} defaultIndex={0}>
 <Tab value="React">
 
-```json title="examples/operations/package.json (trimmed)"
+```json title="Illustrative package.json (trimmed)"
 {
-  "name": "@example/operations",
+  "name": "@your-org/operations",
   "version": "2.1.0"
 }
 ```
@@ -72,9 +72,9 @@ It has to be a plain string literal, and every message about this App then names
 </Tab>
 <Tab value="Angular">
 
-```json title="examples/fieldwork/package.json (version example)"
+```json title="Illustrative package.json (version example)"
 {
-  "name": "@example/fieldwork",
+  "name": "@your-org/fieldwork",
   "version": "2.1.0"
 }
 ```
@@ -83,18 +83,21 @@ It has to be a plain string literal, and every message about this App then names
 </Tabs>
 
 The registry entry carries the definition version alone, and nothing checks that these two agree.
+Release this repository independently. Pin published framework and build-integration versions from your organization's registry,
+commit the lockfile, and build against that installed set. Update shared contract packages through their published versions,
+rather than imports or workspace references into another team's repository.
 
 </Step>
 
 <Step>
 ### 3. Leave the runtime requirement to the framework
 
-```json title="examples/alert-panel/.mfe/mfe-registry.json (trimmed)" shared
+```json title="Illustrative .mfe/mfe-registry.json (trimmed)" shared
 { "requiresRuntime": ">=1.1.0 <2.0.0" }
 ```
 
-The build writes this range, and the shell checks it against `runtime.apiVersion`, currently
-`"1.1.0"`. One API version covers the registry format, mount protocol and shell-owned services.
+The build writes this range from its compatibility metadata. The range shown is illustrative.
+The shell checks it against the API version of its installed runtime. One API version covers the registry format, mount protocol and shell-owned services.
 The check runs before the shell chooses an adapter or reads the rest of the entry. The
 `mfe.framework` marker still names the adapter, and Widget schemas still validate values.
 

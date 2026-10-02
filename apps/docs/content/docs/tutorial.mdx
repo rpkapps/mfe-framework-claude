@@ -3,15 +3,16 @@ title: 'Tutorial: build the operations App'
 description: 'Declare an App, add a route that calls your API, publish a settings page and release notes, render a Widget from another container, and test it.'
 ---
 
-Build the App that ships in this repository as `examples/operations`. By the end you have four
-things:
+Build an operations App in your own repository, using the published framework packages. Complete the [quickstart setup](/docs/quickstart) first.
+By the end you have four things:
 
 - a routed App on its own stretch of the URL,
 - two pages the shell opens for you,
 - a Widget from another container rendered inside yours,
 - a test that passes.
 
-React examples follow `examples/operations`, except the release-notes route. Angular tabs show equivalent files for a generated Nx container.
+React examples adapt the repository's Operations sample. The file paths below belong to your consumer container.
+Angular tabs show equivalent files for your generated Nx project.
 Start Angular with the [Nx generator](/docs/reference/mfe-nx#generate-a-container), then add the files shown below.
 Add Angular route objects to the same `routes` array as you progress.
 
@@ -26,7 +27,7 @@ Add Angular route objects to the same `routes` array as you progress.
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">
 
-```ts title="examples/operations/src/mfe.ts"
+```ts title="src/mfe.ts"
 import { createApp, type AppRouterOptions } from '@company/mfe-react'
 import { HardHatIcon } from 'lucide-react'
 import { createRouter } from '@tanstack/react-router'
@@ -78,7 +79,7 @@ top-level context keys freely.
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">
 
-```tsx title="examples/operations/src/routes/assets.tsx"
+```tsx title="src/routes/assets.tsx"
 import { createFileRoute } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod'
@@ -165,7 +166,7 @@ entry.
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">
 
-```ts title="examples/operations/src/mfe.config.ts"
+```ts title="src/mfe.config.ts"
 import { env } from '@company/mfe-rspack'
 import { z } from 'zod'
 
@@ -178,7 +179,7 @@ export default {
 </Tab>
 <Tab value="Angular">
 
-```ts title="examples/operations/src/mfe.config.ts"
+```ts title="src/mfe.config.ts"
 import { env } from '@company/mfe-nx/env'
 import { z } from 'zod'
 
@@ -194,7 +195,7 @@ export default {
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">
 
-```ts title="examples/operations/src/queries/assets.ts"
+```ts title="src/queries/assets.ts"
 import { queryOptions } from '@tanstack/react-query'
 import { fetch } from '#mfe/fetch'
 import { z } from 'zod'
@@ -254,7 +255,7 @@ export async function fetchAssets(siteId: string, signal?: AbortSignal) {
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">
 
-```tsx title="examples/operations/src/routes/settings.tsx"
+```tsx title="src/routes/settings.tsx"
 import { createFileRoute } from '@tanstack/react-router'
 
 import { SettingsPage } from '../components/settings-01/page.tsx'
@@ -311,7 +312,7 @@ and the `capability` object says which page it is and what the shell calls it.
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">
 
-```tsx title="examples/operations/src/routes/release-notes.tsx"
+```tsx title="src/routes/release-notes.tsx"
 import { createFileRoute } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/release-notes')({
@@ -360,10 +361,13 @@ and only an App may claim any. The page is yours to write, and the shell opens i
 
 ### 6. Render a Widget from another container
 
+Install the provider's published contract package in your consumer repository. The sample uses `@example/alert-panel/contracts`.
+Use your team's package name and compatible published version. Register the Widget container with the shell independently.
+
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">
 
-```ts title="examples/operations/src/widgets.ts"
+```ts title="src/widgets.ts"
 import { lazyWidget } from '@company/mfe-react'
 
 import { inputSchema, outputSchema } from '@example/alert-panel/contracts'
@@ -399,7 +403,7 @@ export class AlertConsumer {
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">
 
-```tsx title="examples/operations/src/routes/index.tsx"
+```tsx title="src/routes/index.tsx"
 import { useState } from 'react'
 
 import { AlertPanel } from '../widgets.ts'
@@ -476,7 +480,7 @@ declares arrives as an `onX` prop. `pending` fills the space while the other con
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">
 
-```tsx title="examples/operations/src/routes/assets.test.tsx"
+```tsx title="src/routes/assets.test.tsx"
 import { renderApp, setMfeApiBaseUrl, setMfeConfig, setMfeFetch } from '@company/mfe-react/testing'
 import { screen, waitFor } from '@testing-library/react'
 import { expect, it } from 'vitest'
@@ -544,13 +548,33 @@ the render, so the next test starts clean.
 
 ### 8. Run it
 
-```sh shared
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```sh
+# From your React container directory.
 pnpm run generate
-pnpm dev
+pnpm run test
+pnpm run build
+pnpm run dev
 ```
 
-Generation writes your registry entry and the shell's registry. `pnpm dev` starts the shell on port 3000
-and each container on its own.
+</Tab>
+<Tab value="Angular">
+
+```sh
+# From your own Nx consumer workspace.
+pnpm exec nx run operations:generate
+pnpm exec nx test operations
+pnpm exec nx build operations
+pnpm exec nx serve operations
+```
+
+</Tab>
+</Tabs>
+
+Generation writes your container's registry record. Hand that generated record and your manifest URL to the shell owner.
+Start the shell separately in its own repository. Your dev command starts only your container.
 
 </Step>
 
@@ -558,12 +582,11 @@ and each container on its own.
 
 ## Check it works
 
-Open `http://localhost:3000/operations`. The shell chrome stays above your App, and the alert panel
+Open `/operations` at your separately running shell's origin. The shell chrome stays above your App, and the alert panel
 renders inside your overview from another deployment. Go to `/operations/assets`, change the site,
 and the URL carries the choice. Press <Kbd>⌘</Kbd><Kbd>K</Kbd>: **Operations settings** and
 **Operations release notes** are listed under **Application pages**. The shell's own settings panel
-lists the settings page under **Application settings**. Run `pnpm test` inside the container for the
-test you wrote.
+lists the settings page under **Application settings**. Run your React package's test script or the Angular consumer workspace's `nx test operations` target.
 
 ## Errors
 

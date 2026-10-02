@@ -77,7 +77,11 @@ separator:
     "---Shell integration---",
     "add-an-action",
     "…",
-    "---Environment---",
+    "---API---",
+    "call-your-api",
+    "mark-a-url-as-your-api",
+    "fetch-with-tanstack-query",
+    "---Env---",
     "declare-an-env-variable",
     "read-an-env-variable",
     "supply-values-per-deployment",
@@ -114,8 +118,8 @@ For framework-specific pages, state applicability in the opener.
 Give each complete procedure and API contract one canonical home. Package READMEs link to those
 pages and retain setup, package boundaries and unique maintainer details.
 Short prerequisites and warnings can repeat beside the example where readers need them.
-Environment configuration has its own sidebar group. API URL declaration, authenticated requests
-and query integration share the API requests guide. Consolidated guides have one current destination:
+Env configuration has its own sidebar group. The top-level API group contains three task guides:
+API requests, API URL and TanStack Query. Consolidated guides have one current destination:
 
 | Topic                                                        | Canonical guide               |
 | ------------------------------------------------------------ | ----------------------------- |

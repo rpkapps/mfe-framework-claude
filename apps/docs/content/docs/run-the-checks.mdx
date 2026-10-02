@@ -3,8 +3,7 @@ title: 'Run the checks before you push'
 description: 'Run the same command CI runs, and read what lint tells you when it stops you.'
 ---
 
-Apps and Widgets. One command runs everything CI runs, in the order CI runs it. Each part also runs
-on its own, which is what you want while you are fixing one of them.
+Apps and Widgets. Run your container repository’s checks before publishing its artifact. CI installs compiled framework releases from your package registry.
 
 ## Steps
 
@@ -12,62 +11,59 @@ on its own, which is what you want while you are fixing one of them.
 
 <Step>
 
-### 1. Run the lot
+### 1. Install the locked dependencies
 
 ```sh shared
-pnpm check
+pnpm install --frozen-lockfile
 ```
 
-```json title="package.json" shared
-"check": "pnpm run build && pnpm run generate && pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run boundaries && pnpm run test"
-```
-
-The packages build first, then generation, because the rest read the generated `#mfe` modules and the route tree.
+Run from your container repository. Configure access to the package registry that distributes your framework releases.
 
 </Step>
 
 <Step>
 
-### 2. Run one part while you fix it
-
-```sh shared
-pnpm format      # write the formatting
-pnpm lint        # the rules
-pnpm typecheck   # tsc --noEmit, strict
-pnpm test        # every suite
-```
-
-</Step>
-
-<Step>
-
-### 3. Run them inside your own container
+### 2. Run generation, lint, types and tests
 
 <Tabs items={['React', 'Angular']} defaultIndex={0}>
 <Tab value="React">
 
 ```sh
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm format:check
+pnpm run generate
+pnpm run format:check
+pnpm run lint
+pnpm run typecheck
+pnpm run test
+pnpm run build
 ```
+
+Run in your React package directory, such as `apps/field-notes` in the quickstart repository. Its scripts generate before type checking, tests and builds.
 
 </Tab>
 <Tab value="Angular">
 
-```sh title="examples/fieldwork"
-pnpm exec nx lint fieldwork
-pnpm typecheck
-pnpm test
-pnpm exec prettier --check src
+```sh
+pnpm exec prettier --check .
+pnpm exec nx lint operations
+pnpm exec nx typecheck operations
+pnpm exec nx test operations
+pnpm exec nx build operations --configuration=production
 ```
+
+Run in your container's Nx workspace. Replace the project name. Its lint, typecheck, test and build targets depend on generation.
 
 </Tab>
 </Tabs>
 
-Your container has the same four scripts. `typecheck` and `test` generate first, so they never run
-against stale output.
+</Step>
+
+<Step>
+
+### 3. Use the same commands in your release pipeline
+
+Run these commands against the same lockfile CI installs. Add a `check` script if your repository wants one combined command. Browser smoke checks should open your independently running shell and container.
+
+The framework repository's package-boundary and combined-example checks are maintainer tasks, not prerequisites for publishing your container.
 
 </Step>
 
@@ -112,10 +108,7 @@ which rule. The message between them says what it found and what to write instea
 
 ## Check it works
 
-`pnpm check` exits 0, and CI runs the same command on your branch. The `mfe/` rules never
-rewrite your code, because no repair for them keeps the same meaning. `mfe/no-raw-storage` offers a
-suggestion your editor can apply. The others give you the repair in the message and leave the edit
-to you. `pnpm verify:page` drives a real browser and is deliberately not part of `pnpm check`.
+All checks exit successfully and the build publishes only its generated artifact. CI repeats your repository's commands. Lint repairs identify the adapter API to call. Run any browser integration checks against the separately started shell.
 
 ## Errors
 

@@ -18,7 +18,8 @@ registry. What people see depends on whether their page loaded before or after t
 
 ```sh
 git checkout v2.0.3
-pnpm --filter @example/operations run build
+pnpm install --frozen-lockfile
+pnpm run build
 ```
 
 </Tab>
@@ -26,7 +27,8 @@ pnpm --filter @example/operations run build
 
 ```sh
 git checkout v2.0.3
-pnpm --filter @example/fieldwork run build
+pnpm install --frozen-lockfile
+pnpm exec nx build operations --configuration=production
 ```
 
 </Tab>
@@ -39,24 +41,18 @@ Publish that build to the same origin under the same id, and register its record
 <Step>
 ### 2. Undeploy by removing the entry
 
-```sh shared
-curl -X DELETE "$REGISTRY_URL/containers/operations"
-```
+Remove the container record through your platform's registry integration. Publish the updated registry from the shell repository or registry service. Remove every definition exported by the container.
 
-The endpoint belongs to your own registry service, and the entry stops reaching new page loads as
-soon as it answers.
+Your platform owns this registry update.
 
 </Step>
 
 <Step>
-### 3. Rebuild the registry in this repository
+### 3. Publish the registry update independently
 
-```sh shared
-pnpm run generate
-```
+Verify the registry your shell fetches no longer contains the removed definitions. For a rollback, supply the earlier artifact's generated `mfe-registry.json` and its deployment origin instead.
 
-The assembler reads the containers that are still in `examples/`, so one you removed leaves the
-registry.
+Prefer redeploying a retained release artifact. If rebuilding an earlier tag, use that container repository's lockfile and dependency versions. Keep old chunks reachable while open pages still reference them.
 
 </Step>
 

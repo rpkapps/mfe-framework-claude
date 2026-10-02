@@ -115,13 +115,14 @@ A Widget owns no URL and gets an empty string.
 
 ## Check it works
 
-Run `pnpm dev` and open `http://localhost:3000/operations`. The nav links move you inside the App,
-and the address bar keeps the `/operations` prefix. To reach another App, use the application
-finder at the top left or the command palette, and watch the prefix change.
+Start your container with its own development script and open it in the separately running shell.
+Use a nav link inside your App and confirm the address keeps its assigned mount prefix. Then use
+the host's application switcher or command palette to reach another registered App and confirm
+the prefix changes to that App's assigned boundary.
 
-A plain `<a href="/reports">` also arrives, at the cost of a full page load. The shell boots again
-and every other mount on the page is discarded. A Widget asks the App around it to move, rather
-than moving the page itself.
+A plain anchor to another App's shell URL also arrives, at the cost of a full page load. The shell
+boots again and every other mount on the page is discarded. A Widget asks the App around it to
+move, rather than moving the page itself.
 
 ## Errors
 

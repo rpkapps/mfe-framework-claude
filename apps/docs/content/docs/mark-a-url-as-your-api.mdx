@@ -1,0 +1,71 @@
+---
+title: 'API URL'
+description: 'Declare trusted API origins and the base URL used by generated fetch.'
+---
+
+Apps and Widgets, in React and Angular. Mark your API URL with `{ api: true }` so generated fetch can attach the shell token.
+Your deployment supplies the URL; your container declares which values describe trusted APIs.
+
+## Steps
+
+<Steps>
+<Step>
+
+### 1. Declare your API URL
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```ts title="src/mfe.config.ts"
+import { env } from '@company/mfe-rspack'
+import { z } from 'zod'
+
+export default {
+  apiBaseUrl: env('API_BASE_URL', z.string().url(), { api: true }),
+}
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/mfe.config.ts"
+import { env } from '@company/mfe-nx/env'
+import { z } from 'zod'
+
+export default {
+  apiBaseUrl: env('API_BASE_URL', z.string().url(), { api: true }),
+}
+```
+
+</Tab>
+</Tabs>
+
+Supply `API_BASE_URL` per deployment, for example `https://api.example.test/v1/`.
+The first `{ api: true }` field becomes the relative-request base. Keep its trailing slash when you want paths appended.
+Declare additional API origins in separate flagged fields. Origins match exactly, without wildcards.
+
+</Step>
+</Steps>
+
+## Check it works
+
+Supply an API URL in your container deployment, then mount the container in your shell.
+Send a relative request through `#mfe/fetch` and inspect the destination in the network panel.
+Confirm it uses your API base rather than the shell origin. Check that an undeclared origin receives no framework token.
+
+## Errors
+
+<Callout type="error" title="config/missing">
+
+A relative request requires a configured API base.
+
+**Fix.** Supply the deployment value for your first `{ api: true }` declaration, or send an absolute URL.
+
+</Callout>
+
+## Related
+
+- [Environment variables](/docs/declare-an-env-variable) — declare and supply deployment values.
+- [API requests](/docs/call-your-api) — authentication and retry behavior.
+- [TanStack Query](/docs/fetch-with-tanstack-query) — query functions use generated fetch.
+- [The isolation boundaries](/docs/how-it-works/the-isolation-boundaries) — why trusted origins are declared.

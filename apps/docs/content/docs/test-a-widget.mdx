@@ -16,7 +16,7 @@ Widgets only. React uses `renderWidget`. Angular uses `mountWidget`. Both run pr
 <Tabs items={['React', 'Angular']} defaultIndex={0}>
 <Tab value="React">
 
-```tsx title="examples/alert-panel/src/mfe.test.tsx"
+```tsx title="Illustrative src/mfe.test.tsx"
 import { renderWidget } from '@company/mfe-react/testing'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -78,7 +78,7 @@ consumer sets for the host, such as `fallback`, never reaches your render functi
 <Tabs items={['React', 'Angular']} defaultIndex={0}>
 <Tab value="React">
 
-```tsx title="examples/alert-panel/src/mfe.test.tsx"
+```tsx title="Illustrative src/mfe.test.tsx"
 const payload = onAcknowledged.mock.calls[0]?.[0] as {
   alertId: string
   acknowledgedAt: string
@@ -112,7 +112,7 @@ The payload passed your output's schema before the handler saw it.
 <Tabs items={['React', 'Angular']} defaultIndex={0}>
 <Tab value="React">
 
-```tsx title="examples/alert-panel/src/mfe.test.tsx"
+```tsx title="Illustrative src/mfe.test.tsx"
 it('applies a schema default for an omitted optional input', async () => {
   const rendered = renderWidget(alertPanel, { props: { alertId: 'a-1' } })
   cleanup = rendered.dispose
@@ -146,7 +146,7 @@ default is applied by the contract, so a consumer that omits the input still get
 <Tabs items={['React', 'Angular']} defaultIndex={0}>
 <Tab value="React">
 
-```tsx title="examples/alert-panel/src/mfe.test.tsx"
+```tsx title="Illustrative src/mfe.test.tsx"
 afterEach(async () => {
   // Cleared before the await: a later test may have assigned a new handle by the time this resolves.
   const dispose = cleanup
@@ -176,8 +176,8 @@ afterEach(async () => {
 pnpm test
 ```
 
-`dispose()` unmounts the tree and runs the real teardown. The `test` script generates the `#mfe`
-modules first, then runs Vitest in jsdom.
+`dispose()` unmounts the tree and runs the real teardown. Configure this repository's `test` script to run generation and Vitest in jsdom.
+An Angular repository may wrap its Nx test target instead; keep that target's generation dependency.
 
 </Step>
 
@@ -185,11 +185,10 @@ modules first, then runs Vitest in jsdom.
 
 ## Check it works
 
-The suite passes, and an input your schema rejects fails the test rather than rendering. A bad
-input on the first render throws, so assert it with
+The suite passes, and an input your schema rejects fails the test rather than rendering. An invalid input rejects the initial render or mount.
 React uses `expect(() => renderWidget(…)).toThrowError(…)`. Angular uses `await expect(mountWidget(…)).rejects.toThrow()`. A Widget test needs no shell, no dev server and
-no network. The scaffolded Widget ships one output test and one rejected-input test in
-`src/mfe.test.tsx`, and they pass before you change a line.
+no network. Use your own Widget definition and expected outputs. Set up the
+[repository test runner and aliases](/docs/test-with-env-and-a-fake-api#configure-your-repositorys-test-runner) first.
 
 ## Errors
 

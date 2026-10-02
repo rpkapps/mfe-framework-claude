@@ -38,7 +38,7 @@ it true belongs to How it works.
 3. **`## Connection to the shell`** — optional. Add a capability diagram when ownership or data flow
    helps the reader use the API. Provide a text equivalent and show shipped behavior.
 4. **`## Steps`** — one `<Steps>` block, one `<Step>` per step. Each step opens with a `###`
-   heading, then the code (fenced, with a `title=` naming a real file from `examples/`), then at
+   heading, then the code (fenced, with a `title=` naming the file in the reader's repository), then at
    most one sentence.
 5. **`## Check it works`** — where it appears in the shell, or the test to run. Two to four
    sentences, or a short list.
@@ -94,13 +94,20 @@ Repeat a short prerequisite or warning where it prevents a mistake, such as stor
 Keep unique host contracts and framework limitations when consolidating duplicate examples.
 Distinguish shipped behavior from proposals. A decision entry records history and links to current guidance.
 Group navigation by feature: getting started, Apps, Widgets, browser storage, shared state, telemetry,
-shell integration, and development and deployment. Keep reference and architecture accessible.
+shell integration, API, Env, and development and deployment. The top-level API group has three
+guides: API requests, API URL and TanStack Query. Keep reference and architecture accessible.
 Use short sidebar labels through `NAV_LABELS` in `src/lib/source.ts`. Keep descriptive task titles
 in frontmatter for page headers and search.
 
 Use one canonical guide for each consolidated topic. Browser storage includes imperative access.
 Shared state includes loaders and resolvers. Telemetry includes events, errors and traces.
 The design-system guide covers framework styling constraints. Generic styling lessons belong outside these docs.
+
+Consumer instructions assume separate repositories for the shell and each container. Run install,
+generate, build and test commands in the repository that owns the artifact. Use released package
+versions across repositories, and describe registry publication as the handoff to the shell.
+Label framework-monorepo commands as maintainer instructions. State scaffold prerequisites and
+limitations where they affect creating an independent repository.
 
 Preserve old guide URLs through `src/lib/doc-redirects.json` when consolidating pages.
 The route and static redirect writer read the same map. Link current content to the canonical destination.

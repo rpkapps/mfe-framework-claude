@@ -141,8 +141,11 @@ mounts you. Use `/wells/$wellId` for per-item pages.
 
 ## Check it works
 
-Run `pnpm dev` and open `http://localhost:3000/operations/assets`. The page renders below the shell's header. React's `breadcrumb` label adds its trail entry. Your nav link marks itself
-active, because it resolved under the same prefix the URL has.
+Start your container with its own development script and open the separately running shell at
+your App's assigned mount prefix followed by `/assets`. For example, a mount at `/operations`
+produces `/operations/assets`. Confirm the page renders inside the shell and that navigation stays
+under that prefix. React's `breadcrumb` label adds its trail entry; Angular uses the route metadata
+shown above. Your nav link should mark itself active for the matching route.
 
 ## Errors
 
@@ -174,7 +177,7 @@ the framework.
 
 - [Create an App](/docs/create-an-app) — the entry file above these routes.
 - [Set breadcrumbs](/docs/set-breadcrumbs) — what each route contributes to the trail.
-- [Fetch with TanStack Query](/docs/call-your-api#tanstack-query) — the client the loader uses.
+- [Fetch with TanStack Query](/docs/fetch-with-tanstack-query) — the client the loader uses.
 - [Embed another App inside yours](/docs/embed-another-app) — a route that hands over to another
   App.
 - [Test an App](/docs/test-an-app) — how to render a route in a test.

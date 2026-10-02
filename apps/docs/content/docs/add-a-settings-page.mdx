@@ -103,7 +103,8 @@ Run this in your Angular Nx workspace. Replace `operations` with your Nx project
 </Tabs>
 
 This writes your container's registry description. The host includes that record in its registry.
-The example repository's `pnpm dev` also rebuilds the shell registry before starting.
+Publish or register that updated record through your host's registry workflow; starting your
+container's development server does not update a separately maintained shell registry.
 
 </Step>
 
@@ -126,11 +127,11 @@ one settings page.
 
 ## Check it works
 
-Run `pnpm dev` and open the shell at `http://localhost:3000`. Press <Kbd>g</Kbd> <Kbd>s</Kbd>, or
-use the gear button in the header. Your page is listed under "Application settings", with your
-`label` and the path `/operations/settings`. That is your `/settings` route under the prefix the
-shell mounts your App at. It is also in the command palette, under "Application pages", which
-opens with <Kbd>⌘</Kbd> <Kbd>K</Kbd> or <Kbd>Ctrl</Kbd> <Kbd>K</Kbd>.
+Start your container with its own development script and open the separately running shell that
+registers your App. Find your capability in the host's application-settings menu or command
+palette. Check the published `label`, select it, and confirm that `/settings` resolves under your
+App's assigned mount prefix. For example, a mount at `/operations` produces
+`/operations/settings`. The shell team determines the menu and keyboard shortcuts.
 
 ## Errors
 

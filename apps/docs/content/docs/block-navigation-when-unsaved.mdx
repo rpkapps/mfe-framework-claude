@@ -197,15 +197,15 @@ also asks for the browser's reload prompt every time, so pass a boolean when not
 
 ## Check it works
 
-Run `pnpm dev` and open `/lab/unsaved` for React, or your guarded Angular route. Type in the form, then try to leave:
+Start your container with its own development script and open its guarded route in the separately
+running shell. Type in the form, then try to leave using:
 
 - a link in the App's own nav
-- the application finder at the top left
-- the command palette
+- the shell's application switcher or command palette, if provided
 - the browser's back button
 
-All four stop and wait for your dialog. Save the form, and the same navigation goes straight
-through.
+Each supported navigation should wait for your dialog. Cancel and confirm the form stays mounted
+with its changes. Save the form and confirm the same navigation succeeds.
 
 Reloads use the browser's own prompt. React App blockers opt in with `enableBeforeUnload`.
 Angular `canDeactivate` guards do not intercept reloads. `injectNavigationBlock` supports the browser prompt through `unloadPrompt`.

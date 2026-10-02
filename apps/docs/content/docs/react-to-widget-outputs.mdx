@@ -154,8 +154,7 @@ The generated contract module exports the types `Outputs` and `Inputs` beside th
 
 Press the control inside the Widget and your handler runs with the payload. Payloads are JSON
 only, so a date arrives as the string the Widget sent. An `onX` prop that matches no declared
-output is ignored, and never reaches the Widget as an input. Changing a React handler does not rerender the Widget. Angular emits host events without changing Widget inputs. The lab's Widgets page logs every output it
-receives, which is the quickest way to see the shape of one.
+output is ignored, and never reaches the Widget as an input. Changing a React handler does not rerender the Widget. Angular emits host events without changing Widget inputs. Log the received payload in your own host or assert it in an integration test to inspect its shape.
 
 <Callout type="warning" title="The handler never fires">
 

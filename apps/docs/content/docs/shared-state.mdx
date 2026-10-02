@@ -28,10 +28,10 @@ Choosing a well in React updates the Angular planner. Changing units in Angular 
 <Step>
 ### 1. Import the schema from its package
 
-Import the schema from your shared contract package. React Lab and Angular Fieldwork both use `@example/shared-state-contracts`.
+Import the schema from your shared contract package. Publish it as an independently versioned package and install a compatible release in each container repository. The sample uses `@acme/shared-state-contracts`.
 
 ```ts shared title="Illustrative src/mfe.ts"
-import { sharedStateSchema } from '@example/shared-state-contracts'
+import { sharedStateSchema } from '@acme/shared-state-contracts'
 ```
 
 The package defines `display:units` and `well:selection`. Import your team's published contract instead of copying its Zod declaration.
@@ -45,7 +45,7 @@ The package defines `display:units` and `well:selection`. Import your team's pub
 
 ```ts title="Illustrative src/mfe.ts"
 import { createApp } from '@company/mfe-react'
-import { sharedStateSchema } from '@example/shared-state-contracts'
+import { sharedStateSchema } from '@acme/shared-state-contracts'
 
 import { makeRouter } from './router'
 
@@ -57,7 +57,7 @@ export default createApp({ id: 'operations', router: makeRouter, sharedStateSche
 
 ```ts title="Illustrative src/mfe.ts"
 import { createApp } from '@company/mfe-angular'
-import { sharedStateSchema } from '@example/shared-state-contracts'
+import { sharedStateSchema } from '@acme/shared-state-contracts'
 
 import { routes } from './app.routes'
 

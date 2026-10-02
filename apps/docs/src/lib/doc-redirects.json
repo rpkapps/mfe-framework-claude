@@ -8,7 +8,5 @@
   "report-an-error": "/docs/telemetry#record-events-measurements-and-caught-errors",
   "trace-an-operation": "/docs/telemetry#trace-work-and-end-the-span",
   "add-custom-styles": "/docs/use-the-design-system",
-  "how-it-works/adapters-and-legacy-angular": "/docs/how-it-works/adapters",
-  "mark-a-url-as-your-api": "/docs/call-your-api#api-url",
-  "fetch-with-tanstack-query": "/docs/call-your-api#tanstack-query"
+  "how-it-works/adapters-and-legacy-angular": "/docs/how-it-works/adapters"
 }

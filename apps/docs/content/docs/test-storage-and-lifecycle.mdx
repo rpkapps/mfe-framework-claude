@@ -144,7 +144,8 @@ expect(state.value()).toBe(3)
 </Tabs>
 
 React's wrapper supplies the mount providers. Angular's `mountWidget` supplies the mount injector.
-Run the Angular injection before any `await`.
+Run each Angular injector call synchronously inside `runInInjectionContext`.
+The awaited mount supplies a live injector; an `await` inside that injection callback would end its context.
 
 </Step>
 

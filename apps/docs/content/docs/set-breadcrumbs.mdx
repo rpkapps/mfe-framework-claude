@@ -113,12 +113,11 @@ override, and the override clears itself when you navigate away or unmount.
 
 ## Check it works
 
-Run `pnpm dev` and open `http://localhost:3000/lab/breadcrumbs`. The trail in the header reads
-"Discovery / Framework lab / Breadcrumbs". The last two come from the registry and from
-`staticData.breadcrumb` on the route. Press "Override the trail" and your part becomes the two
-flow steps, with the workspace crumb untouched.
-
-For Angular, open the labeled route and confirm “Settings” appears. End the flow and check the original route trail returns.
+Start your container with its own development script and open your labeled route in the separately
+running shell. Confirm the header includes the route labels you declared and any parent trail
+supplied by the host. Activate your flow override and check that your App's part changes to the
+flow steps while the host's parent breadcrumbs remain. End the flow and confirm the original
+route trail returns. For the Angular example above, the labeled route contributes “Settings”.
 
 ## Errors
 

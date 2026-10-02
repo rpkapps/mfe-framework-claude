@@ -99,7 +99,8 @@ Run this in your Angular Nx workspace. Replace `operations` with your Nx project
 </Tabs>
 
 This writes your container's registry description. The host includes that record in its registry.
-The example repository's `pnpm dev` also rebuilds the shell registry before starting.
+Publish or register that updated record through your host's registry workflow; starting your
+container's development server does not update a separately maintained shell registry.
 
 </Step>
 
@@ -126,11 +127,11 @@ The example repository's `pnpm dev` also rebuilds the shell registry before star
 
 ## Check it works
 
-Run `pnpm dev` and open the shell at `http://localhost:3000`. Press <Kbd>⌘</Kbd> <Kbd>K</Kbd> or
-
-<Kbd>Ctrl</Kbd> <Kbd>K</Kbd> and look under "Application pages". Your label is there, and running it
-goes to `/operations/release-notes`. The "What's new" button in the header opens the shell's own
-notes, which are written by whoever owns the shell.
+Start your container with its own development script and open the separately running shell that
+registers your App. Select your release-notes capability in the host's application-page menu or
+command palette. Check that its label matches your registry entry and that it opens
+`/release-notes` under your App's assigned mount prefix. A host may also expose its own release
+notes; those belong to the shell and are separate from your App's capability.
 
 ## Errors
 

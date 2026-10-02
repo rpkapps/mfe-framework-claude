@@ -135,13 +135,11 @@ component and no markup crosses into the host.
 
 ## Check it works
 
-Run `pnpm dev` and open the shell at `http://localhost:3000`. What this shell draws today:
-
-- a Widget's icon, in the dashboard catalogue and in the header of each tile
-- an App's icon, nowhere: the application finder draws a short text mark from the registry instead
-- a capability page's icon, nowhere: the settings panel and the palette use their own marks
-
-Every entry still carries what you declared, so another host can draw all three.
+Start your container with its own development script and open the separately running shell that
+registers your definition. Inspect the generated registry entry to confirm it carries your icon,
+then check a host surface that renders that definition's icon, such as a Widget catalogue or tile
+header. The host chooses where to draw App and capability icons, so an absent icon in a menu does
+not by itself mean the build omitted it. Ask the shell team which surfaces consume each icon.
 
 ## Errors
 

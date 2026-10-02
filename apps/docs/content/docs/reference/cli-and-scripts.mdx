@@ -3,16 +3,37 @@ title: 'CLI and scripts'
 description: 'Every command you run, what it does, and the ports and variables it uses.'
 ---
 
-Two commands belong to a container: the scaffold that creates one, and the generator that writes what the build would write. Everything else is a script in the repository root. This page lists all of them.
+Run consumer commands in your own container repository. Install published framework packages from your team's registry.
+The shell has its own install, build, and dev commands in a separate repository. Framework-maintainer commands appear at the end of this page.
+
+## Consumer commands
+
+| Task                                 | React container directory                      | Angular consumer workspace            |
+| ------------------------------------ | ---------------------------------------------- | ------------------------------------- |
+| Install dependencies                 | `pnpm install` at your consumer workspace root | `pnpm install`                        |
+| Generate modules and registry record | `pnpm run generate`                            | `pnpm exec nx run <project>:generate` |
+| Serve your container                 | `pnpm run dev`                                 | `pnpm exec nx serve <project>`        |
+| Build your container                 | `pnpm run build`                               | `pnpm exec nx build <project>`        |
+| Run component tests                  | `pnpm run test`                                | `pnpm exec nx test <project>`         |
+| Typecheck                            | `pnpm run typecheck`                           | `pnpm exec nx typecheck <project>`    |
+| Lint                                 | `pnpm run lint`                                | `pnpm exec nx lint <project>`         |
+
+Replace `<project>` with the Nx project name. Generated Angular projects use Nx targets rather than package scripts.
+Your dev command serves one container. Hand its generated registry record and manifest URL to the shell's registration process.
+A [local override](/docs/point-the-shell-at-your-dev-server) selects your dev server after the definition is registered.
 
 ## pnpm create @company/mfe
 
 ```sh
-pnpm create @company/mfe examples/operations --id operations
-pnpm create @company/mfe examples/alert-panel --id alert-panel --template widget
+pnpm create @company/mfe apps/operations --id operations
+pnpm create @company/mfe apps/alert-panel --id alert-panel --template widget
 ```
 
-Creates a container in the directory you name. The directory must be inside one of the workspace's package globs, such as `examples/<name>`: the container extends the repository's `tsconfig.base.json` and takes its dependencies through `workspace:` and `catalog:`.
+Creates a React container in the directory you name. The current scaffolder requires a pnpm workspace with matching package globs and a `tsconfig.base.json`.
+Use a workspace in your own consumer repository, such as `apps/*`. The generated TypeScript configuration extends your consumer workspace's base configuration.
+
+The current template emits `workspace:*` and `catalog:` dependency references. Before the first install, replace every reference with a compatible published semver version or range.
+See the [quickstart](/docs/quickstart) for this standalone consumer setup. Angular uses the [Nx generators](/docs/reference/mfe-nx#generate-a-container) instead.
 
 | Flag                | Value             | Default                             |
 | ------------------- | ----------------- | ----------------------------------- |
@@ -27,7 +48,7 @@ The id must be lower-case letters, digits and single hyphens. The package name i
 
 ```sh
 pnpm run generate          # inside a container
-mfe-generate --root ../lab # or name the container
+pnpm exec mfe-generate --root ../another-container # or name your React container
 ```
 
 Writes what the build would generate for one container: the `#mfe/*` modules, the registry entry, the runtime configuration schema, `.env.example`, and an App's route tree. It runs on a fresh clone, so `#mfe/*` resolves before anything is built. It also reports the findings the build would report, and fails on them.
@@ -38,9 +59,15 @@ Writes what the build would generate for one container: the `#mfe/*` modules, th
 | `--host`             | generates a host's runtime configuration from its `src/mfe.config.ts` instead. |
 | `--help`             | prints the usage                                                               |
 
-Each container's own `generate` script calls it, and its `dev`, `build`, `typecheck` and `test` scripts run `generate` first.
+React's generated `generate` script calls it. Its `dev`, `build`, `typecheck`, and `test` scripts generate first.
+Angular runs the `@company/mfe-nx:generate` executor through its Nx target. Both write the container's registry record without assembling a remote shell's registry.
 
-## Running things locally
+## Framework repository commands
+
+The commands below belong to the framework source repository and its bundled examples. They are for maintainers and sample testing.
+Consumer repositories use the commands above and published dependencies. They do not need this checkout or its root build scripts.
+
+### Running things locally
 
 | Command                                  | What it does                                                       |
 | ---------------------------------------- | ------------------------------------------------------------------ |
@@ -56,7 +83,7 @@ Each container's own `generate` script calls it, and its `dev`, `build`, `typech
 
 `pnpm hmr:probe` takes a second argument for the page to open, for example `pnpm hmr:probe examples/lab/src/routes/index.tsx /lab`. `pnpm verify:page` takes `--url /operations` to check one page, and `--keep-open` to leave the browser up.
 
-## Checking your work
+### Checking your work
 
 | Command           | What it runs                                                                                   |
 | ----------------- | ---------------------------------------------------------------------------------------------- |
@@ -67,7 +94,7 @@ Each container's own `generate` script calls it, and its `dev`, `build`, `typech
 | `pnpm format`     | Prettier over the workspace. `pnpm format:check` only reports.                                 |
 | `pnpm boundaries` | Checks the package import graph.                                                               |
 
-## Building and publishing
+### Building and publishing
 
 | Command                                | What it does                                               |
 | -------------------------------------- | ---------------------------------------------------------- |
@@ -79,7 +106,7 @@ Each container's own `generate` script calls it, and its `dev`, `build`, `typech
 | `pnpm docs:build`, `pnpm docs:preview` | Builds and serves it.                                      |
 | `pnpm diagrams:render`                 | Renders the diagrams. `pnpm diagrams:check` reports drift. |
 
-## Ports
+### Ports
 
 | Port   | What listens on it     |
 | ------ | ---------------------- |
@@ -96,7 +123,7 @@ Each container's own `generate` script calls it, and its `dev`, `build`, `typech
 
 Each container's port comes from the `mfe.port` field in its own `package.json`. The scaffold sets `3101` for an App and `3103` for a Widget, so a new container does not collide with the examples.
 
-## Environment variables
+### Environment variables
 
 | Variable           | Read by             | Default                                              |
 | ------------------ | ------------------- | ---------------------------------------------------- |
@@ -107,7 +134,7 @@ The development API stands in for a real one, so `#mfe/fetch` has something to r
 ## Related
 
 - [Quickstart](/docs/quickstart) — the scaffold, end to end.
-- [Run the shell with your container](/docs/run-the-shell-locally) — what `pnpm dev` starts.
-- [Run the checks before you push](/docs/run-the-checks) — what `pnpm check` reports.
-- [Keep hot updates working](/docs/keep-hot-updates-working) — how to read `hmr:probe`.
+- [Run the shell with your container](/docs/run-the-shell-locally) — connect separately running repositories.
+- [Run the checks before you push](/docs/run-the-checks) — validate your consumer container.
+- [Keep hot updates working](/docs/keep-hot-updates-working) — verify your container dev server.
 - [Build and publish a container](/docs/build-and-publish) — what the build writes.

@@ -4,7 +4,7 @@ description: 'Declare the values each deployment supplies in src/mfe.config.ts, 
 ---
 
 Your container is built once and deployed many times, so declare the values a deployment supplies
-in `src/mfe.config.ts`. The file holds declarations and never values, so no secret and no
+in your container repository's `src/mfe.config.ts`. Angular uses its Nx project's `src/mfe.config.ts`. The file holds declarations and never values, so no secret and no
 environment's URL is committed with your code.
 
 ## Steps
@@ -18,7 +18,7 @@ environment's URL is committed with your code.
 <Tabs items={['React', 'Angular']} defaultValue="React">
 <Tab value="React">
 
-```ts title="examples/operations/src/mfe.config.ts"
+```ts title="Illustrative React container: src/mfe.config.ts"
 import { env } from '@company/mfe-rspack'
 import { z } from 'zod'
 
@@ -69,7 +69,7 @@ spreads and no shorthand.
 
 ### 3. Add a value for local development
 
-```json shared title="examples/operations/.mfe/runtime-config.json"
+```json shared title="Illustrative container: .mfe/runtime-config.json"
 {
   "apiBaseUrl": "http://localhost:3010/api/",
   "telemetryEnabled": false
@@ -77,8 +77,7 @@ spreads and no shorthand.
 ```
 
 Your dev server answers `runtime-config.json` beside your assets with this file, and no build copies
-it, so a local value never ships. `pnpm run generate` creates it with your `.default(…)` values and
-adds any default it is missing later. It never changes a value you wrote, and it names each required
+it, so a local value never ships. Your container's generation command creates it with declared defaults and adds missing defaults later. It never changes a value you wrote, and it names each required
 field you still have to fill in.
 
 </Step>
@@ -87,7 +86,27 @@ field you still have to fill in.
 
 ## Check it works
 
-Run `pnpm run generate` in your container. It writes `.mfe/.env.example`, which lists every
+Run generation in your own container repository. For Angular, replace `orders` with your project's name and run from that repository's Nx workspace.
+
+<Tabs items={['React', 'Angular']} defaultValue="React">
+<Tab value="React">
+
+```sh title="React container repository"
+pnpm run generate
+```
+
+</Tab>
+<Tab value="Angular">
+
+```sh title="Angular container repository"
+pnpm exec nx run orders:generate
+```
+
+</Tab>
+</Tabs>
+
+React writes these files under the container's `.mfe/`. Angular writes them under its project root.
+Generation writes `.mfe/.env.example`, which lists every
 variable name and what it has to look like, and never a value. It also writes
 `.mfe/runtime-config.schema.json`, the JSON Schema a deployment validates its file against. Every
 field without a `.default(…)` is listed there as required. `.mfe/runtime-config.defaults.json`
@@ -136,5 +155,5 @@ expected a property assigned an env(…) declaration, found ...shared.
 - [Read an environment variable](/docs/read-an-env-variable) — use the value in your code.
 - [Supply values per deployment](/docs/supply-values-per-deployment) — what each environment
   publishes.
-- [Mark a URL as your API](/docs/call-your-api#api-url) — what `{ api: true }` changes.
+- [Mark a URL as your API](/docs/mark-a-url-as-your-api) — what `{ api: true }` changes.
 - [Error codes](/docs/reference/error-codes) — every `config/` code in one table.

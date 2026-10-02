@@ -143,10 +143,12 @@ React's `onOutput` receives a name and payload. Angular's `(output)` receives on
 
 ## Check it works
 
-Run `pnpm dev` and open the shell at `http://localhost:3000`. Add a Widget from the dashboard
-catalogue, fill in its inputs, and watch the activity list record what it emits. The inputs dialog
-comes from `contract.inputSchema`, and each output's tooltip from `contract.outputSchema`. Change `widgetId`
-and the old mount is replaced rather than handed the new Widget's inputs.
+Start the Widget container and its host with their own development scripts, then open the host in
+the separately running shell. Mount a registered Widget id with valid inputs and trigger a declared
+output. Confirm your output handler receives the payload. Change an input and check the mounted
+Widget updates; change `widgetId` and check that the previous mount is disposed and the new Widget
+receives its own inputs. A host may build an input form from `contract.inputSchema` and describe
+outputs with `contract.outputSchema`, but those controls belong to the host.
 
 ## Errors
 

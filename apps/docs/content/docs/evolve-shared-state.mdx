@@ -3,7 +3,7 @@ title: 'Evolve a shared-state schema'
 description: 'Add a comparison mode while older Apps keep reading and writing the selected well.'
 ---
 
-The shared contract package already defines a well and a run. Now one App needs a comparison mode, but the
+The independently versioned contract package already defines a well and a run. Now one App needs a comparison mode, but the
 other Apps have not been updated yet. Add the field with a default so those Apps can keep using
 the selection they already know.
 
@@ -13,7 +13,7 @@ the selection they already know.
 <Step>
 ### 1. Update the schema in its owning package
 
-```ts shared title="examples/shared-state-contracts/src/index.ts (selection fields)"
+```ts shared title="Illustrative contract repository: src/index.ts (selection fields)"
 z.strictObject({
   wellId: z.string(),
   runId: z.string().nullable(),
@@ -37,8 +37,12 @@ The production build needs a policy file with two fields. `schema` is the new co
 `baselines` contains copies of the schemas you have already released. Keep those released copies
 unchanged. For the first release, the list is empty: `baselines: []`.
 
-These older schemas are inputs to the build check. The running shell still needs only the latest
-`sharedState.schema`.
+Publish that policy as `@acme/shared-state-contracts/release-policy.json` alongside the compiled schema,
+authoring declaration and `shared-state.manifest.json`. The package name is illustrative.
+Preserve released baselines in contract-package CI rather than recreating an empty list on each release.
+
+Each consumer repository installs a released package version. Its build resolves the policy from that installed release.
+The running shell needs only the current `sharedState.schema`.
 
 <Tabs items={['React', 'Angular']} defaultValue="React">
 <Tab value="React">
@@ -46,25 +50,33 @@ These older schemas are inputs to the build check. The running shell still needs
 Pass the policy to your existing `pluginMfe()` call:
 
 ```ts title="Illustrative rsbuild.config.ts (MFE plugin)"
+import { createRequire } from 'node:module'
 import { pluginMfe } from '@company/mfe-rspack'
 
-pluginMfe({ sharedStatePolicy: './deployment/shared-state-policy.json' })
+const require = createRequire(import.meta.url)
+pluginMfe({
+  sharedStatePolicy: require.resolve('@acme/shared-state-contracts/release-policy.json'),
+})
 ```
 
 </Tab>
 <Tab value="Angular">
 
 ```ts title="Illustrative webpack.config.ts"
+import { createRequire } from 'node:module'
 import { withMfe } from '@company/mfe-nx/webpack'
 
-export default withMfe({ sharedStatePolicy: './deployment/shared-state-policy.json' })
+const require = createRequire(import.meta.url)
+export default withMfe({
+  sharedStatePolicy: require.resolve('@acme/shared-state-contracts/release-policy.json'),
+})
 ```
 
 </Tab>
 </Tabs>
 
-Build and publish the updated contract package, then update the consumer's dependency.
-Run your container's production build. If it reports a changed field that older Apps depend on,
+Build, test and publish the updated contract in its owning repository. Each consumer updates its dependency and lockfile independently.
+Run production builds in each consumer's own CI. React uses its build script. Angular uses its Nx project's production target. If it reports a changed field that older Apps depend on,
 fix that change before publishing. A successful development build does not perform the same
 release check.
 
@@ -72,7 +84,7 @@ release check.
 <Step>
 ### 3. Deploy the shell schema before the new consumer
 
-Deploy the updated schema to the shell and backend first. Then deploy the App that uses
+Update the shell and backend to the published contract release, then deploy them first. Then deploy the App that uses
 `comparisonMode`. Older Apps continue to work with that schema. Deploying the App first would
 leave it asking the old shell for a field the shell does not have, so it would fail to mount.
 

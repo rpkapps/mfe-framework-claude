@@ -14,11 +14,31 @@ server, in your browser only. It is a URL and nothing else, never a token and ne
 
 ### 1. Start your container
 
-```sh shared
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
+```sh
 pnpm dev
 ```
 
-Note the port it prints. Your manifest is at `http://localhost:<port>/mf-manifest.json`.
+Run in your React package directory, such as `apps/field-notes` in the quickstart repository. Its dev script generates modules and starts the configured Rsbuild server.
+
+</Tab>
+<Tab value="Angular">
+
+```sh
+pnpm exec nx serve fieldwork
+```
+
+Run this in your Angular repository. Replace `fieldwork` with its Nx project name.
+A repository-level `dev` script may wrap that target.
+
+</Tab>
+</Tabs>
+
+Keep the shell running separately, from its own repository or deployment.
+The shell must already register your definition, and its origin must be allowed by your dev server.
+Note your container's configured port. Its manifest is at `http://localhost:<port>/mf-manifest.json`.
 
 </Step>
 
@@ -43,7 +63,7 @@ server** on your row, then press **Apply and reload**.
 ```js
 const key = 'company:mfe:overrides'
 const overrides = JSON.parse(localStorage.getItem(key) || '{}')
-overrides['operations'] = 'http://localhost:3001/mf-manifest.json'
+overrides['operations'] = 'http://localhost:3101/mf-manifest.json'
 localStorage.setItem(key, JSON.stringify(overrides))
 location.reload()
 ```
@@ -54,8 +74,8 @@ location.reload()
 ```js
 const key = 'company:mfe:overrides'
 const overrides = JSON.parse(localStorage.getItem(key) || '{}')
-overrides['fieldwork'] = 'http://localhost:3007/mf-manifest.json'
-overrides['well-inspection'] = 'http://localhost:3007/mf-manifest.json'
+overrides['fieldwork'] = 'http://localhost:3103/mf-manifest.json'
+overrides['well-inspection'] = 'http://localhost:3103/mf-manifest.json'
 localStorage.setItem(key, JSON.stringify(overrides))
 location.reload()
 ```
@@ -65,8 +85,8 @@ Point every definition from the Angular container at the same manifest.
 </Tab>
 </Tabs>
 
-Your container's README carries it with your id and port, and the repository's root `pnpm dev`
-prints one for every example. Run it in the shell's browser console. The reload is not optional: the old container's modules stay
+Use your container's real definition ids and configured port in the snippet. Open the independently deployed shell,
+then run it in that shell's browser console. The reload is not optional: the old container's modules stay
 registered in the page until it reloads.
 
 </Step>

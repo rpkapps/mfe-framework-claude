@@ -100,7 +100,8 @@ Run this in your Angular Nx workspace. Replace `operations` with your Nx project
 </Tabs>
 
 This writes your container's registry description. The host includes that record in its registry.
-The example repository's `pnpm dev` also rebuilds the shell registry before starting.
+Publish or register that updated record through your host's registry workflow; starting your
+container's development server does not update a separately maintained shell registry.
 
 </Step>
 
@@ -122,11 +123,11 @@ The example repository's `pnpm dev` also rebuilds the shell registry before star
 
 ## Check it works
 
-Run `pnpm dev` and open the shell at `http://localhost:3000`. Press <Kbd>⌘</Kbd> <Kbd>K</Kbd> or
-
-<Kbd>Ctrl</Kbd> <Kbd>K</Kbd> and look under "Application pages". Your label is there, and running it
-goes to `/operations/help`. The shell's own help panel, on <Kbd>?</Kbd>, is its keyboard list and
-does not show your page.
+Start your container with its own development script and open the separately running shell that
+registers your App. Find your help capability in the host's application-page menu or command
+palette and select it. Its label should match your registry entry, and navigation should reach
+`/help` under the App's assigned mount prefix. The host's own help UI may serve a separate purpose;
+confirm which control exposes application help with the shell team.
 
 ## Errors
 

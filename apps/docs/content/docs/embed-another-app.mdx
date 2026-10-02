@@ -125,10 +125,12 @@ A child failure leaves the rest of your App running.
 
 ## Check it works
 
-Run `pnpm dev` and open `http://localhost:3000/operations/reports`. The Reports App renders inside
-the Operations page, and the header trail shows both. Click through to an account and the address
-bar reads `/operations/reports/accounts/fda-2-3`, with `/reports` on its own still serving the
-same App at the top level.
+Start the parent and child containers with their own development scripts, register both in the
+separately running shell, and open the parent's embedding route. Confirm the child renders inside
+the parent page and that its navigation stays below the embedding prefix. For the example above,
+a parent mounted at `/operations` gives the child `/operations/reports`; an account route should
+resolve below that boundary. If the host also mounts the child at its own top-level boundary,
+confirm that placement works independently.
 
 Per-instance data goes through the child's own URL, as a path segment or a search parameter. An
 App takes no props. A screen that needs props is a Widget.
