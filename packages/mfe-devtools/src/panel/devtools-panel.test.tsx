@@ -83,6 +83,8 @@ it('preserves the open dock, active tab, focus and value nodes through optimisti
 
   const tab = screen.getByRole('tab', { name: 'Shared State' })
   const current = screen.getByLabelText('current value of units')
+  const description = current.parentElement!.querySelector('p')!
+  const explanation = description.textContent
   const panel = tab.closest('[data-mfe-devtools-panel]')!
   const attributes: MutationRecord[] = []
   const observer = new MutationObserver(records => attributes.push(...records))
@@ -93,6 +95,7 @@ it('preserves the open dock, active tab, focus and value nodes through optimisti
   })
   expect(screen.getByLabelText('current value of units')).toBe(current)
   expect(current.textContent).toBe('"imperial"')
+  expect(description.textContent).toBe(explanation)
 
   await user.click(screen.getByRole('tab', { name: 'Confirmed' }))
   const confirmedTab = screen.getByRole('tab', { name: 'Confirmed' })
