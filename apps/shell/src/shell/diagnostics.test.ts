@@ -80,6 +80,7 @@ describe('the shell bug report', () => {
       definitionId: 'missing-widget',
       kind: 'widget',
       inputs: {},
+      onOutput: () => undefined,
     })
     disposals.push(() => mount.dispose())
 
