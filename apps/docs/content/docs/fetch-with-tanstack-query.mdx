@@ -1,27 +1,48 @@
 ---
-title: 'Fetch with TanStack Query'
-description: 'Share one query between a route loader and its component, using the mount Query client.'
+title: 'TanStack Query'
+description: 'Reuse the React App mount Query client, or load Angular route data with generated fetch.'
 ---
 
-Your App is handed a Query client through its router context, so you never build one. Put each
-request in a `queryOptions` factory, and the loader and the component share one cache entry.
-Apps only.
+React Apps receive a mount-owned TanStack Query client. Reuse it in loaders and components to share cached responses.
+The Angular adapter does not supply a TanStack Query client. The Angular tabs show route loading with generated fetch instead.
+Declare your [API URL](/docs/mark-a-url-as-your-api) before using relative requests.
 
 ## Steps
 
 <Steps>
-
 <Step>
 
-### 1. Put the request in a factory
+### 1. Load route data with TanStack Query or Angular
 
-```ts title="examples/operations/src/queries/assets.ts"
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```ts title="src/queries/assets.ts"
+import { queryOptions } from '@tanstack/react-query'
+import { fetch } from '#mfe/fetch'
+import { z } from 'zod'
+
+const assetSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  status: z.enum(['operational', 'degraded', 'offline']),
+})
+
+export type Asset = z.infer<typeof assetSchema>
+
 export function assetsQueryOptions(siteId: string) {
   return queryOptions({
+    // Every variable that determines the response is in the key.
     queryKey: ['operations', 'assets', { siteId }],
     queryFn: async ({ signal }): Promise<Asset[]> => {
       const response = await fetch(`assets?site=${encodeURIComponent(siteId)}`, { signal })
-      if (!response.ok) throw new Error(`Loading assets failed with ${response.status}.`)
+
+      if (!response.ok) {
+        throw new Error(
+          `Loading assets for site ${siteId} failed with ${response.status} ${response.statusText}.`,
+        )
+      }
+
       return z.array(assetSchema).parse(await response.json())
     },
     staleTime: 30_000,
@@ -29,62 +50,107 @@ export function assetsQueryOptions(siteId: string) {
 }
 ```
 
-Every variable that changes the response belongs in the key, and the key starts with your
-definition id.
+Put every response-changing variable in the key, starting with your definition id.
 
-</Step>
+</Tab>
+<Tab value="Angular">
 
-<Step>
+```ts title="src/assets.resolver.ts"
+import type { ResolveFn } from '@angular/router'
+import { injectMfeSignal } from '@company/mfe-angular'
+import { fetch } from '#mfe/fetch'
 
-### 2. Load it in the route
-
-```ts title="examples/operations/src/routes/assets.tsx"
-loader: ({ context, deps }) => {
-  return context.queryClient.ensureQueryData(assetsQueryOptions(deps.site))
-},
+export const assetsResolver: ResolveFn<unknown> = async route => {
+  const signal = injectMfeSignal()
+  const siteId = route.queryParamMap.get('site') ?? 'north'
+  const response = await fetch(`assets?site=${encodeURIComponent(siteId)}`, { signal })
+  if (!response.ok) throw new Error(`Loading assets failed: ${response.status}`)
+  return response.json()
+}
 ```
 
-`context.queryClient` is the client this mount owns. Your `queryFn` gets Query's own `signal`,
-which aborts when the query is cancelled, and unmounting cancels every query in that client.
+Attach this resolver as `resolve: { assets: assetsResolver }`. The Angular adapter does not supply a TanStack Query client.
 
+</Tab>
+</Tabs>
 </Step>
-
 <Step>
+### 2. Read loaded data and refresh after edits
 
-### 3. Read it in the component
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
-```tsx title="examples/operations/src/routes/assets.tsx"
-const { data, isFetching, refetch } = useSuspenseQuery(assetsQueryOptions(site))
+```tsx title="src/routes/assets.tsx"
+import { createFileRoute } from '@tanstack/react-router'
+import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
+import { assetsQueryOptions } from '../queries/assets'
+
+export const Route = createFileRoute('/assets')({
+  validateSearch: search => ({
+    site: typeof search.site === 'string' ? search.site : 'north',
+  }),
+  loaderDeps: ({ search }) => ({ site: search.site }),
+  loader: ({ context, deps }) => context.queryClient.ensureQueryData(assetsQueryOptions(deps.site)),
+  component: Assets,
+})
+
+function Assets() {
+  const { site } = Route.useSearch()
+  const { data } = useSuspenseQuery(assetsQueryOptions(site))
+  const queryClient = useQueryClient()
+  return (
+    <>
+      <pre>{JSON.stringify(data)}</pre>
+      <button
+        onClick={() =>
+          void queryClient.invalidateQueries({
+            queryKey: ['operations', 'assets'],
+          })
+        }
+      >
+        Refresh assets
+      </button>
+    </>
+  )
+}
 ```
 
-The same factory means the same key, so the component reads what the loader already fetched.
+The loader and component share a cache entry. Invalidate the query after a successful edit.
+Forward the supplied router context unchanged; disposal cancels that mount's queries.
 
-</Step>
+</Tab>
+<Tab value="Angular">
 
-<Step>
+```ts title="src/overview.component.ts"
+import { Component, inject } from '@angular/core'
+import { ActivatedRoute } from '@angular/router'
 
-### 4. Refresh after a change
-
-```ts
-const queryClient = useQueryClient()
-
-await queryClient.invalidateQueries({ queryKey: ['operations', 'assets'] })
+@Component({
+  selector: 'fieldwork-assets',
+  template: `<p>Assets loaded for this route.</p>`,
+})
+export class AssetsComponent {
+  readonly assets = inject(ActivatedRoute).snapshot.data['assets']
+}
 ```
 
-A key prefix invalidates everything under it, which is why the definition id comes first.
+For Angular, choose your application's caching and refresh policy. Resolved data does not share the React mount's Query cache.
 
+</Tab>
+</Tabs>
 </Step>
-
 </Steps>
 
 ## Check it works
 
-Open the page and watch the network panel: one request, not two. Each mount of your App owns its
-own client, so a second copy on the page keeps its own cache. Disposal cancels the queries that
-client is running. Pass the loader's `signal` inside a loader, because that one cancels with the
-navigation.
+Mount your App in your shell and open the data route. For React, inspect the network panel: the loader and component reuse one request while its data is fresh.
+Refresh after an edit and confirm the data changes. Unmounting the App cancels its running queries.
+For Angular, confirm your resolver loads data before activating its route; choose your application's refresh policy separately.
 
 ## Errors
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 <Callout type="error" title="app/invalid-router">
 
@@ -93,13 +159,21 @@ operations@2.1.0 failed to mount App: expected the supplied top-level queryClien
 unchanged, received a different Query client.
 ```
 
-**Fix.** Spread the context your router factory received, and delete your own `new QueryClient()`.
+**Fix.** Forward the context your router factory receives. Remove any replacement `new QueryClient()`.
 
 </Callout>
 
+</Tab>
+<Tab value="Angular">
+
+The Angular resolver uses generated fetch. See [API requests](/docs/call-your-api#errors) for URL and authentication failures.
+
+</Tab>
+</Tabs>
+
 ## Related
 
-- [Call your API](/docs/call-your-api) — the `fetch` inside the `queryFn`.
-- [Create an App](/docs/create-an-app) — the factory that forwards the context.
-- [Cancel a request on unmount](/docs/cancel-a-request-on-unmount) — work started outside a loader.
-- [Test an App](/docs/test-an-app) — rendering a route that loads data.
+- [API requests](/docs/call-your-api) — fetch authentication and retries.
+- [API URL](/docs/mark-a-url-as-your-api) — relative URL base and trusted origins.
+- [Create an App](/docs/create-an-app) — forward the mount context.
+- [Cancel a request on unmount](/docs/cancel-a-request-on-unmount) — background work cancellation.

@@ -8,7 +8,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from '@tanstack/react-router'
-import { legacyAngularAdapter } from '@company/mfe-legacy-angular'
 import {
   createAuthenticatedFetch,
   createBrowserNavigationBridge,
@@ -100,7 +99,7 @@ const { runtime, activeOverrides } = createMfeRuntime({
   registryEntries: await fetchRegistryEntries(),
   // Every framework this shell serves, each listed: nothing is registered implicitly, and no
   // entry is read by an adapter it does not name.
-  adapters: [reactAdapter, angularAdapter, legacyAngularAdapter],
+  adapters: [reactAdapter, angularAdapter],
   // The only place in the shell that knows federation exists.
   loader: createFederationContainerLoader({
     runtime: {

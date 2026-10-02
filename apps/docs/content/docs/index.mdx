@@ -1,272 +1,39 @@
 ---
 title: 'Overview'
-description: 'What an App is, what a Widget is, and the recipe for the task you came for.'
+description: 'Build an App or Widget, connect it to the shell, and find the API you need.'
 ---
 
-You build one piece of a page somebody else owns: an App or a Widget. An App owns a stretch of the
-URL and routes everything under it. A Widget owns no URL, takes props from whoever renders it, and
-reports back by emitting a declared output. A screen a user can link to is an App, and a screen the
-page around it places is a Widget. One container exports at most one App and any number of Widgets.
+Build an **App** for a URL and its routes, or a **Widget** placed inside another page.
+Your **container** is the deployable package holding those definitions. The **shell** owns the page, session, theme, and navigation around them.
 
-### An App takes a URL
+## Get started
 
-```ts title="examples/operations/src/mfe.ts (trimmed)"
-function makeRouter({ basePath, history, context }: AppRouterOptions) {
-  return createRouter({ routeTree, basepath: basePath, history, context: { ...context } })
-}
+- **React:** [Quickstart](/docs/quickstart), then [build a complete App](/docs/tutorial).
+- **Angular:** [Quickstart](/docs/quickstart), then [declare an App or Widget](/docs/reference/angular-adapter).
+- **Shell builders:** [Architecture](/docs/architecture), then [run the shell locally](/docs/run-the-shell-locally).
 
-export default createApp({ id: 'operations', version: '2.1.0', router: makeRouter })
-```
+## Find a feature
 
-### A Widget takes props
+| Feature                     | Start here                                                                                                                                          |
+| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Apps and routes             | [Create an App](/docs/create-an-app)                                                                                                                |
+| Widgets and their contracts | [Create a Widget](/docs/create-a-widget)                                                                                                            |
+| Browser storage             | [Save preferences and choose local or session storage](/docs/remember-a-value)                                                                      |
+| Shared state                | [Synchronize values between React and Angular](/docs/shared-state)                                                                                  |
+| Telemetry                   | [Record events, errors and traces](/docs/telemetry)                                                                                                 |
+| Shell integration           | [Actions](/docs/add-an-action), [breadcrumbs](/docs/set-breadcrumbs), [theme](/docs/follow-the-shell-theme)                                         |
+| API                         | [API requests](/docs/call-your-api), [API URL](/docs/mark-a-url-as-your-api), [TanStack Query](/docs/fetch-with-tanstack-query)                     |
+| Env                         | [Declare values](/docs/declare-an-env-variable), [read values](/docs/read-an-env-variable), [deployment values](/docs/supply-values-per-deployment) |
+| Development and deployment  | [Local development](/docs/run-the-shell-locally), [build and publish](/docs/build-and-publish)                                                      |
 
-```ts title="examples/alert-panel/src/mfe.ts (trimmed)"
-export const alertPanel = createWidget({
-  id: 'alert-panel',
-  version: '1.4.0',
-  inputSchema: z.object({ alertId: z.string() }),
-  outputSchema: z.object({
-    acknowledged: z.object({ alertId: z.string(), acknowledgedAt: z.string() }),
-  }),
-  render: AlertPanel,
-})
-```
+## Look up an API or failure
 
-## Three words used on every page
-
-| Word                   | What it is                                                                                                                                                                                                |
-| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| <Term>container</Term> | One deployable unit: one package, one build, one deployed origin, one `src/mfe.ts`. What you build and ship is a container.                                                                               |
-| <Term>shell</Term>     | The application that serves the page, owns the document and mounts containers into it. It owns the header, the theme, the session and the routes above your App. Other documents call that role the host. |
-| <Term>registry</Term>  | The JSON list the shell fetches at boot: which definitions exist, where each container's manifest is, and what each Widget takes. The build generates it.                                                 |
-
-## How do I…
-
-Each card is one task, with the code first.
-
-### Plug into the shell
-
-<Cards>
-  <Card href="/docs/add-a-settings-page" title="Add a settings page">
-    A settings page the shell opens for your App.
-  </Card>
-  <Card href="/docs/add-a-help-page" title="Add a help page">
-    A help page the shell opens for your App.
-  </Card>
-  <Card href="/docs/publish-release-notes" title="Publish release notes">
-    Your release notes, on the shell's releases screen.
-  </Card>
-  <Card href="/docs/add-an-action" title="Add an action to the palette">
-    An action of yours in the command palette.
-  </Card>
-  <Card href="/docs/offer-an-action-to-the-agent" title="Offer an action to the agent">
-    The same action, as a tool the shell's agent can call.
-  </Card>
-  <Card href="/docs/tell-the-agent-what-is-selected" title="Tell the agent what is selected">
-    What the user has open or chosen, sent with each chat turn.
-  </Card>
-  <Card href="/docs/block-navigation-when-unsaved" title="Block navigation when edits are unsaved">
-    Stop a move away from unsaved edits.
-  </Card>
-  <Card href="/docs/show-an-icon" title="Show an icon">
-    An icon beside your name in the shell.
-  </Card>
-  <Card href="/docs/set-breadcrumbs" title="Set breadcrumbs">
-    The trail the shell shows above your page.
-  </Card>
-</Cards>
-
-### Apps
-
-<Cards>
-  <Card href="/docs/create-an-app" title="Create an App">
-    Declare an App and export it from your container.
-  </Card>
-  <Card href="/docs/add-a-route" title="Add a route">
-    A page at a path of your own.
-  </Card>
-  <Card href="/docs/link-to-another-app" title="Link to another App">
-    Send the reader to a page another App owns.
-  </Card>
-  <Card href="/docs/embed-another-app" title="Embed another App inside yours">
-    Mount another App at a route of yours.
-  </Card>
-</Cards>
-
-### Widgets
-
-<Cards>
-  <Card href="/docs/create-a-widget" title="Create a Widget">
-    Declare a Widget other people can render.
-  </Card>
-  <Card href="/docs/define-inputs-and-outputs" title="Define inputs and outputs">
-    The contract a consumer of your Widget relies on.
-  </Card>
-  <Card href="/docs/render-a-widget" title="Render a Widget inside your App">
-    Load a Widget by name and pass it inputs.
-  </Card>
-  <Card href="/docs/render-a-widget-at-run-time" title="Render a Widget chosen at run time">
-    Render a Widget whose id you learn late.
-  </Card>
-  <Card href="/docs/react-to-widget-outputs" title="React to a Widget's outputs">
-    Handle the outputs a Widget you render emits.
-  </Card>
-  <Card
-    href="/docs/ask-the-app-to-navigate"
-    title="Ask the owning App to navigate or set the title"
-  >
-    Emit an output and let the App act.
-  </Card>
-</Cards>
-
-### Env
-
-<Cards>
-  <Card href="/docs/declare-an-env-variable" title="Declare an environment variable">
-    A value your container reads per deployment.
-  </Card>
-  <Card href="/docs/read-an-env-variable" title="Read an environment variable">
-    Read a declared value in your code.
-  </Card>
-  <Card href="/docs/supply-values-per-deployment" title="Supply values per deployment">
-    New values without a new build.
-  </Card>
-  <Card href="/docs/mark-a-url-as-your-api" title="Mark a URL as your API">
-    The URL that may receive the session token.
-  </Card>
-</Cards>
-
-### Data
-
-<Cards>
-  <Card href="/docs/call-your-api" title="Call your API">
-    A request that carries the session token.
-  </Card>
-  <Card href="/docs/fetch-with-tanstack-query" title="Fetch with TanStack Query">
-    The query client the shell hands your App.
-  </Card>
-  <Card href="/docs/cancel-a-request-on-unmount" title="Cancel a request on unmount">
-    Stop requests and timers when your page closes.
-  </Card>
-</Cards>
-
-### Storage
-
-<Cards>
-  <Card href="/docs/remember-a-value" title="Remember a value across reloads">
-    Keep a value and read it back later.
-  </Card>
-  <Card href="/docs/change-the-shape-of-a-stored-value" title="Change the shape of a stored value">
-    Move stored records to a new shape.
-  </Card>
-  <Card href="/docs/storage-outside-render" title="Read or write storage outside render">
-    Storage in handlers, loaders and callbacks.
-  </Card>
-  <Card href="/docs/share-a-value-with-the-shell" title="Share a value with the shell">
-    A record the shell reads and writes too.
-  </Card>
-</Cards>
-
-### Look and feel
-
-<Cards>
-  <Card href="/docs/use-the-design-system" title="Use the design system">
-    Build your pages with shared components and tokens.
-  </Card>
-  <Card href="/docs/follow-the-shell-theme" title="Follow the shell theme">
-    Match the light or dark theme around you.
-  </Card>
-  <Card href="/docs/render-dialogs-and-tooltips" title="Render dialogs, menus and tooltips">
-    Overlays that keep your styles.
-  </Card>
-  <Card href="/docs/add-custom-styles" title="Add styles beyond utilities">
-    Your own CSS, inside your container.
-  </Card>
-</Cards>
-
-### Telemetry
-
-<Cards>
-  <Card href="/docs/log-an-event" title="Log an event">
-    Record what happened, instead of a console call.
-  </Card>
-  <Card href="/docs/trace-an-operation" title="Trace an operation">
-    Time an operation and record how it ended.
-  </Card>
-  <Card href="/docs/report-an-error" title="Report an error">
-    Send a failure to the people watching.
-  </Card>
-</Cards>
-
-### Testing
-
-<Cards>
-  <Card href="/docs/test-an-app" title="Test an App">
-    Render your App and assert on a page.
-  </Card>
-  <Card href="/docs/test-a-widget" title="Test a Widget">
-    Render your Widget and check its outputs.
-  </Card>
-  <Card href="/docs/test-with-env-and-a-fake-api" title="Test with env values and a fake API">
-    Set env values and intercept requests.
-  </Card>
-  <Card href="/docs/test-storage-and-lifecycle" title="Test storage and the lifecycle">
-    Seed storage, change identity, mount twice.
-  </Card>
-</Cards>
-
-### Working locally
-
-<Cards>
-  <Card href="/docs/run-the-shell-locally" title="Run the shell with your container">
-    Start everything and load your container.
-  </Card>
-  <Card href="/docs/point-the-shell-at-your-dev-server" title="Point the shell at your dev server">
-    Load your container from your own machine.
-  </Card>
-  <Card href="/docs/keep-hot-updates-working" title="Keep hot updates working">
-    Edits that show up without a reload.
-  </Card>
-  <Card href="/docs/open-the-devtools" title="Open the devtools panel">
-    What the shell knows about your container.
-  </Card>
-  <Card href="/docs/run-the-checks" title="Run the checks before you push">
-    The checks, and how to read them.
-  </Card>
-</Cards>
-
-### Shipping
-
-<Cards>
-  <Card href="/docs/build-and-publish" title="Build and publish a container">
-    What the build produces, and how to publish it.
-  </Card>
-  <Card href="/docs/deploy-to-production" title="Deploy to production with separate repositories">
-    One image per container, registered on deploy.
-  </Card>
-  <Card href="/docs/version-your-container" title="Version your container and its contract">
-    Version a build, and say what changed.
-  </Card>
-  <Card href="/docs/undeploy-or-roll-back" title="Undeploy or roll back">
-    Take a container out, and what readers see.
-  </Card>
-  <Card href="/docs/read-a-failure-message" title="Read a failure message">
-    Read a message from the build or the shell.
-  </Card>
-</Cards>
-
-### Rules
-
-<Cards>
-  <Card href="/docs/what-you-must-not-do" title="What you must not do">
-    The moves that break the page around you.
-  </Card>
-</Cards>
+Use the [React reference](/docs/reference/hooks-and-components) or [Angular reference](/docs/reference/angular-adapter) for exact APIs.
+For failures, [read the message](/docs/read-a-failure-message) and [look up its error code](/docs/reference/error-codes).
+The [devtools panel](/docs/open-the-devtools) shows rejected registry entries and mount failures.
 
 ## Related
 
-- [Architecture](/docs/architecture) — the system in four diagrams.
-- [Quickstart](/docs/quickstart) — a container running in ten minutes.
-- [Tutorial: build the operations App](/docs/tutorial) — one App, end to end.
-- [How it works](/docs/how-it-works/design) — the mechanism, for maintainers and shell builders.
-- [Reference](/docs/reference/error-codes) — every option, code and rule, one lookup at a time.
+- [Architecture](/docs/architecture) — shell and container responsibilities.
+- [Design and decisions](/docs/how-it-works/design) — mechanisms and their rationale.
+- [Glossary](/docs/reference/glossary) — framework terms.

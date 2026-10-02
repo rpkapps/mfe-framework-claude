@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * The eleven scenes in `tools/diagrams/scenes/`, laid out on one grid, in one palette and
+ * The architecture and capability scenes in `tools/diagrams/scenes/`, laid out on one grid, in one palette and
  * under one text budget:
  *
  *   node tools/diagrams/draft/build-scenes.mjs
@@ -432,11 +432,10 @@ async function layers() {
     fill: FILL.container,
   })
   const adapterRow = [
-    ['@company/mfe-react', 12],
-    ['@company/mfe-angular', 220],
-    ['@company/mfe-legacy-angular', 428],
+    ['@company/mfe-react', 90],
+    ['@company/mfe-angular', 350],
   ].map(([name, x]) => file(scene, { x, y: 280, w: 200, h: 44, size: 11.5, name, fill: FILL.none }))
-  const [react, angular, legacy] = adapterRow
+  const [react, angular] = adapterRow
   const host = file(scene, {
     x: 195,
     y: 380,
@@ -467,9 +466,8 @@ async function layers() {
     to: { shape: react, side: 'top', at: 0.9 },
   })
   for (const [adapter, at] of [
-    [react, 0.2],
-    [angular, 0.5],
-    [legacy, 0.8],
+    [react, 0.25],
+    [angular, 0.75],
   ]) {
     scene.arrow({
       from: { shape: adapter, side: 'bottom', at: 0.5 },
@@ -1306,7 +1304,7 @@ async function adapters() {
     h: 64,
     fill: FILL.shell,
     name: 'The shell',
-    subtitle: 'adapters: [reactAdapter, angularAdapter, legacyAngularAdapter]',
+    subtitle: 'adapters: [reactAdapter, angularAdapter]',
     subtitleMono: true,
   })
 
@@ -1347,10 +1345,9 @@ async function adapters() {
   const adapterTiles = [
     ['The React adapter', "mfe.framework 'react'", true],
     ['The Angular adapter', "mfe.framework 'angular'", true],
-    ['The legacy Angular adapter', 'no mfe key; removable', false],
   ].map(([name, subtitle, subtitleMono], position) =>
     tile(scene, {
-      x: 104 + position * 418,
+      x: 216 + position * 624,
       y: 516,
       w: 394,
       h: 60,
@@ -1363,10 +1360,9 @@ async function adapters() {
   const containers = [
     ['operations', 'a React App, with its own root'],
     ['an Nx container', 'an Angular App or Widgets'],
-    ['asset-tracker', 'a legacy application, not mounted yet'],
   ].map(([name, subtitle], position) =>
     tile(scene, {
-      x: 104 + position * 418,
+      x: 216 + position * 624,
       y: 680,
       w: 394,
       h: 64,
@@ -1398,14 +1394,6 @@ async function adapters() {
       labelDx: 92,
     })
   }
-  scene.arrow({
-    from: { shape: adapterTiles[2], side: 'bottom', at: 0.5 },
-    to: { shape: containers[2], side: 'top', at: 0.5 },
-    dashed: true,
-    label: 'entries only',
-    labelDx: 88,
-  })
-
   scene.legend({
     x: 80,
     y: 800,
@@ -1421,6 +1409,251 @@ async function adapters() {
   return scene.write()
 }
 
+/* ----------------------------------------------------------- capability connections */
+
+/** Two adapters, one shared service, and the shell's connection to it. */
+async function capabilityConnection(options) {
+  const scene = createScene(`capability-${options.id}`)
+  const titles = {
+    actions: 'Actions',
+    storage: 'Browser storage',
+    theme: 'Theme',
+    breadcrumbs: 'Breadcrumbs',
+    'shared-state': 'Shared state',
+    navigation: 'Navigation',
+  }
+  scene.title(titles[options.id], options.caption)
+  panel(scene, { x: 0, y: 100, w: 330, h: 330, heading: 'Container code', fill: FILL.container })
+  panel(scene, { x: 440, y: 100, w: 330, h: 330, heading: 'Framework runtime' })
+  panel(scene, { x: 880, y: 100, w: 330, h: 330, heading: 'Shell connection', fill: FILL.shell })
+  const react = tile(scene, {
+    x: 20,
+    y: 175,
+    w: 290,
+    name: options.react,
+    subtitle: 'React',
+    mono: true,
+    size: 13,
+    fill: FILL.container,
+  })
+  const angular = tile(scene, {
+    x: 20,
+    y: 315,
+    w: 290,
+    name: options.angular,
+    subtitle: 'Angular',
+    mono: true,
+    size: 13,
+    fill: FILL.container,
+  })
+  const runtime = tile(scene, {
+    x: 460,
+    y: 245,
+    w: 290,
+    name: options.runtime,
+    subtitle: options.runtimeSubtitle,
+    fill: options.runtimeFill ?? FILL.none,
+  })
+  const shell = tile(scene, {
+    x: 900,
+    y: 245,
+    w: 290,
+    name: options.shell,
+    subtitle: options.shellSubtitle,
+    fill: FILL.shell,
+  })
+  for (const [position, adapter] of [react, angular].entries()) {
+    scene.arrow({
+      from: {
+        shape: options.reverse ? runtime : adapter,
+        side: options.reverse ? 'left' : 'right',
+        at: options.reverse ? (position === 0 ? 0.2 : 0.8) : 0.5,
+      },
+      to: {
+        shape: options.reverse ? adapter : runtime,
+        side: options.reverse ? 'right' : 'left',
+        at: options.reverse ? 0.5 : position === 0 ? 0.2 : 0.8,
+      },
+      label: options.adapterFlow,
+      labelOffset: position === 0 ? -38 : 38,
+    })
+  }
+  scene.arrow({
+    from: {
+      shape: options.reverse ? shell : runtime,
+      side: options.reverse ? 'left' : 'right',
+      at: 0.5,
+    },
+    to: {
+      shape: options.reverse ? runtime : shell,
+      side: options.reverse ? 'right' : 'left',
+      at: 0.5,
+    },
+    label: options.shellFlow,
+    labelOffset: -18,
+    startArrowhead: options.bidirectional ? 'arrow' : null,
+  })
+  scene.legend({
+    x: 0,
+    y: 460,
+    entries: swatches(['container'], ['shell'], ['none', 'framework runtime']),
+  })
+  return scene.write()
+}
+
+const capabilityScenes = [
+  {
+    id: 'actions',
+    caption: 'Container actions reach the shell through one shared registry.',
+    react: 'useAction()',
+    angular: 'injectAction()',
+    runtime: 'Action registry',
+    runtimeSubtitle: 'validation, approval, execution',
+    shell: 'Command palette',
+    shellSubtitle: 'lists actions and invokes their callbacks',
+    adapterFlow: 'register action',
+    shellFlow: 'list and execute',
+    bidirectional: true,
+  },
+  {
+    id: 'storage',
+    caption: 'Both adapters bind browser records through the runtime supplied by the shell.',
+    react: 'useStoredState()',
+    angular: 'injectStoredState()',
+    runtime: 'Storage store',
+    runtimeSubtitle: 'scoped keys, schemas, subscriptions',
+    shell: 'Runtime storage adapters',
+    shellSubtitle: 'localStorage and sessionStorage',
+    adapterFlow: 'read and write',
+    shellFlow: 'browser records',
+    bidirectional: true,
+  },
+  {
+    id: 'theme',
+    caption: 'The shell publishes its theme and both adapters subscribe.',
+    react: 'useTheme()',
+    angular: 'injectTheme()',
+    runtime: 'Shell state',
+    runtimeSubtitle: 'current theme snapshot',
+    shell: 'Theme setting',
+    shellSubtitle: 'runtime.shellState.apply()',
+    adapterFlow: 'theme changes',
+    shellFlow: 'publish theme',
+    reverse: true,
+  },
+  {
+    id: 'breadcrumbs',
+    caption: 'Container breadcrumbs join the trail rendered by the shell.',
+    react: 'useBreadcrumbs()',
+    angular: 'injectBreadcrumbs()',
+    runtime: 'Breadcrumb store',
+    runtimeSubtitle: 'route contributions and overrides',
+    shell: 'Breadcrumb trail',
+    shellSubtitle: 'subscribes to the current trail',
+    adapterFlow: 'contribute items',
+    shellFlow: 'current trail',
+  },
+  {
+    id: 'shared-state',
+    caption: 'Generated bindings share selections through the shell configured storage adapter.',
+    react: 'useSharedState()',
+    angular: 'injectSharedState()',
+    runtime: 'Shared state service',
+    runtimeSubtitle: 'mount binding, schema, scope',
+    shell: 'Shared state adapter',
+    shellSubtitle: 'hydrate, write, optional subscribe',
+    adapterFlow: 'read and set',
+    shellFlow: 'load and save',
+    bidirectional: true,
+  },
+  {
+    id: 'navigation',
+    caption: 'App routers navigate through the bridge connected to the shell router.',
+    react: 'Link / useNavigate()',
+    angular: 'RouterLink / Router',
+    runtime: 'Navigation bridge',
+    runtimeSubtitle: 'App boundary and navigation checks',
+    shell: 'Shell router',
+    shellSubtitle: 'owns the page URL',
+    adapterFlow: 'navigate',
+    shellFlow: 'URL change',
+  },
+]
+
+async function capabilityRequests() {
+  const scene = createScene('capability-requests')
+  scene.title(
+    'API requests',
+    'Both frameworks call the generated transport with the shell session.',
+  )
+  panel(scene, { x: 0, y: 100, w: 330, h: 330, heading: 'Container code', fill: FILL.container })
+  const react = file(scene, {
+    x: 20,
+    y: 175,
+    w: 290,
+    name: 'fetch from #mfe/fetch',
+    subtitle: 'React',
+    fill: FILL.container,
+  })
+  const angular = file(scene, {
+    x: 20,
+    y: 315,
+    w: 290,
+    name: 'fetch from #mfe/fetch',
+    subtitle: 'Angular',
+    fill: FILL.container,
+  })
+  const transport = file(scene, {
+    x: 460,
+    y: 245,
+    w: 290,
+    name: '#mfe/fetch',
+    subtitle: 'declared API origins only',
+  })
+  const auth = tile(scene, {
+    x: 900,
+    y: 145,
+    w: 290,
+    name: 'Shell session',
+    subtitle: 'installShellAuth({ tokens })',
+    fill: FILL.shell,
+  })
+  const api = tile(scene, {
+    x: 900,
+    y: 345,
+    w: 290,
+    name: 'Declared API',
+    subtitle: 'request URL and response',
+    fill: FILL.network,
+  })
+  for (const [position, adapter] of [react, angular].entries())
+    scene.arrow({
+      from: { shape: adapter, side: 'right', at: 0.5 },
+      to: { shape: transport, side: 'left', at: position === 0 ? 0.2 : 0.8 },
+      label: 'request',
+      labelOffset: position === 0 ? -38 : 38,
+    })
+  scene.arrow({
+    from: { shape: auth, side: 'left', at: 0.5 },
+    to: { shape: transport, side: 'right', at: 0.2 },
+    label: 'session token',
+    labelOffset: -38,
+  })
+  scene.arrow({
+    from: { shape: transport, side: 'right', at: 0.8 },
+    to: { shape: api, side: 'left', at: 0.5 },
+    label: 'authenticated request',
+    labelOffset: 60,
+    labelDx: -20,
+  })
+  scene.legend({
+    x: 0,
+    y: 460,
+    entries: swatches(['container'], ['shell'], ['generated'], ['network']),
+  })
+  return scene.write()
+}
+
 const scenes = [
   systemAtRest,
   bootToMount,
@@ -1433,6 +1666,8 @@ const scenes = [
   stylingScope,
   devWorkflow,
   adapters,
+  ...capabilityScenes.map(options => () => capabilityConnection(options)),
+  capabilityRequests,
 ]
 
 for (const build of scenes) {

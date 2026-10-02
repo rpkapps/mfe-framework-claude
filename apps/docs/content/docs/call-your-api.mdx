@@ -1,73 +1,77 @@
 ---
-title: 'Call your API'
-description: 'Use the generated #mfe/fetch to send requests that carry the shell session token.'
+title: 'API requests'
+description: 'Send authenticated requests with generated fetch and the shell session token.'
 ---
 
-Every container gets `#mfe/fetch`, a standard `fetch` that resolves a relative URL against your
+Apps and Widgets, in React and Angular. First [declare your API URL](/docs/mark-a-url-as-your-api). Every container gets `#mfe/fetch`, a standard `fetch` that resolves a relative URL against your
 API base and attaches the shell's session token. The browser's own `fetch` is left alone.
+
+<Diagram
+  src="/diagrams/capability-requests.svg"
+  alt="How React and Angular containers connect to the shell for requests."
+  caption="How your container connects to the shell"
+>
+  Both frameworks import the same `#mfe/fetch` module. It resolves relative URLs against your
+  configured API base. The shell supplies the current token for declared API origins. Your API
+  receives the request and authorizes it.
+</Diagram>
 
 ## Steps
 
 <Steps>
-
 <Step>
 
-### 1. Import the generated fetch
+### 1. Send an authenticated request
 
-```ts title="examples/operations/src/queries/assets.ts"
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```ts title="src/queries/assets.ts"
 import { fetch } from '#mfe/fetch'
-```
 
-Every container has this module, whether or not it declares configuration.
-
-</Step>
-
-<Step>
-
-### 2. Send the request
-
-```ts title="examples/operations/src/queries/assets.ts"
-const response = await fetch(`assets?site=${encodeURIComponent(siteId)}`, { signal })
-
-if (!response.ok) {
-  throw new Error(`Loading assets for site ${siteId} failed with ${response.status}.`)
+export async function loadAssets(siteId: string, signal: AbortSignal) {
+  const response = await fetch(`assets?site=${encodeURIComponent(siteId)}`, { signal })
+  if (!response.ok) throw new Error(`Loading assets failed: ${response.status}`)
+  return response.json()
 }
-
-return z.array(assetSchema).parse(await response.json())
 ```
 
-The signature is `fetch`'s own, so pass a `signal`, a method and a body as you always would.
+</Tab>
+<Tab value="Angular">
 
-</Step>
+```ts title="src/inspections.ts"
+import { fetch } from '#mfe/fetch'
 
-<Step>
-
-### 3. Take the token for anything that is not HTTP
-
-```ts
-import { getAccessToken } from '#mfe/fetch'
-
-const token = await getAccessToken()
+export async function loadAssets(siteId: string, signal: AbortSignal) {
+  const response = await fetch(`assets?site=${encodeURIComponent(siteId)}`, { signal })
+  if (!response.ok) throw new Error(`Loading assets failed: ${response.status}`)
+  return response.json()
+}
 ```
 
-Await it, call it once per connection, and never store what it returns.
+The generated fetch has the same behavior in Angular. Existing `HttpClient` calls can use the [authentication interceptor setup](https://github.com/rpkapps/mfe-framework-claude/blob/dev/packages/mfe-angular/README.md#authenticated-httpclient-calls).
+
+</Tab>
+</Tabs>
+
+Both frameworks use the same generated module. Validate the response with your API schema before using it.
+Undeclared origins receive no framework token. Caller-supplied authorization wins and is never refreshed by the framework.
+A framework-authenticated 401 refreshes the token and retries once. A 403 passes through unchanged.
 
 </Step>
-
 </Steps>
 
 ## Check it works
 
-Run `pnpm dev`, which also starts a stand-in API on port 3010 that the examples point at. Open
-`/lab/config` in the shell and send the probe request. The response reports what arrived: your
-relative path resolved against the configured base, and an `Authorization` header you did not
-write. A 401 is handled once, and a 403 passes through untouched.
+Mount your container in your shell and call an endpoint you own. In the network panel, confirm the URL resolves against your configured API base.
+Check that the request carries the shell token without setting an authorization header yourself.
+A request to an undeclared origin should carry no framework token.
 
 ## Errors
 
 <Callout type="error" title="config/missing">
 
-```text
+```text shared
 operations failed to resolve the request URL: expected an absolute URL, or an apiBaseUrl to
 resolve a relative one against, received the relative URL "assets?site=north" and no configured
 apiBaseUrl.
@@ -80,7 +84,7 @@ resolved against the shell document.
 
 <Callout type="error" title="auth/undeclared-origin">
 
-```text
+```text shared
 operations failed to attach the access token for https://reports.example.test: expected a request
 to an origin the author declared as an API with { api: true }, received a request to
 https://reports.example.test, which is not declared.
@@ -93,7 +97,7 @@ is this missing declaration.
 
 <Callout type="error" title="config/invalid">
 
-```text
+```text shared
 operations failed to retry POST https://api.example.test after 401: expected a request the
 framework can send a second time, received a ReadableStream body, which is consumed as it is sent
 and cannot be read a second time.
@@ -107,8 +111,7 @@ request.
 
 ## Related
 
-- [Mark a URL as your API](/docs/mark-a-url-as-your-api) — which origins get the token.
-- [Fetch with TanStack Query](/docs/fetch-with-tanstack-query) — caching and loaders.
+- [API URL](/docs/mark-a-url-as-your-api) — trusted origins and relative-request base.
+- [TanStack Query](/docs/fetch-with-tanstack-query) — route data and cache ownership.
 - [Cancel a request on unmount](/docs/cancel-a-request-on-unmount) — the signal to pass.
-- [Test with env values and a fake API](/docs/test-with-env-and-a-fake-api) — intercept these
-  requests.
+- [Test with env values and a fake API](/docs/test-with-env-and-a-fake-api) — request interception.

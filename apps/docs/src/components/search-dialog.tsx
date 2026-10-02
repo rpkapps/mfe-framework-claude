@@ -129,6 +129,7 @@ function groupResults(results: SortedResult[]): HitGroup[] {
 
 export function SearchDialog({ tree }: { tree: PageTree.Root }) {
   const [open, setOpen] = React.useState(false)
+  const [browseAll, setBrowseAll] = React.useState(false)
   const navigate = useNavigate()
   const { search, setSearch, query } = useDocsSearch({ client, delayMs: 150 })
 
@@ -167,6 +168,27 @@ export function SearchDialog({ tree }: { tree: PageTree.Root }) {
     [query.data],
   )
   const isSearching = search.trim().length > 0
+  const pageContext = React.useMemo(() => {
+    const context = new Map<string, string>()
+    for (const section of browse) {
+      for (const page of section.items) {
+        const kind = page.url.includes('/decisions')
+          ? 'Decision log'
+          : page.url.includes('/reference/')
+            ? 'Reference'
+            : page.url.includes('/how-it-works/') || page.url.endsWith('/architecture')
+              ? 'Architecture'
+              : page.url.endsWith('/tutorial')
+                ? 'Tutorial'
+                : 'Guide'
+        context.set(page.url, `${kind} · ${section.heading}`)
+      }
+    }
+    return context
+  }, [browse])
+  const visibleBrowse = browseAll
+    ? browse
+    : browse.map(section => ({ ...section, items: section.items.slice(0, 1) }))
 
   const go = (url: string) => {
     setOpen(false)
@@ -184,6 +206,7 @@ export function SearchDialog({ tree }: { tree: PageTree.Root }) {
         className="relative h-8 w-full justify-start rounded-lg border-none bg-muted pl-3 font-normal text-foreground shadow-none transition-colors hover:bg-muted/50 md:w-48 lg:w-40 xl:w-64 dark:bg-card"
         onClick={() => {
           setOpen(true)
+          setBrowseAll(false)
         }}
         aria-label="Search documentation"
       >
@@ -213,10 +236,20 @@ export function SearchDialog({ tree }: { tree: PageTree.Root }) {
           />
           <CommandList className="no-scrollbar max-h-[60svh] min-h-80 scroll-pt-2 scroll-pb-1.5">
             <CommandEmpty className="py-12 text-center text-sm text-muted-foreground">
-              {query.isLoading ? 'Searching…' : `No results for “${search}”.`}
+              {query.isLoading ? (
+                'Searching…'
+              ) : (
+                <>
+                  <p>No results for “{search}”.</p>
+                  <p>Try a capability such as storage, actions, navigation, or theme.</p>
+                  <Button variant="link" onClick={() => setSearch('')}>
+                    Browse documentation sections
+                  </Button>
+                </>
+              )}
             </CommandEmpty>
             {!isSearching &&
-              browse.map(section => (
+              visibleBrowse.map(section => (
                 <CommandGroup key={section.id} heading={section.heading} className={groupClassName}>
                   {section.items.map(item => (
                     <CommandItem
@@ -227,12 +260,20 @@ export function SearchDialog({ tree }: { tree: PageTree.Root }) {
                       }}
                       className={cn(itemClassName, 'h-9 items-center py-0! font-medium')}
                     >
-                      <ArrowRightIcon />
+                      <ArrowRightIcon data-icon="inline-start" />
                       {item.label}
                     </CommandItem>
                   ))}
                 </CommandGroup>
               ))}
+            {!isSearching && !browseAll && (
+              <CommandGroup heading="Browse" className={groupClassName}>
+                <CommandItem value="browse-all" onSelect={() => setBrowseAll(true)}>
+                  <ArrowRightIcon data-icon="inline-start" />
+                  Browse all documentation pages
+                </CommandItem>
+              </CommandGroup>
+            )}
             {isSearching &&
               groups.map(group => (
                 <CommandGroup key={group.id} heading={group.page} className={groupClassName}>
@@ -244,9 +285,12 @@ export function SearchDialog({ tree }: { tree: PageTree.Root }) {
                     }}
                     className={itemClassName}
                   >
-                    <FileTextIcon className="mt-0.5" />
+                    <FileTextIcon data-icon="inline-start" className="mt-0.5" />
                     <span data-slot="search-result" className="min-w-0 flex-1 font-medium">
                       <Highlighted text={group.page} />
+                      <span className="block text-xs font-normal text-muted-foreground">
+                        {pageContext.get(group.url.split('#')[0] ?? group.url) ?? 'Documentation'}
+                      </span>
                     </span>
                   </CommandItem>
                   {group.hits.map(hit => (
@@ -259,9 +303,9 @@ export function SearchDialog({ tree }: { tree: PageTree.Root }) {
                       className={itemClassName}
                     >
                       {hit.type === 'heading' ? (
-                        <HashIcon className="mt-0.5" />
+                        <HashIcon data-icon="inline-start" className="mt-0.5" />
                       ) : (
-                        <TextIcon className="mt-0.5" />
+                        <TextIcon data-icon="inline-start" className="mt-0.5" />
                       )}
                       <span
                         data-slot="search-result"

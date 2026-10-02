@@ -1,89 +1,79 @@
 ---
 title: 'Deploy to production with separate repositories'
-description: 'Ship one image per container, register it on deploy, and let the shell read one registry.'
+description: 'Publish a container artifact, update the shell registry, and configure each deployment.'
 ---
 
-You deploy each container on its own, from its own repository, and the shell learns about it from
-the registry. This repository holds a development assembler and a shell that reads a registry, and
-the rest is yours to provide.
+Each container and the shell have separate repositories and release pipelines. Your container publishes its compiled assets and `mfe-registry.json`. Your platform combines those records into the registry the shell reads.
 
 ## Steps
-
-| Piece                                               | Where it comes from                                   |
-| --------------------------------------------------- | ----------------------------------------------------- |
-| a description record that names no origin           | your container build                                  |
-| a registry assembled from those records             | `tools/dev/build-registry.mjs`, for local development |
-| the shell reading `/registry.json`                  | `apps/shell/src/boot.tsx`                             |
-| an image and an origin per container                | your platform                                         |
-| a registry service the pipeline writes to           | your platform                                         |
-| `runtime-config.json`, written from the environment | `.mfe/runtime-config.sh`, run by your image           |
 
 <Steps>
 
 <Step>
-### 1. Publish each container on its own origin
+
+### 1. Build in the container repository
+
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
 
 ```sh
-pnpm --filter @example/operations run build
+# Run from the React package directory, such as apps/field-notes.
+pnpm install --frozen-lockfile
+pnpm run build
 ```
 
-Serve the `dist/` directory from an image of your own, one image per container.
-
-</Step>
-
-<Step>
-### 2. Write the deployment's values at container start
-
-```dockerfile title="Dockerfile (after the build stage)"
-FROM nginx:alpine
-COPY --from=build /app/dist/ /usr/share/nginx/html/
-COPY --from=build /app/.mfe/runtime-config.sh /docker-entrypoint.d/40-mfe-runtime-config.sh
-```
-
-The generated script reads the environment and writes `runtime-config.json` beside the container's
-assets, so each environment only sets its variables. See
-[Supply values per deployment](/docs/supply-values-per-deployment#run-it-in-a-docker-image).
-
-</Step>
-
-<Step>
-### 3. Register the container as the pipeline deploys it
+</Tab>
+<Tab value="Angular">
 
 ```sh
-curl -X PUT "$REGISTRY_URL/containers/operations" \
-  --data-binary @.mfe/mfe-registry.json
+pnpm install --frozen-lockfile
+pnpm exec nx build operations --configuration=production
 ```
 
-Your pipeline sends the generated record to a registry service of your own, which resolves
-`manifestUrl` against the origin you deployed to.
+Replace `operations` with your own Nx project name.
+
+</Tab>
+</Tabs>
 
 </Step>
 
 <Step>
-### 4. Serve one registry from the shell's own origin
 
-```tsx title="apps/shell/src/boot.tsx (trimmed)"
+### 2. Publish the artifact with deployment configuration
+
+Publish the entire container output directory, including chunks, CSS, the federation manifest and
+`mfe-registry.json`. React writes `dist/` relative to its package directory. Angular writes to the
+Nx project's configured output path.
+
+If your container declares env values, package its generated `runtime-config.sh` with those assets.
+Use the [release-artifact and Docker procedure](/docs/supply-values-per-deployment#package-your-containers-release-artifact)
+to stage the correct files and supply each deployment's values.
+
+</Step>
+
+<Step>
+
+### 3. Pass the published record to your registry integration
+
+```sh shared
+curl --fail "$CONTAINER_URL/mfe-registry.json" -o mfe-registry.json
+```
+
+Your platform's registration pipeline consumes this generated record and its deployment origin. Resolve the record's relative `manifestUrl` against that origin. Preserve generated definitions and compatibility metadata.
+
+The framework supplies no production registry aggregation CLI or registration endpoint. Use your platform's service or shell-repository pipeline.
+
+</Step>
+
+<Step>
+
+### 4. Deploy the registry from the shell repository
+
+```ts title="src/boot.ts (shell repository)" shared
 const response = await fetch('/registry.json')
 ```
 
-The shell reads that file once, at boot, so a container registered later arrives on the next page
-load.
-
-</Step>
-
-<Step>
-### 5. Keep the shell's own overrides in the shell's deployment
-
-```json title="apps/shell/registry.source.json (trimmed)"
-{
-  "presentation": {
-    "operations": { "title": "Operations", "icon": "OPS" }
-  }
-}
-```
-
-A deployment may retitle or re-icon a definition here, and it writes no id, kind, version,
-capability, container name or expose path.
+Serve the assembled registry at the URL your shell reads. A registry update is a separate shell/platform release. Existing pages discover it on reload. The shell may override presentation labels without changing the generated contract.
 
 </Step>
 
@@ -91,51 +81,11 @@ capability, container name or expose path.
 
 ## Check it works
 
-Open the shell and the developer tools' **Registry** tab. Every definition you deployed appears
-under **Loaded**, each with the origin it loaded from. Open one of your own screens, and confirm
-its requests reach the API the deployment configured.
-
-## Errors
-
-<Callout type="error" title="config/missing">
-
-```text
-operations failed to load its runtime configuration: expected a file at
-https://operations.example.com/runtime-config.json, received 404 Not Found.
-```
-
-**Fix.** Publish the runtime configuration with the container. The generated `.env.example` lists
-every value the file has to carry.
-
-</Callout>
-
-<Callout type="error" title="load/manifest-failure">
-
-```text
-Check that https://operations.example.com/mf-manifest.json is reachable and serves a valid manifest.
-```
-
-**Fix.** Confirm the origin in the registry entry is the one you deployed to, and that it answers
-requests from the shell's origin.
-
-</Callout>
-
-<Callout type="error" title="no adapter recognised this entry">
-
-```text
-expected exactly one of the registered adapters (react) to recognise the entry, received an entry
-none of them recognised.
-```
-
-**Fix.** Register the entry your build generated rather than a hand-written one. An entry with no
-`mfe` key belongs to no adapter here.
-
-</Callout>
+Open the deployed shell and its **Registry** panel. Confirm the definition loads from the container's deployment origin. Open a screen and check its API calls use that environment's configuration. A container release should require no framework source checkout.
 
 ## Related
 
-- [Build and publish a container](/docs/build-and-publish) — what a build writes.
-- [Undeploy or roll back](/docs/undeploy-or-roll-back) — taking a container out again.
-- [Supply values per deployment](/docs/supply-values-per-deployment) — the values file in detail.
-- [Registry entry](/docs/reference/registry-entry) — every field the registry reads.
-- [Run the shell with your container](/docs/run-the-shell-locally) — the same pieces locally.
+- [Build and publish](/docs/build-and-publish) — generated files and registration handoff.
+- [Supply values per deployment](/docs/supply-values-per-deployment) — deployment-specific runtime configuration.
+- [Registry entry](/docs/reference/registry-entry) — the shell registry format.
+- [Version your container](/docs/version-your-container) — compatibility and release versions.

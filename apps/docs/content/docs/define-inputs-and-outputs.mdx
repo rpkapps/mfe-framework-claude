@@ -5,8 +5,7 @@ description: 'Declare what a Widget takes and what it emits, and publish that co
 
 A Widget's contract is two Zod object schemas: `inputSchema` is what it takes, `outputSchema` is
 what it emits. They are the same field names a tool or an action declares. `outputSchema` has one
-property per output, and each property's value is that output's payload schema. The schemas give
-you the types inside `render` and the validation at the boundary, so the two cannot drift apart.
+property per output, and each property's value is that output's payload schema. The schemas validate inputs and outputs at the mount boundary. React derives render types from them. Angular checks matching component members.
 
 ## Steps
 
@@ -15,6 +14,9 @@ you the types inside `render` and the validation at the boundary, so the two can
 <Step>
 
 ### 1. Declare the two schemas
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```ts title="examples/alert-panel/src/mfe.ts (trimmed)"
 export const alertPanelContract = {
@@ -35,6 +37,37 @@ export const alertPanel = createWidget({
 })
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/mfe.ts"
+import { createWidget } from '@company/mfe-angular'
+import { z } from 'zod'
+import { AlertPanelComponent } from './alert-panel.component'
+
+export const alertPanelContract = {
+  inputSchema: z.object({
+    alertId: z.string(),
+    severity: z.enum(['info', 'warning', 'critical']).default('info'),
+  }),
+  outputSchema: z.object({
+    acknowledged: z.object({ alertId: z.string(), acknowledgedAt: z.string() }),
+    dismissed: z.object({ alertId: z.string() }),
+  }),
+}
+
+export const alertPanel = createWidget({
+  id: 'alert-panel',
+  version: '1.4.0',
+  title: 'Alert panel',
+  ...alertPanelContract,
+  component: AlertPanelComponent,
+})
+```
+
+</Tab>
+</Tabs>
+
 Declare both, even when one is empty: a Widget that takes nothing writes `inputSchema: z.object({})`,
 and one that emits nothing writes `outputSchema: z.object({})`.
 
@@ -44,12 +77,12 @@ and one that emits nothing writes `outputSchema: z.object({})`.
 
 ### 2. Follow the naming rules
 
-| Part        | Rule                                                                                                                        |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------- |
-| input name  | Lower camel case. `key`, `ref`, `fallback`, `pending`, `inputFallback`, `instanceId` and any `onX` name belong to the host. |
-| output name | Lower camel case. Your consumer subscribes to it as `onAcknowledged`. `inputRejected` belongs to the host.                  |
-| payload     | JSON only. No functions, class instances, `Date` objects or DOM nodes.                                                      |
-| default     | `.default(…)` on the schema, applied before your `render` runs.                                                             |
+| Part        | Rule                                                                                                                                                       |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| input name  | Lower camel case. `key`, `ref`, `fallback`, `pending`, `inputFallback`, `instanceId` and any `onX` name belong to the host.                                |
+| output name | Lower camel case. React subscribes through `onAcknowledged`. Angular receives `{ name, payload }` through `(output)`. `inputRejected` belongs to the host. |
+| payload     | JSON only. No functions, class instances, `Date` objects or DOM nodes.                                                                                     |
+| default     | `.default(…)` on the schema, applied before the first render.                                                                                              |
 
 </Step>
 
@@ -57,7 +90,7 @@ and one that emits nothing writes `outputSchema: z.object({})`.
 
 ### 3. Publish the contract for consumers
 
-```json title="examples/alert-panel/package.json"
+```json title="examples/alert-panel/package.json" shared
 "exports": {
   "./contracts": "./.mfe/widgets/alert-panel.contract.ts"
 }
@@ -72,6 +105,9 @@ several: `"./contracts/*": "./.mfe/widgets/*.contract.ts"`.
 
 ### 4. Import it in the consumer
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```ts title="examples/operations/src/widgets.ts"
 import { lazyWidget } from '@company/mfe-react'
 
@@ -79,6 +115,31 @@ import { inputSchema, outputSchema } from '@example/alert-panel/contracts'
 
 export const AlertPanel = lazyWidget('alert-panel', { contract: { inputSchema, outputSchema } })
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/alert-consumer.component.ts"
+import { Component } from '@angular/core'
+import { MfeWidgetComponent } from '@company/mfe-angular'
+import { inputSchema, outputSchema } from '@example/alert-panel/contracts'
+
+@Component({
+  selector: 'alert-consumer',
+  imports: [MfeWidgetComponent],
+  template: `<mfe-widget
+    widgetId="alert-panel"
+    [contract]="contract"
+    [inputs]="{ alertId: 'a-1001', severity: 'warning' }"
+  />`,
+})
+export class AlertConsumer {
+  readonly contract = { inputSchema, outputSchema }
+}
+```
+
+</Tab>
+</Tabs>
 
 Declare each schema inline in `src/mfe.ts`, or as an exported top-level `const` in another module
 of the same container.
@@ -91,8 +152,7 @@ of the same container.
 
 Run `pnpm run generate` in your container. It writes `.mfe/widgets/<id>.contract.ts`, which
 exports `widgetId`, `inputSchema`, `outputSchema` and the types `Inputs` and `Outputs`;
-`Outputs['acknowledged']` is that output's payload type. Inside `render`, your
-`inputs` prop is already parsed: omit `severity` and it reads `'info'`. The build also copies the
+`Outputs['acknowledged']` is that output's payload type. React's `inputs` prop and Angular's component inputs are already parsed. Omit `severity` and both read `'info'`. The build also copies the
 declaration the consumer imports, which is why it has to be one the build can read without running
 your module.
 
@@ -108,7 +168,7 @@ the payload's schema, and the shell's catalogue shows its fields.
 
 <Callout type="error" title="contract/output-mismatch">
 
-```text
+```text shared
 alert-panel failed to declare output 'alert-acknowledged': expected a lower-camel-case output name,
 for example "acknowledged", received "alert-acknowledged".
 ```
@@ -119,7 +179,7 @@ for example "acknowledged", received "alert-acknowledged".
 
 <Callout type="error" title="contract/input-mismatch">
 
-```text
+```text shared
 alert-panel failed to declare input 'onSelect': expected an input name that is not reserved for
 host control or output handlers, received 'onSelect', which is reserved.
 ```
@@ -131,7 +191,7 @@ something.
 
 <Callout type="error" title="contract/input-mismatch, at build time">
 
-```text
+```text shared
 /home/you/orders/src/mfe.ts:12:3: 'order-row' failed to read the Widget contract field
 'inputSchema': expected an `inputSchema` schema, found a Widget declared without one.
 ```
@@ -142,7 +202,7 @@ something.
 
 <Callout type="error" title="contract/output-mismatch, at run time">
 
-```text
+```text shared
 alert-panel@1.4.0 failed to emit output 'acknowledged' acknowledgedAt: expected a JSON-serializable
 value, received a Date.
 ```

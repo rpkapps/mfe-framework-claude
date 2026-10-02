@@ -6,6 +6,16 @@ description: 'Name the crumb a route contributes, hide one, or replace your part
 Apps only. The shell owns the first crumbs, the workspace and your App. Everything below them
 comes from your routes, and you can name, hide or replace that part.
 
+<Diagram
+  src="/diagrams/capability-breadcrumbs.svg"
+  alt="How React and Angular containers connect to the shell for breadcrumbs."
+  caption="How your container connects to the shell"
+>
+  Your router supplies route crumbs. `useBreadcrumbs` or `injectBreadcrumbs` overrides your App
+  portion while a flow is active. The shell combines these contributions with its own crumbs and
+  displays the trail in the header.
+</Diagram>
+
 ## Steps
 
 <Steps>
@@ -14,6 +24,9 @@ comes from your routes, and you can name, hide or replace that part.
 
 ### 1. Name a route's crumb
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```tsx title="examples/operations/src/routes/assets.tsx"
 export const Route = createFileRoute('/assets')({
   staticData: { breadcrumb: 'Assets' },
@@ -21,31 +34,44 @@ export const Route = createFileRoute('/assets')({
 })
 ```
 
-Without `breadcrumb`, the route falls back to its own `head` title, and then to its path segment
-in words. A `$param` segment shows the parameter's value, except a generic `$id` or a splat, which
-shows nothing.
+</Tab>
+<Tab value="Angular">
 
-</Step>
+```ts title="examples/fieldwork/src/app.routes.ts (adapted)"
+import type { Routes } from '@angular/router'
+import { mfeRouteData } from '@company/mfe-angular'
+import { SettingsComponent } from './settings.component'
 
-<Step>
-
-### 2. Hide a segment
-
-```tsx
-export const Route = createFileRoute('/wells/$wellId')({
-  staticData: { breadcrumb: false },
-  component: WellDetail,
-})
+export const routes: Routes = [
+  {
+    path: 'settings',
+    component: SettingsComponent,
+    data: mfeRouteData({ breadcrumb: 'Settings' }),
+  },
+]
 ```
 
-`false` drops that one crumb and keeps the rest. Use it where the segment would otherwise show a
-raw identifier. Index routes and pathless layout routes contribute nothing either way.
+Use `mfeRouteData({ breadcrumb: false })` to hide a segment.
+
+</Tab>
+</Tabs>
+
+<span id="2-hide-a-segment" />
+
+Set the breadcrumb field to `false` to hide a route segment.
+React falls back to its head title, then its path. Angular falls back to its route title, then its path.
+Named parameters show their values. Generic `id` parameters and layout routes contribute no crumb.
 
 </Step>
 
 <Step>
 
-### 3. Replace the trail for a flow
+<span id="3-replace-the-trail-for-a-flow" />
+
+### 2. Replace the trail for a flow
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```tsx title="examples/lab/src/routes/breadcrumbs.tsx"
 import { useBreadcrumbs } from '@company/mfe-react'
@@ -58,6 +84,26 @@ const FLOW = [
 useBreadcrumbs(inFlow ? FLOW : [])
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="examples/fieldwork/src/settings.component.ts (adapted)"
+import { injectBreadcrumbs } from '@company/mfe-angular'
+
+// Inside a component constructor, with inFlow as a signal:
+injectBreadcrumbs(() =>
+  this.inFlow()
+    ? [
+        { key: 'wizard', label: 'New study' },
+        { key: 'inputs', label: 'Inputs' },
+      ]
+    : [],
+)
+```
+
+</Tab>
+</Tabs>
+
 A wizard has steps your route tree does not name, so you supply them. An empty array means no
 override, and the override clears itself when you navigate away or unmount.
 
@@ -67,19 +113,17 @@ override, and the override clears itself when you navigate away or unmount.
 
 ## Check it works
 
-Run `pnpm dev` and open `http://localhost:3000/lab/breadcrumbs`. The trail in the header reads
-"Discovery / Framework lab / Breadcrumbs". The last two come from the registry and from
-`staticData.breadcrumb` on the route. Press "Override the trail" and your part becomes the two
-flow steps, with the workspace crumb untouched.
-
-To drop your App's own crumb everywhere, pass `breadcrumbs: false` to `createApp`. A nested App
-keeps contributing its own.
+Start your container with its own development script and open your labeled route in the separately
+running shell. Confirm the header includes the route labels you declared and any parent trail
+supplied by the host. Activate your flow override and check that your App's part changes to the
+flow steps while the host's parent breadcrumbs remain. End the flow and confirm the original
+route trail returns. For the Angular example above, the labeled route contributes “Settings”.
 
 ## Errors
 
 <Callout type="error" title="expected at most one active breadcrumb override per App mount">
 
-```text
+```text shared
 operations failed to install a breadcrumb override: expected at most one active breadcrumb
 override per App mount, received a second override while another is still mounted.
 ```
@@ -93,6 +137,6 @@ This is reported to the developer tools in development, and the second override 
 
 - [Add a route](/docs/add-a-route) — where `staticData` goes.
 - [Embed another App inside yours](/docs/embed-another-app) — how a nested App adds its crumbs.
-- [Route staticData fields](/docs/reference/static-data) — every field a route may set.
-- [Hooks and components](/docs/reference/hooks-and-components) — the `useBreadcrumbs` signature.
+- [Route staticData fields](/docs/reference/static-data#breadcrumb) — every field a route may set.
+- [Hooks and components](/docs/reference/hooks-and-components#usebreadcrumbs) — the `useBreadcrumbs` signature.
 - [Open the devtools panel](/docs/open-the-devtools) — where the warning above appears.

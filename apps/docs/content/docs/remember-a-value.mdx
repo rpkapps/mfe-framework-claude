@@ -1,10 +1,34 @@
 ---
-title: 'Remember a value across reloads'
-description: 'Store a value under your own definition id with useStoredState, validated by a schema.'
+title: 'Browser storage'
+description: 'Store local or session preferences, read them in handlers and routes, and keep Widget instances separate.'
 ---
 
-`useStoredState` hands you a stored value and a setter. The value survives a reload, and its key
-carries your definition id. Apps and Widgets.
+Keep a browser preference across reloads with React's `useStoredState` or Angular's `injectStoredState`.
+Apps and Widgets store it under their own definition id.
+
+<Diagram
+  src="/diagrams/capability-storage.svg"
+  alt="React and Angular consumers receive scoped browser storage from the shell runtime."
+  caption="The shell supplies storage. Your definition owns its records."
+>
+  The shell runtime provides each mount with scoped browser storage. React reads a subscribed value
+  through `useStoredState`. Angular reads a signal through `injectStoredState`. Both validate writes
+  against your schema. The shell's own records have a separate scope.
+</Diagram>
+
+## Choose where to store a value
+
+| Need                                                    | Use                                                          |
+| ------------------------------------------------------- | ------------------------------------------------------------ |
+| A preference for one definition in this browser         | This guide's local storage                                   |
+| A preference for this tab                               | `storage: 'session'`                                         |
+| A selection shared with the shell or another definition | [Shared state](/docs/shared-state), with backend persistence |
+| Data for one hosted Widget                              | [Widget inputs and outputs](/docs/define-inputs-and-outputs) |
+
+<Callout type="warning" title="Browser storage survives sign-out">
+  The next user of this browser profile can read these records. Keep personal data out of browser
+  storage.
+</Callout>
 
 ## Steps
 
@@ -12,7 +36,7 @@ carries your definition id. Apps and Widgets.
 <Step>
 ### 1. Declare the schema at module scope
 
-```ts title="examples/operations/src/routes/index.tsx"
+```ts shared title="examples/operations/src/routes/index.tsx"
 import { z } from 'zod'
 
 // Module scope: a schema rebuilt on every render rebinds the key on every render.
@@ -25,30 +49,66 @@ The framework compares schemas by reference. Export one schema object per key fr
 <Step>
 ### 2. Bind the key
 
+<Tabs items={['React', 'Angular']} defaultValue="React">
+<Tab value="React">
+
 ```tsx title="examples/operations/src/routes/index.tsx"
 import { useStoredState } from '@company/mfe-react'
 
+// Inside your component.
 const [density, setDensity] = useStoredState('table-density', densitySchema, {
   defaultValue: 'comfortable',
 })
 ```
 
-Call the hook inside a component. The stored key is `operations:table-density`, and you read
-`defaultValue` while the key is absent.
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular component field"
+import { injectStoredState } from '@company/mfe-angular'
+
+// Inside your component class, in an injection context.
+readonly density = injectStoredState('table-density', densitySchema, {
+  defaultValue: 'comfortable',
+})
+```
+
+Read `density.value()` in your template.
+
+</Tab>
+</Tabs>
+
+The stored key is `operations:table-density`. An absent record reads as `comfortable`.
 
 </Step>
 <Step>
 ### 3. Write a value
 
+<Tabs items={['React', 'Angular']} defaultValue="React">
+<Tab value="React">
+
 ```tsx title="examples/operations/src/routes/index.tsx"
 setDensity(current => (current === 'compact' ? 'comfortable' : 'compact'))
 ```
 
-The setter takes a value or an updater function, and validates both against the schema.
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular component method"
+this.density.set(current => (current === 'compact' ? 'comfortable' : 'compact'))
+```
+
+</Tab>
+</Tabs>
+
+Both setters accept a value or an updater function. Both validate the result against the schema.
 
 </Step>
 <Step>
 ### 4. Keep it for this tab alone
+
+<Tabs items={['React', 'Angular']} defaultValue="React">
+<Tab value="React">
 
 ```tsx title="examples/lab/src/routes/storage.tsx"
 const [visits, setVisits] = useStoredState('visits', visitsSchema, {
@@ -57,36 +117,114 @@ const [visits, setVisits] = useStoredState('visits', visitsSchema, {
 })
 ```
 
-`storage` defaults to `'local'`, which outlives the tab. `'session'` goes when the tab closes. The
-two are separate spaces, so one name in each is two records. Either way the record belongs to the
-browser, not to the person signed in: a sign-out keeps it, and the next user of this browser
-profile reads it. Keep nothing personal in storage.
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular component field"
+readonly visits = injectStoredState('visits', visitsSchema, {
+  defaultValue: 0,
+  storage: 'session',
+})
+```
+
+</Tab>
+</Tabs>
+
+`storage` defaults to `'local'`. `'session'` clears when the tab closes. The areas keep separate records with the same name.
+Angular accepts the same `storage` option.
 
 </Step>
 </Steps>
 
+## Read or write outside render
+
+<Tabs items={['React', 'Angular']} defaultValue="React">
+<Tab value="React">
+
+```tsx title="examples/lab/src/routes/storage.tsx"
+import { useMfeStorage } from '@company/mfe-react'
+
+// Capture inside your component. Use it in handlers or cleanups.
+const local = useMfeStorage()
+```
+
+React loaders read the same handle from `context.mfe.storage.local` or `context.mfe.storage.session`.
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular component field"
+import { injectMfeStorage } from '@company/mfe-angular'
+
+readonly local = injectMfeStorage()
+```
+
+Use `this.local` in methods. A resolver captures `injectMfeStorage()` before any `await`.
+
+</Tab>
+</Tabs>
+
+<Tabs items={['React', 'Angular']} defaultValue="React">
+<Tab value="React">
+
+```ts title="Illustrative handler using the density schema above"
+const key = local.key('table-density', densitySchema)
+const density = key.get()
+key.set('compact')
+key.remove()
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular handler using the density schema above"
+const key = this.local.key('table-density', densitySchema)
+const density = key.get()
+key.set('compact')
+key.remove()
+```
+
+</Tab>
+</Tabs>
+
+`get()` returns `null` for an absent record and does not subscribe. Writes update mounted consumers
+of that key. Reuse the same schema and options as the rendered binding.
+
+`local.clear()` removes definition-wide records for your definition. Pass `{ scope: 'instance' }`
+to `key`, `remove` or `clear` for the current Widget instance's records.
+The shell's `storage.clearDefinition(id)` clears that definition and its instances.
+
 ## Check it works
 
 Reload the page. The value is still on screen. Open the browser developer tools, then Application,
-then Local storage, and look for `operations:table-density`. Two mounts of one definition read that
-one record, so a second copy of your App on the page agrees with the first.
+then Local storage, and look for `operations:table-density`. Two mounts of one definition agree on the value. Write through the imperative handle and confirm the displayed value updates.
 
-## Give each Widget tile its own preferences
+<Details summary="Give each Widget tile its own preferences">
 
 Two copies of a Widget read the same stored value by default. To keep a tile's preference separate,
 give it an `instanceId` in the host:
+
+<Tabs items={['React', 'Angular']} defaultValue="React">
+<Tab value="React">
 
 ```tsx
 <DynamicWidget widgetId="well-view" instanceId="dashboard-east-well" />
 ```
 
-In Angular:
+</Tab>
+<Tab value="Angular">
 
-```html
+```html title="Illustrative Angular host template"
 <mfe-widget widgetId="well-view" instanceId="dashboard-east-well" />
 ```
 
+</Tab>
+</Tabs>
+
 Inside the Widget, add `scope: 'instance'` to the key:
+
+<Tabs items={['React', 'Angular']} defaultValue="React">
+<Tab value="React">
 
 ```tsx
 const [camera, setCamera] = useStoredState('camera', cameraSchema, {
@@ -95,18 +233,33 @@ const [camera, setCamera] = useStoredState('camera', cameraSchema, {
 })
 ```
 
-Pass the same option to Angular's `injectStoredState`. Reuse the ID when the tile returns after
-a reload. A new ID starts a separate record; reusing one shares its settings. Omitting `scope`
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular component field"
+readonly camera = injectStoredState('camera', cameraSchema, {
+  defaultValue: defaultCamera,
+  scope: 'instance',
+})
+```
+
+</Tab>
+</Tabs>
+
+Reuse the ID when the tile returns after
+a reload. A new ID starts a separate record. Reusing one shares its settings. Omitting `scope`
 keeps reading the definition-wide value.
 
 `scope: 'instance'` without a non-empty host ID throws `storage/failure`. The same rule applies
 outside a mount, where there is no Widget instance.
 
+</Details>
+
 ## Errors
 
 <Callout type="error" title="storage/failure, at bind">
 
-```text
+```text shared
 lab failed to bind the local storage key draft: expected the same schema object every active
 consumer already declared, received a different schema object.
 ```
@@ -118,7 +271,7 @@ import it wherever the key is read.
 
 <Callout type="error" title="storage/failure, at write">
 
-```text
+```text shared
 lab failed to write the local storage key draft: expected local storage to accept 2097152
 characters, received QuotaExceededError: …
 ```
@@ -130,8 +283,8 @@ stored value is unchanged.
 
 ## Related
 
-- [Shared state](/docs/shared-state) — a reactive record shared by the shell, Apps and Widgets
-- [Change the shape of a stored value](/docs/change-the-shape-of-a-stored-value) — versions
-- [Read or write storage outside render](/docs/storage-outside-render) — handlers and loaders
-- [Hooks and components](/docs/reference/hooks-and-components) — every option, one row each
-- [Test storage and the lifecycle](/docs/test-storage-and-lifecycle) — seed a record in a test
+- [Shared state](/docs/shared-state) — records shared across definitions
+- [Change the shape of a stored value](/docs/change-the-shape-of-a-stored-value) — versions and migrations
+- [React storage bindings](/docs/reference/hooks-and-components#usestoredstate) — exact options
+- [Angular storage bindings](/docs/reference/angular-adapter#read-the-shell-from-inside-a-mount) — signal and handle APIs
+- [Test storage and the lifecycle](/docs/test-storage-and-lifecycle) — seed and verify records

@@ -3,7 +3,7 @@ title: 'Test an App'
 description: 'Render your App over a memory history and assert on the page your routes produce.'
 ---
 
-Apps only. `renderApp` mounts your App through the adapter production uses, over a memory history
+Apps only. React uses `renderApp` and Angular uses `mountApp`. Both exercise the production mount tree, a memory history
 and in-memory stores. You assert on the page your routes render, with the real router, the real
 validation and the real teardown.
 
@@ -15,10 +15,13 @@ validation and the real teardown.
 
 ### 1. Render the App at one of its own URLs
 
-```tsx title="examples/reports/src/routes/accounts.test.tsx"
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
+```tsx title="Illustrative src/routes/accounts.test.tsx"
 import { renderApp, setMfeConfig } from '@company/mfe-react/testing'
 import { screen, waitFor } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { afterEach, expect, it } from 'vitest'
 
 import reports from '../mfe.ts'
 
@@ -31,14 +34,37 @@ it('reads its path parameter from its own URL', async () => {
   mounted = rendered.dispose
 
   await waitFor(() => {
-    expect(screen.getByText('Satellite drill locations')).toBeInTheDocument()
+    expect(screen.getByText('accountId=fda-1-02')).toBeInTheDocument()
   })
   expect(screen.getByText('accountId=fda-1-02')).toBeInTheDocument()
 })
 ```
 
-`initialEntries` holds paths relative to your App, so write `/accounts/fda-1-02`. The router
-resolves its first match asynchronously, so every first assertion goes inside `waitFor`.
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative src/routes/accounts.spec.ts"
+import { mountApp } from '@company/mfe-angular/testing'
+import { expect, it } from 'vitest'
+import { reports } from '../mfe'
+
+it('reads its path parameter from the host URL', async () => {
+  const mounted = await mountApp(reports, {
+    basePath: '/reports',
+    initialEntries: ['/reports/accounts/fda-1-02'],
+  })
+  expect(mounted.element.textContent).toContain('accountId=fda-1-02')
+})
+```
+
+`mountApp` is asynchronous and waits for Angular to settle. This example assumes your App displays
+its account id at `accounts/:accountId`. Replace the definition, URL and assertion with your own.
+If your definition declares shared state, supply its contract and persistence fixtures in the test options.
+
+</Tab>
+</Tabs>
+
+React entries are relative to the App. Wait for React’s first route assertion with `waitFor`. Angular entries include the boundary.
 
 </Step>
 
@@ -46,7 +72,10 @@ resolves its first match asynchronously, so every first assertion goes inside `w
 
 ### 2. Dispose after every test
 
-```tsx title="examples/reports/src/routes/accounts.test.tsx"
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
+```tsx title="Illustrative src/routes/accounts.test.tsx"
 afterEach(async () => {
   // Cleared before the await: a later test may have assigned a new handle by the time this resolves.
   const dispose = mounted
@@ -55,7 +84,26 @@ afterEach(async () => {
 })
 ```
 
-`dispose()` unmounts the tree and runs the real teardown. Every example test disposes this way.
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative vitest.setup.ts (trimmed)"
+import '@angular/compiler'
+import { cleanup, resetGeneratedAliases } from '@company/mfe-angular/testing'
+import { afterEach } from 'vitest'
+
+afterEach(async () => {
+  await cleanup()
+  resetGeneratedAliases()
+})
+```
+
+`cleanup()` disposes every mount the helpers created. Use `await mounted.dispose()` for earlier teardown.
+
+</Tab>
+</Tabs>
+
+`dispose()` unmounts the tree and runs the real teardown. Keep this cleanup in your own repository's test setup.
 
 </Step>
 
@@ -63,12 +111,31 @@ afterEach(async () => {
 
 ### 3. Check the App at the boundary the shell gives it
 
-```tsx title="examples/reports/src/routes/accounts.test.tsx"
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
+```tsx title="Illustrative src/routes/accounts.test.tsx"
 const rendered = renderApp(reports, {
   basePath: '/workspace/reports',
   initialEntries: ['/accounts/fda-1-02'],
 })
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative src/routes/accounts.spec.ts (boundary example)"
+const mounted = await mountApp(reports, {
+  basePath: '/workspace/reports',
+  initialEntries: ['/workspace/reports/accounts/fda-1-02'],
+})
+expect(mounted.element.textContent).toContain('accountId=fda-1-02')
+```
+
+Angular's `initialEntries` contains the full host URL, including `basePath`. React's `renderApp` accepts App-relative entries.
+
+</Tab>
+</Tabs>
 
 `basePath` is the prefix the shell mounts you at. Your paths do not change, which is the point of
 the test.
@@ -79,11 +146,14 @@ the test.
 
 ### 4. Run it
 
-```sh
+```sh shared
 pnpm test
 ```
 
-Your container's `test` script generates the `#mfe` modules, then runs Vitest in jsdom.
+Run this in your container repository after configuring its `test` script.
+React projects generate their modules before Vitest. Angular repositories can use a script wrapping
+`nx test <project>`; that project's target must depend on generation.
+Both need the [test alias and runner setup](/docs/test-with-env-and-a-fake-api#configure-your-repositorys-test-runner).
 
 </Step>
 
@@ -91,8 +161,7 @@ Your container's `test` script generates the `#mfe` modules, then runs Vitest in
 
 ## Check it works
 
-The suite passes, and each test reports one assertion of yours. `renderApp` returns everything
-Testing Library returns, plus `environment` for the shell state and stores, and `dispose`. Pass
+The suite passes. React returns Testing Library queries. Angular returns `element`, `injector` and `whenStable()`. Both return `environment` and `dispose`. Pass
 `shellState` to sign a different user in. A route that reads configuration needs
 [values installed first](/docs/test-with-env-and-a-fake-api).
 
@@ -100,7 +169,7 @@ Testing Library returns, plus `environment` for the shell state and stores, and 
 
 <Callout type="error" title="failed to read the configuration field">
 
-```text
+```text shared
 the test environment failed to read the configuration field 'apiBaseUrl': expected configuration
 installed by the test, received nothing installed.
 ```
@@ -111,12 +180,25 @@ installed by the test, received nothing installed.
 
 <Callout type="error" title="failed to mount App">
 
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
 ```text
 reports@1.0.0 failed to mount App: expected the supplied basePath "" passed through unchanged as
 createRouter({ basepath }), received no basepath on the router.
 ```
 
 **Fix.** Forward what your router factory receives: `createRouter({ basepath: basePath, … })`.
+
+</Tab>
+<Tab value="Angular">
+
+Angular creates its router through the adapter, so it has no `makeRouter` callback to forward a base path through.
+For an Angular boundary failure, keep route paths relative and give `mountApp` the full host URL in `initialEntries`.
+Do not replace the adapter's location strategy through custom providers.
+
+</Tab>
+</Tabs>
 
 </Callout>
 

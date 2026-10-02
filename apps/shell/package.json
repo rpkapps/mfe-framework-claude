@@ -16,7 +16,6 @@
     "@company/mfe-agent": "workspace:*",
     "@company/mfe-angular": "workspace:*",
     "@company/mfe-devtools": "workspace:*",
-    "@company/mfe-legacy-angular": "workspace:*",
     "@company/mfe-react": "workspace:*",
     "@fontsource/figtree": "^5.2.8",
     "@fontsource/ibm-plex-mono": "^5.3.0",

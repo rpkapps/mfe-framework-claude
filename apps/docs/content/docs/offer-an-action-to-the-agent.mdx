@@ -15,6 +15,9 @@ the agent needs to call it well, and whether it must ask the user first.
 
 ### 1. Describe it for the agent
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```tsx title="examples/lab/src/routes/actions.tsx"
 useAction({
   name: 'export-results',
@@ -30,6 +33,31 @@ useAction({
 })
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular component constructor"
+import { allow, deny, injectAction, injectGroups } from '@company/mfe-angular'
+
+// Inside a component constructor; record is your application's helper.
+const groups = injectGroups()
+injectAction(() => ({
+  name: 'export-results',
+  label: 'Export results',
+  description: 'Exports the simulation results to a file the user downloads.',
+  canExecute: () =>
+    groups().includes('well-planning.read')
+      ? allow()
+      : deny('You need the well-planning.read group to export.'),
+  execute: () => {
+    record('Exported the results')
+  },
+}))
+```
+
+</Tab>
+</Tabs>
+
 `label` is the menu text. `description` is for the agent: say what the action does and when to use
 it, in one or two sentences.
 
@@ -38,6 +66,9 @@ it, in one or two sentences.
 <Step>
 
 ### 2. Say what it changes
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```tsx title="examples/operations/src/routes/__root.tsx (trimmed)"
 useAction({
@@ -51,6 +82,28 @@ useAction({
   },
 })
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular component constructor"
+import { inject } from '@angular/core'
+import { Router } from '@angular/router'
+import { allow, injectAction } from '@company/mfe-angular'
+
+// Inside a component constructor.
+const router = inject(Router)
+injectAction({
+  name: 'open-wells',
+  label: 'Operations: open the wells inventory',
+  effect: 'read',
+  canExecute: () => allow(),
+  execute: () => router.navigate(['/wells']),
+})
+```
+
+</Tab>
+</Tabs>
 
 `effect` decides whether the agent asks the user before it runs the action.
 
@@ -71,6 +124,9 @@ own button is never asked. To ask for some calls only, set `needsApproval` to a 
 
 ### 3. Take input
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```tsx title="examples/lab/src/routes/actions.tsx (trimmed)"
 import { z } from 'zod'
 
@@ -90,6 +146,33 @@ useAction({
 })
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular component constructor"
+import { allow, deny, injectAction } from '@company/mfe-angular'
+import { z } from 'zod'
+
+// Declare once at module scope.
+const simulationInput = z.object({ runs: z.number().int().min(1).max(1000).default(100) })
+
+// Inside a component constructor; armed is a signal and record is your helper.
+injectAction(() => ({
+  name: 'run-simulation',
+  label: 'Run the simulation',
+  description: 'Runs the well-planning simulation. More runs take longer and smooth the result.',
+  inputSchema: simulationInput,
+  effect: 'read',
+  canExecute: () => (this.armed() ? allow() : deny('Arm the simulation first.')),
+  execute: ({ runs }) => {
+    record(`Ran the simulation ${runs} times`)
+  },
+}))
+```
+
+</Tab>
+</Tabs>
+
 `inputSchema` is one `z.object`, declared at module scope. Every caller's input is checked against
 it before `execute` runs, and `execute` receives the parsed value with its defaults filled in. An
 action without `inputSchema` takes no input.
@@ -102,6 +185,9 @@ that does not match fails the run.
 <Step>
 
 ### 4. Keep it away from the agent
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```tsx title="examples/reports/src/routes/__root.tsx (trimmed)"
 useAction({
@@ -116,6 +202,26 @@ useAction({
 })
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular component constructor"
+import { allow, deny, injectAction } from '@company/mfe-angular'
+
+// Inside a component constructor; alternatives and rows are your component's signals.
+injectAction(() => ({
+  name: 'copy-ranking',
+  label: 'Reports: copy the ranking',
+  placements: ['palette'],
+  canExecute: () =>
+    this.alternatives().length === 0 ? deny('There is nothing to copy.') : allow(),
+  execute: () => navigator.clipboard.writeText(this.rows().join('\n')),
+}))
+```
+
+</Tab>
+</Tabs>
+
 `placements` lists where the action is offered. Left out, it is `['palette', 'agent']`. List only
 `'palette'` to keep the action from the agent, or `[]` to list it nowhere. Its shortcut and your own
 button still run it either way.
@@ -126,7 +232,12 @@ button still run it either way.
 
 ### 5. Stop when the run is given up
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```tsx title="src/routes/plan.tsx"
+import { fetch } from '#mfe/fetch'
+
 useAction({
   name: 'save-plan',
   label: 'Save the plan',
@@ -135,7 +246,7 @@ useAction({
   // A save that waits on a slow approval service upstream.
   timeoutMs: 60_000,
   execute: async (plan, { signal }) => {
-    const response = await fetch('/api/plans', {
+    const response = await fetch('plans', {
       method: 'PUT',
       body: JSON.stringify(plan),
       signal,
@@ -144,6 +255,34 @@ useAction({
   },
 })
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular component constructor"
+import { injectAction } from '@company/mfe-angular'
+import { fetch } from '#mfe/fetch'
+
+// Inside your component constructor. Import your module-scope planInput schema.
+injectAction({
+  name: 'save-plan',
+  label: 'Save the plan',
+  description: 'Saves the plan the user is editing.',
+  inputSchema: planInput,
+  timeoutMs: 60_000,
+  execute: async (plan, { signal }) => {
+    const response = await fetch('plans', {
+      method: 'PUT',
+      body: JSON.stringify(plan),
+      signal,
+    })
+    return { saved: response.ok }
+  },
+})
+```
+
+</Tab>
+</Tabs>
 
 The agent's writes run one at a time, so a save that never settles would hold every later one, and
 the chat's turn with them. An agent's call therefore has a deadline, 30 seconds unless `timeoutMs`
@@ -163,7 +302,7 @@ aborts when the component unmounts.
 The entry the registry publishes is what the agent's tool list is built from. In a test, register
 the action and read the entry, then run it the way the agent does:
 
-```tsx title="src/actions.test.tsx"
+```tsx shared title="src/actions.test.tsx"
 expect(environment.runtime.actions.getSnapshot()).toMatchObject([
   { id: 'lab:run-simulation', effect: 'read', inputSchema: { properties: { runs: {} } } },
 ])
@@ -183,7 +322,7 @@ resolves `denied`.
 
 <Callout type="error" title="expected an effect">
 
-```text
+```text shared
 lab failed to register action 'plan-visit': expected an effect (read, write, destructive),
 received "safe".
 ```
@@ -194,7 +333,7 @@ received "safe".
 
 <Callout type="error" title="expected an inputSchema made with z.object">
 
-```text
+```text shared
 lab failed to register action 'plan-visit': expected an inputSchema made with z.object, received a
 schema that is not an object schema.
 ```
@@ -206,7 +345,7 @@ are.
 
 <Callout type="error" title="cannot be represented in JSON Schema">
 
-```text
+```text shared
 lab failed to describe the inputSchema of action 'plan-visit' as JSON Schema: Error: Date cannot
 be represented in JSON Schema.
 ```
@@ -218,7 +357,7 @@ an ISO string, with `z.iso.datetime()`.
 
 <Callout type="error" title="expected input matching the action’s inputSchema">
 
-```text
+```text shared
 lab failed to accept input for action 'run-simulation' runs: expected input matching the action’s
 inputSchema, received ✖ Invalid input: expected number, received string → at runs.
 ```
@@ -230,7 +369,7 @@ nothing runs. The code is `contract/input-mismatch`.
 
 <Callout type="error" title="expected a value matching the action’s outputSchema">
 
-```text
+```text shared
 lab failed to return a value from action 'run-simulation' mean: expected a value matching the
 action’s outputSchema, received ✖ Invalid input: expected number, received string → at mean.
 ```
@@ -242,7 +381,7 @@ already run, and the result is `failed` with the code `contract/output-mismatch`
 
 <Callout type="error" title="expected execute to settle">
 
-```text
+```text shared
 lab failed to execute action 'save-plan': expected execute to settle within 30000ms of starting,
 received an execute still running, so the run failed and its signal was aborted. Pass the signal
 execute receives to the work it waits on, and settle every promise it returns. If the work is slow

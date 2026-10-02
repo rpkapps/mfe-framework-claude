@@ -19,7 +19,10 @@ decides whether the shell loads you at all. Apps and Widgets carry the same thre
 <Step>
 ### 1. Write the definition version inline
 
-```ts title="examples/operations/src/mfe.ts (trimmed)"
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
+```ts title="Illustrative src/mfe.ts (trimmed)"
 export default createApp({
   id: 'operations',
   version: '2.1.0',
@@ -27,34 +30,74 @@ export default createApp({
 })
 ```
 
-It has to be a plain string literal, and every message about this App then names it as
-`operations@2.1.0`.
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative src/mfe.ts (version example)"
+import { createApp } from '@company/mfe-angular'
+import { AppComponent } from './app.component'
+import { routes } from './app.routes'
+
+export const fieldwork = createApp({
+  id: 'fieldwork',
+  version: '2.1.0',
+  component: AppComponent,
+  routes,
+})
+```
+
+Angular supplies `component` and `routes`. The version names this release in diagnostics and registry entries.
+
+</Tab>
+</Tabs>
+
+Use a plain string literal. Diagnostics name the corresponding definition, such as
+`operations@2.1.0` or `fieldwork@2.1.0`.
 
 </Step>
 
 <Step>
 ### 2. Move the package version with it
 
-```json title="examples/operations/package.json (trimmed)"
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
+```json title="Illustrative package.json (trimmed)"
 {
-  "name": "@example/operations",
+  "name": "@your-org/operations",
   "version": "2.1.0"
 }
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```json title="Illustrative package.json (version example)"
+{
+  "name": "@your-org/fieldwork",
+  "version": "2.1.0"
+}
+```
+
+</Tab>
+</Tabs>
+
 The registry entry carries the definition version alone, and nothing checks that these two agree.
+Release this repository independently. Pin published framework and build-integration versions from your organization's registry,
+commit the lockfile, and build against that installed set. Update shared contract packages through their published versions,
+rather than imports or workspace references into another team's repository.
 
 </Step>
 
 <Step>
 ### 3. Leave the runtime requirement to the framework
 
-```json title="examples/alert-panel/.mfe/mfe-registry.json (trimmed)"
+```json title="Illustrative .mfe/mfe-registry.json (trimmed)" shared
 { "requiresRuntime": ">=1.1.0 <2.0.0" }
 ```
 
-The build writes this range, and the shell checks it against `runtime.apiVersion`, currently
-`"1.1.0"`. One API version covers the registry format, mount protocol and shell-owned services.
+The build writes this range from its compatibility metadata. The range shown is illustrative.
+The shell checks it against the API version of its installed runtime. One API version covers the registry format, mount protocol and shell-owned services.
 The check runs before the shell chooses an adapter or reads the rest of the entry. The
 `mfe.framework` marker still names the adapter, and Widget schemas still validate values.
 
@@ -108,7 +151,7 @@ declared. Make one of your screens fail on purpose, and the message names the sa
 
 <Callout type="error" title="failed to read the definition version">
 
-```text
+```text shared
 src/mfe.ts:44:3: 'operations' failed to read the definition version: expected a plain string
 literal, found pkg.version.
 ```
@@ -120,7 +163,7 @@ code, so a computed version cannot be read at all.
 
 <Callout type="error" title="contract/runtime-incompatible">
 
-```text
+```text shared
 operations failed to check shell runtime compatibility: expected runtime API >=1.1.0 <2.0.0,
 received runtime API 1.0.0.
 ```

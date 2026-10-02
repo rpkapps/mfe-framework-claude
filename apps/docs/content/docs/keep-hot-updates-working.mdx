@@ -3,7 +3,7 @@ title: 'Keep hot updates working'
 description: 'Keep your render function in a module of components only, and one edit updates the page instead of reloading it.'
 ---
 
-Apps and Widgets. React Refresh replaces a module in place only when every export in it is a
+Apps and Widgets. The state-preserving behavior below describes React Refresh. Angular uses its Nx webpack dev server. React Refresh replaces a module in place only when every export in it is a
 component. One exported schema, constant or definition beside them costs you a full page reload on
 every edit, with the state on the page.
 
@@ -15,7 +15,10 @@ every edit, with the state on the page.
 
 ### 1. Keep the definition in one module
 
-```ts title="examples/alert-panel/src/mfe.ts (trimmed)"
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
+```ts title="src/mfe.ts (trimmed)"
 export const alertPanelContract = {
   inputSchema: z.object({ alertId: z.string() }),
   outputSchema: z.object({
@@ -31,6 +34,28 @@ export const alertPanel = createWidget({
 })
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/mfe.ts (trimmed)"
+import { createWidget } from '@company/mfe-angular'
+import { z } from 'zod'
+import { WellInspectionComponent } from './well-inspection.component'
+
+export const wellInspection = createWidget({
+  id: 'well-inspection',
+  version: '0.1.0',
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
+  component: WellInspectionComponent,
+})
+```
+
+Keep Angular definitions separate from components too. React Refresh's component-only export rule applies to React.
+
+</Tab>
+</Tabs>
+
 This module exports a contract and a definition, so editing it reloads the page. That is fine,
 because you edit it rarely.
 
@@ -40,7 +65,10 @@ because you edit it rarely.
 
 ### 2. Keep the render function in another
 
-```tsx title="examples/alert-panel/src/alert-panel.tsx (trimmed)"
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
+```tsx title="src/alert-panel.tsx (trimmed)"
 export function AlertPanel({
   inputs,
   emit,
@@ -49,27 +77,35 @@ export function AlertPanel({
 }
 ```
 
-Components only. This is the module you edit all day, and an edit to it updates the page in place.
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/well-inspection.component.ts (shape)"
+import { Component } from '@angular/core'
+
+@Component({
+  selector: 'well-inspection',
+  template: '<p>Well inspection</p>',
+})
+export class WellInspectionComponent {}
+```
+
+Angular uses the Nx webpack dev server. Check its observed update behavior rather than assuming React Refresh preserves Angular state.
+
+</Tab>
+</Tabs>
+
+For React, keep exports to components. Use the probe to verify the behavior of your own dev server.
 
 </Step>
 
 <Step>
 
-### 3. Ask which one a file is
+### 3. Check an edit in your own repository
 
-```sh
-pnpm hmr:probe examples/lab/src/routes/index.tsx /lab
-```
+Start your container's dev server and the separate shell. Open your screen, change a visible label, and save the component. Check whether the shell reloads and whether the component keeps its local state.
 
-```text
-file:      examples/lab/src/routes/index.tsx
-url:       http://localhost:3000/lab
-result:    hot-updated in place
-console:   (nothing about hot updates)
-```
-
-Start the servers first, with `pnpm dev`. The probe appends a comment to the file, waits, and puts
-the file back.
+React Refresh should update a component-only module in place. Angular's Nx webpack server has its own update behavior. Verify what your configured server does rather than assuming React Refresh's guarantees.
 
 </Step>
 
@@ -77,27 +113,9 @@ the file back.
 
 ## Check it works
 
-`result: hot-updated in place` means your edit kept the page and its state. The other answer is
-`result: (the page reloaded)`, and the command exits 1 so a script can read it. The symptom is
-quiet otherwise: everything still works, it is only slower and starts over each time.
+Your new label appears without manually refreshing. For React, a component-only edit preserves component state. Definition or contract changes can reload the page.
 
-| Module                | What it exports                      | What an edit costs                      |
-| --------------------- | ------------------------------------ | --------------------------------------- |
-| `src/mfe.ts`          | a definition, and usually a contract | the page reloads, and its state is gone |
-| `src/alert-panel.tsx` | the render function alone            | a hot update in place, with state kept  |
-
-## Errors
-
-<Callout type="error" title="Usage">
-
-```text
-Usage: node tools/dev/hmr-probe.mjs <file> [url]
-```
-
-**Fix.** Name the file to edit, and the page to watch. The URL defaults to `/`, which is the
-shell's own dashboard rather than your App.
-
-</Callout>
+The framework repository includes a maintainer probe for its example harness. It is not a CLI installed in independent container repositories. See [CLI and scripts](/docs/reference/cli-and-scripts) for that harness.
 
 ## Related
 

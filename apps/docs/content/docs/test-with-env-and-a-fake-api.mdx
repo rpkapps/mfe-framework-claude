@@ -7,6 +7,78 @@ Apps and Widgets. Your container reads `#mfe/config` for its values and calls `#
 requests. In a test both come from fixtures you fill, so your source keeps the imports it ships
 with.
 
+## Configure your repository's test runner
+
+Install a published adapter release and compatible peers from your organization's registry in this repository.
+Use Vitest and jsdom as development dependencies. React tests also need Testing Library and its DOM matchers.
+Angular source tests need the Angular compiler and a compatible Angular transform; the Nx scaffold uses `@analogjs/vite-plugin-angular`.
+Keep existing generated path mappings and framework transforms when adding these aliases:
+
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
+```ts title="Illustrative vitest.config.ts"
+import { defineConfig } from 'vitest/config'
+
+export default defineConfig({
+  resolve: {
+    alias: {
+      '#mfe/config': '@company/mfe-react/testing/mfe-config',
+      '#mfe/fetch': '@company/mfe-react/testing/mfe-fetch',
+    },
+  },
+  test: { environment: 'jsdom', setupFiles: ['./vitest.setup.ts'] },
+})
+```
+
+Keep your React DOM matcher setup in `vitest.setup.ts`.
+
+```json title="Illustrative package.json (scripts)"
+{
+  "scripts": {
+    "generate": "mfe-generate",
+    "test": "pnpm run generate && vitest run"
+  }
+}
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative vitest.config.mts"
+import angular from '@analogjs/vite-plugin-angular'
+import { defineConfig } from 'vitest/config'
+
+export default defineConfig({
+  plugins: [angular({ jit: true, tsconfig: './tsconfig.spec.json' })],
+  resolve: {
+    alias: {
+      '#mfe/config': '@company/mfe-angular/testing/mfe-config',
+      '#mfe/fetch': '@company/mfe-angular/testing/mfe-fetch',
+    },
+  },
+  test: { environment: 'jsdom', setupFiles: ['./vitest.setup.ts'] },
+})
+```
+
+Use the Angular cleanup setup below. Keep your project's Nx `test` target dependent on `generate`.
+Your repository can expose it through a package script:
+
+```json title="Illustrative package.json (scripts)"
+{
+  "scripts": { "test": "nx test my-app" }
+}
+```
+
+Replace `my-app` with your Nx project name.
+
+</Tab>
+</Tabs>
+
+Tests use the adapter's public package exports. They need no framework repository checkout,
+framework source aliases, running shell, or live backend. Generate real `#mfe/meta` and shared-state
+bindings when your definition imports them; only configuration and fetch are replaced by the fixtures above.
+
 ## Steps
 
 <Steps>
@@ -15,7 +87,10 @@ with.
 
 ### 1. Install the values the deployment would supply
 
-```ts title="examples/operations/src/routes/assets.test.tsx"
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
+```ts title="Illustrative src/routes/assets.test.tsx"
 import {
   mfeRequests,
   renderApp,
@@ -31,6 +106,28 @@ setMfeConfig({ apiBaseUrl: API, telemetryEnabled: false })
 setMfeApiBaseUrl(API)
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/api.spec.ts (Angular)"
+import {
+  mfeRequests,
+  mountApp,
+  setMfeAccessToken,
+  setMfeApiBaseUrl,
+  setMfeConfig,
+  setMfeFetch,
+} from '@company/mfe-angular/testing'
+import { app } from './mfe'
+
+const API = 'https://api.example.test/v1/'
+setMfeConfig({ apiBaseUrl: API, telemetryEnabled: false })
+setMfeApiBaseUrl(API)
+```
+
+</Tab>
+</Tabs>
+
 `setMfeConfig` fills every field you declared with `env()`. `setMfeApiBaseUrl` gives the request
 boundary the base a relative URL resolves against.
 
@@ -40,7 +137,10 @@ boundary the base a relative URL resolves against.
 
 ### 2. Answer the request yourself
 
-```ts title="examples/operations/src/routes/assets.test.tsx"
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
+```ts title="Illustrative src/routes/assets.test.tsx"
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -52,6 +152,23 @@ setMfeAccessToken('token-7')
 setMfeFetch(() => json(ASSETS))
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/api.spec.ts (Angular)"
+function json(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  })
+}
+setMfeAccessToken('token-7')
+setMfeFetch(() => json(ASSETS))
+```
+
+</Tab>
+</Tabs>
+
 Pass `null` to `setMfeAccessToken` for a shell with nobody signed in. Return a 503 from the handler
 to check what your page shows when the API fails.
 
@@ -61,7 +178,10 @@ to check what your page shows when the API fails.
 
 ### 3. Assert on the request that went out
 
-```ts title="examples/operations/src/routes/assets.test.tsx"
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
+```ts title="Illustrative src/routes/assets.test.tsx"
 const rendered = renderApp(operations, { initialEntries: ['/assets'] })
 mounted = rendered.dispose
 
@@ -72,6 +192,21 @@ expect(mfeRequests()[0]?.url).toBe('https://api.example.test/v1/assets?site=nort
 expect(mfeRequests()[0]?.authorization).toBe('Bearer token-7')
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/api.spec.ts (Angular)"
+const mounted = await mountApp(app, { initialEntries: ['/assets'] })
+await expect.poll(() => mfeRequests()).toHaveLength(1)
+expect(mfeRequests()[0]?.url).toBe('https://api.example.test/v1/assets?site=north')
+expect(mfeRequests()[0]?.authorization).toBe('Bearer token-7')
+```
+
+This assumes your Angular App has an `assets` route that sends the same request. Supply its shared-state fixtures if it declares shared state.
+
+</Tab>
+</Tabs>
+
 `mfeRequests()` records the URL the boundary resolved and the header it attached. Each record holds
 `url`, `method` and `authorization`.
 
@@ -81,13 +216,34 @@ expect(mfeRequests()[0]?.authorization).toBe('Bearer token-7')
 
 ### 4. Clear the fixtures between tests
 
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
 ```ts title="vitest.setup.ts"
 import { resetGeneratedAliases } from '@company/mfe-react/testing'
+import { afterEach } from 'vitest'
 
 afterEach(() => {
   resetGeneratedAliases()
 })
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="vitest.setup.ts (Angular)"
+import '@angular/compiler'
+import { cleanup, resetGeneratedAliases } from '@company/mfe-angular/testing'
+import { afterEach } from 'vitest'
+
+afterEach(async () => {
+  await cleanup()
+  resetGeneratedAliases()
+})
+```
+
+</Tab>
+</Tabs>
 
 Both fixtures are module state, so one test would otherwise inherit another's values.
 `resetMfeConfig()` and `resetMfeFetch()` clear them one at a time.
@@ -98,8 +254,7 @@ Both fixtures are module state, so one test would otherwise inherit another's va
 
 ## Check it works
 
-Your container's `vitest.config.ts` already points `#mfe/config` and `#mfe/fetch` at these
-fixtures, and the scaffold writes it for you. The production interceptor still runs, so the test
+With the aliases above, your repository's tests resolve `#mfe/config` and `#mfe/fetch` to these fixtures. The generated fetch transport still runs, so the test
 exercises base-URL resolution, the declared-origin list and the token. Reading a field nobody
 installed throws and names the field.
 
@@ -107,7 +262,7 @@ installed throws and names the field.
 
 <Callout type="error" title="failed to read the configuration field">
 
-```text
+```text shared
 the test environment failed to read the configuration field 'apiBaseUrl': expected configuration
 installed by the test, received nothing installed.
 ```
@@ -118,7 +273,7 @@ installed by the test, received nothing installed.
 
 <Callout type="error" title="among the installed values">
 
-```text
+```text shared
 the test environment failed to read the configuration field 'telemetryEnabled': expected
 'telemetryEnabled' among the installed values, received only apiBaseUrl.
 ```
@@ -130,7 +285,7 @@ has to supply it.
 
 <Callout type="error" title="failed to answer">
 
-```text
+```text shared
 the test environment failed to answer https://api.example.test/v1/assets?site=north: expected a
 request handler installed by the test, received nothing installed.
 ```

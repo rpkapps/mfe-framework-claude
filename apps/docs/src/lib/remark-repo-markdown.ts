@@ -1,7 +1,5 @@
 /**
- * What the two repository Markdown files (`docs/design.md`, `docs/decisions.md`) need before they
- * can be pages, and nothing else. Both have to keep reading as files on GitHub, so the site adapts
- * to them rather than the other way round.
+ * Adapt repository Markdown into site pages while preserving readable source files on GitHub.
  *
  * Build-time only: `source.config.ts` hands this to the MDX processor, and nothing imports it from
  * the application.
@@ -18,6 +16,12 @@ export function rewriteDiagramUrl(url: string): string {
     if (prefix.test(url)) return url.replace(prefix, '/diagrams/')
   }
   return url
+}
+
+/** Canonical repository pages keep their relative Markdown links readable on GitHub. */
+export function rewriteRepoPageUrl(url: string): string {
+  const match = /^(?:\.\/)?(design|decisions|shared-state)\.md([?#].*)?$/.exec(url)
+  return match ? `/docs/how-it-works/${match[1]}${match[2] ?? ''}` : url
 }
 
 interface MdastNode {
@@ -50,11 +54,12 @@ function hasBodyIntro(file: CompiledFile): boolean {
   return 'bodyIntro' in frontmatter && frontmatter.bodyIntro === true
 }
 
-function walk(node: MdastNode): void {
+function walk(node: MdastNode, isRepoPage: boolean): void {
   if ((node.type === 'image' || node.type === 'link') && typeof node.url === 'string') {
     node.url = rewriteDiagramUrl(node.url)
+    if (isRepoPage && node.type === 'link') node.url = rewriteRepoPageUrl(node.url)
   }
-  for (const child of node.children ?? []) walk(child)
+  for (const child of node.children ?? []) walk(child, isRepoPage)
 }
 
 /**
@@ -84,7 +89,8 @@ function stripPageHeader(tree: MdastRoot, file: CompiledFile): void {
 /** A remark plugin: `mdast` types are not a dependency of this app, so the shape is declared here. */
 export function remarkRepoMarkdown() {
   return (tree: MdastRoot, file: CompiledFile) => {
-    walk(tree)
-    if (file.basename?.endsWith('.md') === true) stripPageHeader(tree, file)
+    const isRepoPage = file.basename?.endsWith('.md') === true
+    walk(tree, isRepoPage)
+    if (isRepoPage) stripPageHeader(tree, file)
   }
 }

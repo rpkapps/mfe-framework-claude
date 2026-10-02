@@ -3,8 +3,7 @@ title: "React to a Widget's outputs"
 description: 'Handle each declared output with an onX prop, typed from the published contract.'
 ---
 
-Each output a Widget declares arrives as one `onX` prop, so `acknowledged` becomes
-`onAcknowledged`. The payload is validated on its way out of the Widget, so your handler runs on
+React receives each declared output through an `onX` prop, such as `onAcknowledged`. Angular receives `{ name, payload }` through `(output)`. The payload is validated on its way out of the Widget, so your handler runs on
 data that matches the contract.
 
 ## Steps
@@ -15,6 +14,9 @@ data that matches the contract.
 
 ### 1. Pass the contract, so the handlers are typed
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```ts title="examples/operations/src/widgets.ts"
 import { lazyWidget } from '@company/mfe-react'
 
@@ -23,14 +25,41 @@ import { inputSchema, outputSchema } from '@example/alert-panel/contracts'
 export const AlertPanel = lazyWidget('alert-panel', { contract: { inputSchema, outputSchema } })
 ```
 
-With a contract your editor knows every handler name and payload field, and without one the
-component still works.
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/alert-consumer.component.ts"
+import { Component } from '@angular/core'
+import { MfeWidgetComponent } from '@company/mfe-angular'
+import { inputSchema, outputSchema } from '@example/alert-panel/contracts'
+
+@Component({
+  selector: 'alert-consumer',
+  imports: [MfeWidgetComponent],
+  template: `<mfe-widget
+    widgetId="alert-panel"
+    [contract]="contract"
+    [inputs]="{ alertId: 'a-1001', severity: 'warning' }"
+  />`,
+})
+export class AlertConsumer {
+  readonly contract = { inputSchema, outputSchema }
+}
+```
+
+</Tab>
+</Tabs>
+
+React derives handler types from the imported contract. Angular passes the contract to its host and narrows each output by name.
 
 </Step>
 
 <Step>
 
 ### 2. Add one handler per output
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```tsx title="examples/lab/src/routes/widgets.tsx (trimmed)"
 <AlertPanel
@@ -45,6 +74,44 @@ component still works.
 />
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/alert-consumer.component.ts"
+import { Component } from '@angular/core'
+import { MfeWidgetComponent, type MfeWidgetOutput } from '@company/mfe-angular'
+import { inputSchema, outputSchema } from '@example/alert-panel/contracts'
+
+@Component({
+  selector: 'alert-consumer',
+  imports: [MfeWidgetComponent],
+  template: `<mfe-widget
+    widgetId="alert-panel"
+    [contract]="contract"
+    [inputs]="{ alertId: 'a-1001', severity: 'warning' }"
+    (output)="onOutput($event)"
+  />`,
+})
+export class AlertConsumer {
+  readonly contract = { inputSchema, outputSchema }
+  onOutput(event: MfeWidgetOutput) {
+    if (event.name === 'acknowledged') {
+      const payload = outputSchema.shape.acknowledged.parse(event.payload)
+      this.record(`acknowledged ${payload.alertId} at ${payload.acknowledgedAt}`)
+    } else if (event.name === 'dismissed') {
+      const payload = outputSchema.shape.dismissed.parse(event.payload)
+      this.record(`dismissed ${payload.alertId}`)
+    }
+  }
+  record(message: string) {
+    /* Update your application's activity list. */
+  }
+}
+```
+
+</Tab>
+</Tabs>
+
 Subscribe to the outputs you care about, and leave the rest out.
 
 </Step>
@@ -53,11 +120,28 @@ Subscribe to the outputs you care about, and leave the rest out.
 
 ### 3. Name the payload type where you need it
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```ts
 import type { Outputs } from '@example/alert-panel/contracts'
 
 const [latest, setLatest] = useState<Outputs['acknowledged'] | null>(null)
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/alert-consumer.component.ts"
+import { signal } from '@angular/core'
+import type { Outputs } from '@example/alert-panel/contracts'
+
+// Component field initializer.
+readonly latest = signal<Outputs['acknowledged'] | null>(null)
+```
+
+</Tab>
+</Tabs>
 
 The generated contract module exports the types `Outputs` and `Inputs` beside the schemas.
 `Outputs['acknowledged']` is the payload of that one output.
@@ -70,14 +154,11 @@ The generated contract module exports the types `Outputs` and `Inputs` beside th
 
 Press the control inside the Widget and your handler runs with the payload. Payloads are JSON
 only, so a date arrives as the string the Widget sent. An `onX` prop that matches no declared
-output is ignored, and never reaches the Widget as an input. Changing a handler re-renders nothing
-inside the Widget, so an inline arrow function is fine. The lab's Widgets page logs every output it
-receives, which is the quickest way to see the shape of one.
+output is ignored, and never reaches the Widget as an input. Changing a React handler does not rerender the Widget. Angular emits host events without changing Widget inputs. Log the received payload in your own host or assert it in an integration test to inspect its shape.
 
 <Callout type="warning" title="The handler never fires">
 
-Check the name first. An output called `acknowledged` is `onAcknowledged`, with one capital letter
-and no other change. Then check that the Widget declares it, as a property of
+Check the name first. React maps `acknowledged` to `onAcknowledged`. Angular compares `event.name` with `acknowledged`. Then check that the Widget declares it, as a property of
 `contract.outputSchema` on its registry entry.
 
 </Callout>
@@ -86,7 +167,7 @@ and no other change. Then check that the Widget declares it, as a property of
 
 <Callout type="error" title="contract/output-mismatch">
 
-```text
+```text shared
 alert-panel@1.4.0 failed to emit output 'acknowledged' acknowledgedAt: "2026-05-04T10:15:00.000Z"; ✖ Invalid input: expected number, received string
   → at acknowledgedAt.
 ```

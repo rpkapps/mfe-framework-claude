@@ -1,0 +1,195 @@
+---
+title: 'Events, errors and traces'
+description: 'Record events, measurements, caught errors and spans with telemetry scoped to your App or Widget.'
+---
+
+Apps and Widgets. Use the mount's telemetry service to record events, errors and timed operations.
+The framework adds your definition's identity. The shell decides where records go.
+
+## Steps
+
+<Steps>
+<Step>
+### 1. Get your mount telemetry
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="examples/lab/src/routes/telemetry.tsx (adapted)"
+import { useTelemetry } from '@company/mfe-react'
+
+export function RecordEvent() {
+  const telemetry = useTelemetry()
+  return (
+    <button onClick={() => telemetry.event('lab.probe', { source: 'button' })}>Record event</button>
+  )
+}
+```
+
+In a route loader or `beforeLoad`, use `context.mfe.telemetry` instead of a hook.
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="examples/fieldwork/src/overview.component.ts (adapted)"
+import { Component } from '@angular/core'
+import { injectTelemetry } from '@company/mfe-angular'
+
+@Component({
+  selector: 'fieldwork-record-event',
+  template: `<button (click)="record()">Record event</button>`,
+})
+export class RecordEventComponent {
+  readonly telemetry = injectTelemetry()
+
+  record(): void {
+    this.telemetry.event('fieldwork.probe', { source: 'button' })
+  }
+}
+```
+
+Get the service in an injection context, such as a component constructor or field initializer.
+
+</Tab>
+</Tabs>
+
+The handle stays stable for the mount's lifetime. Recording does not subscribe your component to state changes.
+
+</Step>
+<Step>
+<span id="record-events-measurements-and-caught-errors" />
+
+### 2. Record events, measurements and caught errors
+
+```ts shared title="examples/lab/src/routes/telemetry.tsx (adapted)"
+telemetry.info('Export started', { format: 'csv' })
+telemetry.event('lab.export.started', { format: 'csv' })
+telemetry.measure('lab.export.rows', 128, { unit: 'count' })
+telemetry.error(new Error('Export failed'), { step: 'export' })
+```
+
+Both frameworks expose the same service. `error` reports a caught failure without throwing it or handling the UI.
+Use scalar attributes only: strings, numbers and booleans. Keep bodies, credentials and raw URLs out of records.
+The framework owns `mfe.*` attributes and drops any values you supply there.
+
+</Step>
+<Step>
+<span id="trace-work-and-end-the-span" />
+
+### 3. Trace work and end the span
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="examples/lab/src/routes/telemetry.tsx (adapted)"
+import { SpanStatusCode, useMfeSignal, useTelemetry, type MfeTelemetry } from '@company/mfe-react'
+
+// Inside your mounted component:
+const telemetry = useTelemetry()
+const signal = useMfeSignal()
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="examples/fieldwork/src/overview.component.ts (adapted)"
+import {
+  SpanStatusCode,
+  injectMfeSignal,
+  injectTelemetry,
+  type MfeTelemetry,
+} from '@company/mfe-angular'
+
+// Inside your component constructor:
+const telemetry = injectTelemetry()
+const signal = injectMfeSignal()
+```
+
+</Tab>
+</Tabs>
+
+```ts shared title="examples/lab/src/routes/telemetry.tsx (adapted)"
+import { fetch } from '#mfe/fetch'
+
+async function loadAssets(telemetry: MfeTelemetry, signal: AbortSignal) {
+  return telemetry.tracer.startActiveSpan('assets.load', async span => {
+    try {
+      const response = await fetch('assets', { signal })
+      if (!response.ok) throw new Error(`Loading assets failed: ${response.status}`)
+      const assets = await response.json()
+      if (signal.aborted) return
+      span.setStatus({ code: SpanStatusCode.OK })
+      return assets
+    } catch (error) {
+      if (!signal.aborted) {
+        span.recordException(error)
+        span.setStatus({ code: SpanStatusCode.ERROR })
+        telemetry.error(error, { step: 'load-assets' })
+      }
+      throw error
+    } finally {
+      span.end()
+    }
+  })
+}
+```
+
+Call `loadAssets(telemetry, signal)` from your mounted component. Pass the mount signal to background work. Stop reporting when it aborts, and handle a rejected operation in your caller.
+Always end spans in `finally`. The framework closes leftover spans as cancelled when the mount ends.
+Start child spans before the first `await` to share the parent's trace. After an `await`, new spans start separate traces.
+
+</Step>
+</Steps>
+
+## Check it works
+
+Use your test environment's `telemetry.events()`, `telemetry.logs('error')` and `telemetry.spansNamed('assets.load')` to inspect records.
+Check the definition attribution and confirm `telemetry.endedSpans()` includes completed operations.
+The development shell retains no records unless you configure a collector, so test records are the reliable check.
+
+## Errors
+
+<Callout type="error" title="mount/failure, outside a mount">
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```text
+<unmounted> failed to call useTelemetry: expected a component rendered inside an App or Widget
+mount, received a component rendered outside any mount.
+```
+
+</Tab>
+<Tab value="Angular">
+
+`injectTelemetry()` requires a component or service created inside an App or Widget mount.
+A consumer created outside a mount reports `mount/failure`.
+
+**Fix.** Capture telemetry in a component constructor or field initializer inside the mount.
+Resolvers can inject it before any `await`.
+
+</Tab>
+</Tabs>
+
+**Fix.** Get telemetry inside your mounted component. React route callbacks use `context.mfe.telemetry`.
+
+</Callout>
+
+<Callout type="error" title="dispose/failure, open spans">
+
+```text shared
+lab@1.0.0 failed to dispose the mount telemetry: expected every span started by the mount to be
+ended by its author, received 1 span(s) still open: lab.compute.
+```
+
+**Fix.** End every span in `finally`. Use the mount signal to cancel background work before it reports after disposal.
+
+</Callout>
+
+## Related
+
+- [Telemetry API](/docs/reference/hooks-and-components#usetelemetry) — service fields and framework exports.
+- [Angular mount services](/docs/reference/angular-adapter#read-the-shell-from-inside-a-mount) — injection context and lifecycle.
+- [Cancel a request on unmount](/docs/cancel-a-request-on-unmount) — work scoped to the mount.
+- [Test an App](/docs/test-an-app) — telemetry records in tests.
+- [Read a failure message](/docs/read-a-failure-message) — framework failures and recovery.

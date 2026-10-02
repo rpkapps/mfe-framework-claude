@@ -31,13 +31,9 @@ import { angularMfeRules } from './angular-naming.ts'
 
 export type FrameworkPresetOptions = PresetOptions
 
-const SIBLING =
-  'Package boundary: the legacy adapter is a sibling of the React adapter, not a consumer of it. Share code through @company/mfe-core.'
-
 const SINGLE_SPA: RestrictedPath = {
   name: 'single-spa',
-  message:
-    'Package boundary: only @company/mfe-legacy-angular knows the legacy single-spa contract.',
+  message: 'Package boundary: single-spa is unsupported; use the App and Widget lifecycle.',
 }
 
 const CORE_STATELESS =
@@ -154,19 +150,6 @@ function packageZones(
       [MODULE_FEDERATION_PATTERN],
     ),
     zone('mfe-react', [SINGLE_SPA], []),
-    zone(
-      'mfe-legacy-angular',
-      [
-        { name: 'react', message: SIBLING },
-        { name: 'react-dom', message: SIBLING },
-        {
-          name: '@tanstack/react-router',
-          message: 'Package boundary: the legacy adapter does not depend on the React router.',
-        },
-        { name: '@company/mfe-react', message: SIBLING },
-      ],
-      [],
-    ),
     zone(
       'mfe-agent',
       [

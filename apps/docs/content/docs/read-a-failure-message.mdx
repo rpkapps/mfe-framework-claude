@@ -13,7 +13,7 @@ sentence is always one action you can take.
 <Step>
 ### 1. Read the parts of a runtime message
 
-```text
+```text shared
 <id>@<version> failed to <operation> <field>: expected <expected>, received <observed>. <repair>
 ```
 
@@ -24,7 +24,7 @@ The version, the field and the expected clause each appear only when there is on
 <Step>
 ### 2. Match a real one against that shape
 
-```text
+```text shared
 operations@2.1.0 failed to mount App: expected the supplied basePath "/operations" passed through
 unchanged as createRouter({ basepath }), received no basepath on the router. Forward the basePath
 your factory received: createRouter({ basepath: basePath, … }).
@@ -38,7 +38,7 @@ comparison and the repair.
 <Step>
 ### 3. Expect two extra parts from the build
 
-```text
+```text shared
 src/panel.tsx:12:19: the build failed to resolve an asset reference: expected a reference the build
 can rewrite to the deployed container, found the bare relative path './icons/gear.svg'. This
 expectation is declared by container-relative asset resolution. Import it (…)
@@ -55,7 +55,7 @@ expectation.
 <Step>
 ### 4. Do what the last sentence says
 
-```text
+```text shared
 Rebuild the container; the registry entry is generated, never hand-written.
 ```
 
@@ -67,7 +67,7 @@ entry.
 <Step>
 ### 5. Search on the code, not the text
 
-```text
+```text shared
 load/manifest-failure
 ```
 

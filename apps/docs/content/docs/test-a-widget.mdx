@@ -3,8 +3,7 @@ title: 'Test a Widget'
 description: 'Render your Widget with inputs, then assert on what it rendered and on the outputs it emitted.'
 ---
 
-Widgets only. `renderWidget` renders your Widget through the production validation path. You pass
-the props a consumer would pass, and you assert on the markup and on every output payload.
+Widgets only. React uses `renderWidget`. Angular uses `mountWidget`. Both run production input and output validation. Assert on markup and output payloads.
 
 ## Steps
 
@@ -14,7 +13,10 @@ the props a consumer would pass, and you assert on the markup and on every outpu
 
 ### 1. Render it with inputs and a handler
 
-```tsx title="examples/alert-panel/src/mfe.test.tsx"
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
+```tsx title="Illustrative src/mfe.test.tsx"
 import { renderWidget } from '@company/mfe-react/testing'
 import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
@@ -39,7 +41,32 @@ it('renders the alert and emits a validated acknowledgement', async () => {
 })
 ```
 
-`props` carries your declared inputs and one `on<Output>` handler per declared output. A prop a
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/mfe.spec.ts (Angular alert-panel equivalent)"
+import { mountWidget } from '@company/mfe-angular/testing'
+import { expect, it } from 'vitest'
+import { alertPanel } from './mfe'
+
+it('emits a validated acknowledgement', async () => {
+  const mounted = await mountWidget(alertPanel, {
+    inputs: { alertId: 'a-42', severity: 'critical' },
+  })
+  expect(mounted.element.textContent).toContain('Alert a-42')
+  mounted.element.querySelector<HTMLButtonElement>('button')!.click()
+  await mounted.whenStable()
+  expect(mounted.outputs).toHaveLength(1)
+  expect(mounted.outputs[0]?.name).toBe('acknowledged')
+})
+```
+
+This uses the same alert contract as the React example. Angular accepts `inputs` and records validated `outputs`.
+
+</Tab>
+</Tabs>
+
+React `props` carries inputs and `on<Output>` handlers. Angular separates `inputs` from its optional `onOutput` callback. A prop a
 consumer sets for the host, such as `fallback`, never reaches your render function as an input.
 
 </Step>
@@ -48,7 +75,10 @@ consumer sets for the host, such as `fallback`, never reaches your render functi
 
 ### 2. Assert on the payload, not only the call
 
-```tsx title="examples/alert-panel/src/mfe.test.tsx"
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
+```tsx title="Illustrative src/mfe.test.tsx"
 const payload = onAcknowledged.mock.calls[0]?.[0] as {
   alertId: string
   acknowledgedAt: string
@@ -56,6 +86,20 @@ const payload = onAcknowledged.mock.calls[0]?.[0] as {
 expect(payload.alertId).toBe('a-42')
 expect(typeof payload.acknowledgedAt).toBe('string')
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/mfe.spec.ts (Angular alert-panel equivalent)"
+expect(mounted.outputs[0]).toMatchObject({
+  name: 'acknowledged',
+  payload: { alertId: 'a-42' },
+})
+expect(mounted.outputs[0]?.payload).toHaveProperty('acknowledgedAt', expect.any(String))
+```
+
+</Tab>
+</Tabs>
 
 The payload passed your output's schema before the handler saw it.
 
@@ -65,7 +109,10 @@ The payload passed your output's schema before the handler saw it.
 
 ### 3. Check the default your schema declares
 
-```tsx title="examples/alert-panel/src/mfe.test.tsx"
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
+```tsx title="Illustrative src/mfe.test.tsx"
 it('applies a schema default for an omitted optional input', async () => {
   const rendered = renderWidget(alertPanel, { props: { alertId: 'a-1' } })
   cleanup = rendered.dispose
@@ -73,6 +120,19 @@ it('applies a schema default for an omitted optional input', async () => {
   expect(screen.getByText('Informational')).toBeInTheDocument()
 })
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/mfe.spec.ts (Angular alert-panel equivalent)"
+it('applies the severity default', async () => {
+  const mounted = await mountWidget(alertPanel, { inputs: { alertId: 'a-1' } })
+  expect(mounted.element.textContent).toContain('Informational')
+})
+```
+
+</Tab>
+</Tabs>
 
 `severity` declares the default `'info'`, and this panel renders that as "Informational". The
 default is applied by the contract, so a consumer that omits the input still gets a valid one.
@@ -83,7 +143,10 @@ default is applied by the contract, so a consumer that omits the input still get
 
 ### 4. Dispose after every test, then run
 
-```tsx title="examples/alert-panel/src/mfe.test.tsx"
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
+```tsx title="Illustrative src/mfe.test.tsx"
 afterEach(async () => {
   // Cleared before the await: a later test may have assigned a new handle by the time this resolves.
   const dispose = cleanup
@@ -92,12 +155,29 @@ afterEach(async () => {
 })
 ```
 
-```sh
+</Tab>
+<Tab value="Angular">
+
+```ts title="vitest.setup.ts (Angular)"
+import '@angular/compiler'
+import { cleanup, resetGeneratedAliases } from '@company/mfe-angular/testing'
+import { afterEach } from 'vitest'
+
+afterEach(async () => {
+  await cleanup()
+  resetGeneratedAliases()
+})
+```
+
+</Tab>
+</Tabs>
+
+```sh shared
 pnpm test
 ```
 
-`dispose()` unmounts the tree and runs the real teardown. The `test` script generates the `#mfe`
-modules first, then runs Vitest in jsdom.
+`dispose()` unmounts the tree and runs the real teardown. Configure this repository's `test` script to run generation and Vitest in jsdom.
+An Angular repository may wrap its Nx test target instead; keep that target's generation dependency.
 
 </Step>
 
@@ -105,17 +185,16 @@ modules first, then runs Vitest in jsdom.
 
 ## Check it works
 
-The suite passes, and an input your schema rejects fails the test rather than rendering. A bad
-input on the first render throws, so assert it with
-`expect(() => renderWidget(…)).toThrowError(…)`. A Widget test needs no shell, no dev server and
-no network. The scaffolded Widget ships one output test and one rejected-input test in
-`src/mfe.test.tsx`, and they pass before you change a line.
+The suite passes, and an input your schema rejects fails the test rather than rendering. An invalid input rejects the initial render or mount.
+React uses `expect(() => renderWidget(…)).toThrowError(…)`. Angular uses `await expect(mountWidget(…)).rejects.toThrow()`. A Widget test needs no shell, no dev server and
+no network. Use your own Widget definition and expected outputs. Set up the
+[repository test runner and aliases](/docs/test-with-env-and-a-fake-api#configure-your-repositorys-test-runner) first.
 
 ## Errors
 
 <Callout type="error" title="failed to accept input">
 
-```text
+```text shared
 alert-panel@1.4.0 failed to accept input alertId: 7; ✖ Invalid input: expected string, received
 number → at alertId. Check the alertId prop on the Widget.
 ```
@@ -126,7 +205,7 @@ number → at alertId. Check the alertId prop on the Widget.
 
 <Callout type="error" title="failed to emit output">
 
-```text
+```text shared
 alert-panel@1.4.0 failed to emit output 'resolved': expected one of the declared outputs
 (acknowledged, dismissed), received 'resolved', which this Widget does not declare. Add 'resolved'
 to the outputSchema, or emit a declared output.

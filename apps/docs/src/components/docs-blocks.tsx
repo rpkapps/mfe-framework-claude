@@ -157,6 +157,7 @@ export function DocsTabs({
   items,
   children,
   defaultValue,
+  onValueChange,
   className,
   ...props
 }: Omit<React.ComponentProps<typeof Tabs>, 'children' | 'defaultValue'> & {
@@ -165,7 +166,9 @@ export function DocsTabs({
   defaultValue?: string
 }) {
   const values = items ?? tabValues(children)
-  const initial = defaultValue ?? values[0]
+  const isFramework = values.length === 2 && values.includes('React') && values.includes('Angular')
+  const orderedValues = isFramework ? ['React', 'Angular'] : values
+  const initial = isFramework ? 'React' : (defaultValue ?? values[0])
 
   return (
     <Tabs
@@ -173,12 +176,14 @@ export function DocsTabs({
       {...(initial === undefined ? {} : { defaultValue: initial })}
       className={cn('relative mt-6 w-full gap-4', className)}
       {...props}
+      onValueChange={onValueChange}
     >
       <TabsList
         variant="line"
+        aria-label={isFramework ? 'Code framework' : 'Example options'}
         className="h-auto justify-start gap-6 rounded-none bg-transparent p-0"
       >
-        {values.map(value => (
+        {orderedValues.map(value => (
           <TabsTrigger
             key={value}
             value={value}
@@ -207,6 +212,16 @@ export function DocsTab({
       )}
       {...props}
     />
+  )
+}
+
+/** One source snippet used by both frameworks; each tab renders its own code block. */
+export function DocsSharedCode({ children }: { children: React.ReactNode }) {
+  return (
+    <DocsTabs items={['React', 'Angular']}>
+      <DocsTab value="React">{children}</DocsTab>
+      <DocsTab value="Angular">{children}</DocsTab>
+    </DocsTabs>
   )
 }
 

@@ -1,8 +1,4 @@
-/**
- * The theme stays outside the framework's store, written raw under the bare key `theme`, because
- * the legacy Angular applications read `localStorage["theme"]` directly and can be taught no
- * other key or shape (§24).
- */
+/** The shell remembers its theme before the framework runtime boots. */
 
 export type ShellTheme = 'light' | 'dark'
 

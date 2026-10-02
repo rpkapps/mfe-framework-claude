@@ -4,7 +4,7 @@ description: 'Import #mfe/config and read the values this deployment supplied, t
 ---
 
 The values a deployment supplied arrive through `#mfe/config`. The build generates that module
-from your `src/mfe.config.ts`, so the type of every field comes from the schema you wrote.
+from your container's own `src/mfe.config.ts`, so the type of every field comes from the schema you wrote.
 
 ## Steps
 
@@ -14,7 +14,7 @@ from your `src/mfe.config.ts`, so the type of every field comes from the schema 
 
 ### 1. Import the config
 
-```ts title="examples/lab/src/routes/config.tsx"
+```ts shared title="Illustrative React container: src/routes/config.tsx"
 import config from '#mfe/config'
 ```
 
@@ -26,9 +26,31 @@ A named import works too: `import { config } from '#mfe/config'`.
 
 ### 2. Read a field
 
-```tsx title="examples/lab/src/routes/config.tsx (trimmed)"
+<Tabs items={['React', 'Angular']} defaultValue="React">
+<Tab value="React">
+
+```tsx title="Illustrative React container: src/routes/config.tsx (trimmed)"
 <span>GET {String(config.apiBaseUrl)}lab/probe</span>
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular config-preview.component.ts"
+import { Component } from '@angular/core'
+import config from '#mfe/config'
+
+@Component({
+  selector: 'config-preview',
+  template: '<span>GET {{ config.apiBaseUrl }}lab/probe</span>',
+})
+export class ConfigPreview {
+  readonly config = config
+}
+```
+
+</Tab>
+</Tabs>
 
 Read fields anywhere, including at module scope, because the values are in place before your code
 runs.
@@ -39,7 +61,7 @@ runs.
 
 ### 3. Name the type where you need it
 
-```ts
+```ts shared
 import type { MfeConfig } from '#mfe/config'
 
 function describe(values: MfeConfig): string {
@@ -55,8 +77,7 @@ function describe(values: MfeConfig): string {
 
 ## Check it works
 
-Open `/lab/config` in the shell. It prints every field this deployment supplied, with the values
-your local `.mfe/runtime-config.json` holds. The values are frozen: changing one takes a new
+Mount your container in a compatible shell and open the configuration preview. It should display the values from that container's `.mfe/runtime-config.json`. The values are frozen: changing one takes a new
 deployment and a page reload, and nothing polls. A container with no `src/mfe.config.ts` gets no
 `#mfe/config` and fetches nothing.
 
@@ -67,19 +88,18 @@ first screen.
 
 <Callout type="error" title="config/missing">
 
-```text
+```text shared
 operations failed to load its runtime configuration: expected a file at
 http://localhost:3001/runtime-config.json, received 404 Not Found.
 ```
 
-**Fix.** Publish the file with the container. In development, run `pnpm run generate`, which creates
-`.mfe/runtime-config.json` for the dev server to answer with, and reload.
+**Fix.** Publish the file with the container. In development, run your React container's `generate` script or your Angular project's `generate` target. Reload after it creates the project-local `.mfe/runtime-config.json`.
 
 </Callout>
 
 <Callout type="error" title="config/unreachable">
 
-```text
+```text shared
 operations failed to load its runtime configuration: expected a readable file at
 http://localhost:3001/runtime-config.json, received a request that never completed.
 ```
@@ -91,7 +111,7 @@ reads `received 503 Service Unavailable` instead.
 
 <Callout type="error" title="config/invalid">
 
-```text
+```text shared
 operations failed to validate apiBaseUrl: expected a string in uri form, received Invalid input:
 expected string, received undefined.
 ```
@@ -102,7 +122,7 @@ expected string, received undefined.
 
 <Callout type="error" title="config/invalid">
 
-```text
+```text shared
 operations failed to read its runtime configuration: expected only the declared fields
 (apiBaseUrl, telemetryEnabled), received apiBaseURL.
 ```

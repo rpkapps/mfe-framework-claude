@@ -12,16 +12,39 @@ declare `migrate` beside it, and the next read converts the old record. Apps and
 <Step>
 ### 1. Raise the version and convert
 
-```ts
-const [draft] = useStoredState('draft', draftSchema, {
+```ts shared title="Illustrative shared migration options"
+const draftOptions = {
   defaultValue: { note: '', pinned: false },
   version: 2,
-  migrate: (value, fromVersion) =>
+  migrate: (value: unknown, fromVersion: number) =>
     fromVersion === 0
       ? { note: '', pinned: false }
       : { note: (value as { text: string }).text, pinned: false },
-})
+}
 ```
+
+<Tabs items={['React', 'Angular']} defaultValue="React">
+<Tab value="React">
+
+```tsx title="Illustrative React component body"
+import { useStoredState } from '@company/mfe-react'
+
+const [draft] = useStoredState('draft', draftSchema, draftOptions)
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular component field"
+import { injectStoredState } from '@company/mfe-angular'
+
+readonly draft = injectStoredState('draft', draftSchema, draftOptions)
+```
+
+</Tab>
+</Tabs>
+
+Declare `draftSchema` and `draftOptions` at module scope. Both frameworks use the same migration options.
 
 `version` starts at `1` and is an integer. Raise it whenever the stored shape changes.
 
@@ -29,18 +52,17 @@ const [draft] = useStoredState('draft', draftSchema, {
 <Step>
 ### 2. Handle version 0
 
-```ts
+```ts shared
 if (fromVersion === 0) return { note: '', pinned: false }
 ```
 
-A record that is valid JSON but was not written by the framework arrives as `fromVersion` 0. That
-covers anything written before this boundary existed.
+Older, unversioned JSON arrives as `fromVersion` 0. Handle those records explicitly in your migration.
 
 </Step>
 <Step>
 ### 3. Keep migrate synchronous and free of side effects
 
-```ts
+```ts shared
 // No fetch, no await, no set() on another key: migrate runs inside a read.
 migrate: (value, fromVersion) => convert(value, fromVersion)
 ```
@@ -63,7 +85,7 @@ through the new declaration.
 
 <Callout type="error" title="storage/failure, at read">
 
-```text
+```text shared
 lab failed to read the local storage key draft: expected version 2, received version 1 with no
 migrate() declared.
 ```
@@ -74,7 +96,7 @@ migrate() declared.
 
 <Callout type="error" title="storage/failure, at read">
 
-```text
+```text shared
 lab failed to read the local storage key draft: expected version 1, received version 2, written by
 a newer build.
 ```
@@ -86,7 +108,7 @@ was lost.
 
 <Callout type="error" title="storage/failure, at migrate">
 
-```text
+```text shared
 lab failed to migrate the local storage key draft: expected a value at version 2, received
 migrate() threw (TypeError: …).
 ```
@@ -99,7 +121,7 @@ again with a fixed conversion.
 ## Related
 
 - [Remember a value across reloads](/docs/remember-a-value) — the schema and the setter
-- [Read or write storage outside render](/docs/storage-outside-render) — the same options
+- [Read or write storage outside render](/docs/remember-a-value#read-or-write-outside-render) — the same options
 - [Test storage and the lifecycle](/docs/test-storage-and-lifecycle) — seed an old record
 - [Error codes](/docs/reference/error-codes) — every `storage/failure` message
 - [Version your container and its contract](/docs/version-your-container) — the other versions

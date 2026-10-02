@@ -3,8 +3,7 @@ title: 'Build and publish a container'
 description: 'What your container build writes, where to publish it, and how its entry reaches the registry.'
 ---
 
-Your build writes the files a shell loads your code from, plus one description record naming every
-definition you export. Apps and Widgets publish the same way.
+Build and publish from the container’s own repository. The shell runs in a separate repository and consumes the generated deployment record. Apps and Widgets publish the same way.
 
 ## Steps
 
@@ -13,11 +12,32 @@ definition you export. Apps and Widgets publish the same way.
 <Step>
 ### 1. Build the container
 
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
 ```sh
-pnpm --filter @example/alert-panel run build
+pnpm install --frozen-lockfile
+pnpm run build
 ```
 
-The script runs `pnpm run generate && rsbuild build`, and the output lands in `dist/`.
+Run these commands in your React package directory, such as `apps/field-notes` in the quickstart repository. Its build script runs `mfe-generate` followed by `rsbuild build`.
+
+</Tab>
+<Tab value="Angular">
+
+```sh
+pnpm install --frozen-lockfile
+pnpm exec nx build operations --configuration=production
+```
+
+Run this in your container's own Nx workspace. Replace `operations` with its project name. The target depends on generation.
+
+</Tab>
+</Tabs>
+
+Install compiled framework releases from your configured package registry. Your repository owns its build configuration and lockfile.
+
+The current React scaffolder writes workspace/catalog references and extends a parent TypeScript configuration. Follow the [independent repository setup](/docs/quickstart) before installing its output. Angular generates a project in your own Nx workspace with published dependency ranges.
 
 </Step>
 
@@ -35,8 +55,8 @@ The script runs `pnpm run generate && rsbuild build`, and the output lands in `d
 
 The build ships the `.json` files it generates into `.mfe/`, and writes the two configuration files
 only for a container that has `src/mfe.config.ts`. It never ships `.mfe/runtime-config.json`, your
-local values, because no build copies anything from `.mfe/` that it did not generate for `dist/`.
-Outside `dist/`, it also writes `.mfe/runtime-config.sh`, which your image runs at start to write
+local values, because no build copies anything from `.mfe/` that it did not generate for the build output.
+Outside the output directory, it also writes `.mfe/runtime-config.sh`, which your image runs at start to write
 the environment into `runtime-config.json`.
 
 </Step>
@@ -44,7 +64,7 @@ the environment into `runtime-config.json`.
 <Step>
 ### 3. Publish the whole output directory
 
-```text
+```text shared
 alert-panel.example.com/
   mf-manifest.json
   remoteEntry.js
@@ -52,9 +72,9 @@ alert-panel.example.com/
   runtime-config.json   (only for a container with src/mfe.config.ts)
 ```
 
-Publish every built file to the origin your entry will point at, and let the deployment write its
+For React this is usually `dist/` relative to that package directory. For Angular, read `build.options.outputPath` in your project configuration. Publish every built file to the origin your entry will point at, and let the deployment write its
 values into `runtime-config.json` beside them. The
-[Docker recipe](/docs/supply-values-per-deployment#run-it-in-a-docker-image) does that from the
+[Docker recipe](/docs/supply-values-per-deployment#run-the-artifact-in-a-docker-image) does that from the
 container's environment.
 
 </Step>
@@ -62,16 +82,39 @@ container's environment.
 <Step>
 ### 4. Hand the description record over
 
-```json title="examples/alert-panel/.mfe/mfe-registry.json (trimmed)"
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
+```json title="dist/mfe-registry.json (trimmed)"
 {
   "manifestUrl": "mf-manifest.json",
-  "container": "example_alert_panel",
+  "container": "alert_panel",
   "framework": "react",
   "requiresRuntime": ">=1.1.0 <2.0.0",
   "definitions": [{ "id": "alert-panel", "kind": "widget", "version": "1.4.0" }],
   "entries": { "alert-panel": "./widgets/alert-panel" }
 }
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```json title="dist/apps/operations/mfe-registry.json (trimmed)"
+{
+  "manifestUrl": "mf-manifest.json",
+  "container": "operations",
+  "framework": "angular",
+  "requiresRuntime": ">=1.1.0 <2.0.0",
+  "definitions": [
+    { "id": "operations", "kind": "app", "version": "0.1.0" },
+    { "id": "well-inspection", "kind": "widget", "version": "0.1.0" }
+  ],
+  "entries": { "operations": "./app", "well-inspection": "./widgets/well-inspection" }
+}
+```
+
+</Tab>
+</Tabs>
 
 `manifestUrl` is relative to your container, so whoever assembles the registry resolves it against
 the origin you deployed to.
@@ -83,14 +126,11 @@ checks that requirement before selecting an adapter or parsing the registry shap
 </Step>
 
 <Step>
-### 5. Rebuild the registry
+### 5. Update the shell registry
 
-```sh
-pnpm run generate
-```
+Give the published `mfe-registry.json` and deployment origin to your platform's registry integration. The shell repository or registry service assembles its registry from those records. Resolve relative manifest URLs against the container's deployment origin.
 
-In this repository `tools/dev/build-registry.mjs` reads every container's record and writes the
-registry the shell reads, so nobody writes registry JSON by hand.
+Deploy the resulting registry separately from the container. The framework provides the generated record and registry reader; your platform supplies registration and aggregation.
 
 </Step>
 
@@ -105,6 +145,9 @@ JSON carries your definitions under `metaData.mfe`. Then open the shell and the 
 
 ## Errors
 
+<Tabs items={['React', 'Angular']} defaultIndex={0}>
+<Tab value="React">
+
 <Callout type="error" title="MfePlugin: no mf-manifest.json was emitted">
 
 ```text
@@ -112,33 +155,17 @@ MfePlugin: no mf-manifest.json was emitted, so this container declares no framew
 a shell cannot tell which major it was built against.
 ```
 
-**Fix.** Keep `pluginMfe()` in the `plugins` list of your Rsbuild config. Do not set
-`moduleFederation.options` yourself, because the plugin contributes them.
+**Fix.** Keep `pluginMfe()` in your Rsbuild configuration. Let the plugin contribute its Module Federation options.
 
 </Callout>
 
-<Callout type="error" title="Nothing generated">
+</Tab>
+<Tab value="Angular">
 
-```text
-Nothing generated for insights, lab. Run `pnpm run generate` first: the registry is assembled
-from what each container generates, never hand-written.
-```
+If the manifest is missing, check the Nx project's `customWebpackConfig` loads `withMfe()` and build the correct project. Publish its configured output directory.
 
-**Fix.** Run `pnpm run generate` at the root. It generates each container, then rebuilds the
-registry from what they wrote.
-
-</Callout>
-
-<Callout type="error" title="names no expose path">
-
-```text
-alert-panel: its container's build names no expose path. Rebuild the container.
-```
-
-**Fix.** Rebuild. The `entries` map in the record comes from the definitions your `src/mfe.ts`
-exports.
-
-</Callout>
+</Tab>
+</Tabs>
 
 ## Related
 

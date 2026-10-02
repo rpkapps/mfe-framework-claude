@@ -14,6 +14,9 @@ can open it by name. You own the page, so the notes can be a list, a document or
 
 ### 1. Mark the route
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```tsx title="src/routes/release-notes.tsx"
 import { createFileRoute } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
@@ -35,6 +38,39 @@ function ReleaseNotes(): ReactNode {
 }
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative src/app.routes.ts"
+import { Component } from '@angular/core'
+import type { Routes } from '@angular/router'
+import { mfeRouteData } from '@company/mfe-angular'
+
+@Component({
+  selector: 'operations-release-notes',
+  template: `<h2>What&#39;s new in Operations</h2>`,
+})
+export class ReleaseNotesComponent {}
+
+export const routes: Routes = [
+  {
+    path: 'release-notes',
+    component: ReleaseNotesComponent,
+    data: mfeRouteData({
+      capability: {
+        name: 'releaseNotes',
+        label: "What's new in Operations",
+        icon: 'sparkles',
+      },
+      breadcrumb: 'Release notes',
+    }),
+  },
+]
+```
+
+</Tab>
+</Tabs>
+
 The name is `releaseNotes`, in camel case. `label` is required, and both are plain strings.
 
 </Step>
@@ -43,12 +79,28 @@ The name is `releaseNotes`, in camel case. `label` is required, and both are pla
 
 ### 2. Generate the description record
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```sh
 pnpm run generate
 ```
 
-This writes your container's description record and rebuilds the registry the shell reads at boot.
-`pnpm dev` runs both steps when it starts.
+</Tab>
+<Tab value="Angular">
+
+```sh
+pnpm exec nx run operations:generate
+```
+
+Run this in your Angular Nx workspace. Replace `operations` with your Nx project name.
+
+</Tab>
+</Tabs>
+
+This writes your container's registry description. The host includes that record in its registry.
+Publish or register that updated record through your host's registry workflow; starting your
+container's development server does not update a separately maintained shell registry.
 
 </Step>
 
@@ -56,7 +108,7 @@ This writes your container's description record and rebuilds the registry the sh
 
 ### 3. Confirm what the build published
 
-```json title=".mfe/mfe-registry.json"
+```json shared title=".mfe/mfe-registry.json"
 "capabilities": [
   {
     "name": "releaseNotes",
@@ -67,7 +119,7 @@ This writes your container's description record and rebuilds the registry the sh
 ]
 ```
 
-`path` comes from `createFileRoute`. An App publishes at most one release notes page.
+`path` comes from `createFileRoute` in React or the route object in Angular. An App publishes at most one release notes page.
 
 </Step>
 
@@ -75,21 +127,17 @@ This writes your container's description record and rebuilds the registry the sh
 
 ## Check it works
 
-Run `pnpm dev` and open the shell at `http://localhost:3000`. Press <Kbd>⌘</Kbd> <Kbd>K</Kbd> or
-
-<Kbd>Ctrl</Kbd> <Kbd>K</Kbd> and look under "Application pages". Your label is there, and running it
-goes to `/operations/release-notes`. The "What's new" button in the header opens the shell's own
-notes, which are written by whoever owns the shell.
-
-A legacy Angular application publishes a `release-notes.md` document beside its manifest instead.
-That path stays open for every entry that declares no capability, and
-[Legacy Angular applications](/docs/reference/legacy-angular) has the details.
+Start your container with its own development script and open the separately running shell that
+registers your App. Select your release-notes capability in the host's application-page menu or
+command palette. Check that its label matches your registry entry and that it opens
+`/release-notes` under your App's assigned mount prefix. A host may also expose its own release
+notes; those belong to the shell and are separate from your App's capability.
 
 ## Errors
 
 <Callout type="error" title="expected one of 'settings', 'help' and 'releaseNotes'">
 
-```text
+```text shared
 /home/you/operations/src/routes/release-notes.tsx:7:7: 'operations' failed to extract a capability
 route: expected one of 'settings', 'help' and 'releaseNotes', found "release-notes".
 ```
@@ -100,7 +148,7 @@ route: expected one of 'settings', 'help' and 'releaseNotes', found "release-not
 
 <Callout type="error" title="expected a non-empty `label` string literal">
 
-```text
+```text shared
 /home/you/operations/src/routes/release-notes.tsx:6:17: 'operations' failed to extract the
 capability route '/release-notes': expected a non-empty `label` string literal, found no label.
 ```
@@ -111,7 +159,7 @@ capability route '/release-notes': expected a non-empty `label` string literal, 
 
 <Callout type="error" title="expected a `name` string literal">
 
-```text
+```text shared
 /home/you/operations/src/routes/release-notes.tsx:7:7: 'operations' failed to extract a capability
 route: expected a `name` string literal, found RELEASE_NOTES.
 ```
@@ -123,7 +171,7 @@ running it, so a constant or a variable cannot be resolved.
 
 <Callout type="error" title="expected a capability declared by an App">
 
-```text
+```text shared
 /home/you/alerts/src/routes/release-notes.tsx:5:5: the build failed to extract the 'releaseNotes'
 capability route: expected a capability declared by an App, found a container that exports
 Widgets only.
@@ -139,4 +187,3 @@ Widgets only.
 - [Add a help page](/docs/add-a-help-page) — the third capability page.
 - [Version your container and its contract](/docs/version-your-container) — what the version means.
 - [Route staticData fields](/docs/reference/static-data) — every field a route may set.
-- [Legacy Angular applications](/docs/reference/legacy-angular) — the document-based path.

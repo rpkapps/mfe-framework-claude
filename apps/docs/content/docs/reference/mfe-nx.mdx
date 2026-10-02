@@ -5,15 +5,21 @@ description: 'The Nx generators that scaffold an Angular container, the targets 
 
 `@company/mfe-nx` scaffolds and builds Angular containers in an Nx workspace. It is the Angular
 counterpart of `pluginMfe()`: the same framework-neutral build, `@company/mfe-build`, wired into Nx's
-Angular webpack builder instead of Rsbuild. It runs in an Nx workspace of its own. This repository
-is not one, and `examples/fieldwork` is an Nx workspace inside it.
+Angular webpack builder instead of Rsbuild. Install it from your team's registry in an Nx consumer workspace in your own repository.
+The shell runs independently and registers your generated container record. The framework repository's Fieldwork example is one sample consumer.
 
 ## Generate a container
 
 ```sh
-nx g @company/mfe-nx:app my-app --port 3101
-nx g @company/mfe-nx:widget my-widget --port 3103
+# From your own Nx consumer workspace.
+pnpm add -D @company/mfe-nx@^0.1.0
+pnpm exec nx g @company/mfe-nx:app my-app --port 3101
+pnpm exec nx g @company/mfe-nx:widget my-widget --port 3103
+pnpm install
 ```
+
+Select the compatible published framework release your team uses. The generator writes published dependency ranges and updates your consumer workspace's manifest.
+It does not link framework source packages. For a new Nx workspace, follow the [quickstart](/docs/quickstart).
 
 The workspace must be on Nx 20, 21 or 22. The generator refuses any other version before it writes a
 file, because Nx 23's Angular plugin requires Angular 20.
@@ -48,6 +54,17 @@ configuration.
 
 Every other target depends on `generate`, because the `#mfe/*` modules have to exist before webpack,
 Vitest, `tsc` or ESLint can resolve them.
+
+```sh
+# From your own consumer workspace, using the generated project name.
+pnpm exec nx run my-app:generate
+pnpm exec nx build my-app
+pnpm exec nx serve my-app
+```
+
+The generated project has Nx targets rather than package scripts. These targets run your container's build and dev server.
+They do not build framework packages or start the shell. Hand the generated `mfe-registry.json` record and manifest URL to the shell owner.
+The shell starts separately in its own repository.
 
 ## `withMfe()`
 
@@ -94,14 +111,19 @@ candidate, and `withMfe({ shared })` refuses PrimeNG.
 | Nx         | 20 to 22                                                   |
 | Node       | 20.19 or later, or 22.12 or later                          |
 
-The framework packages export compiled JavaScript and declarations. Build them before using
-workspace links from a fresh checkout; `pnpm release` builds them before it publishes, and each
-package's `prepack` refuses a missing or stale build. Do not add their
-sources to a container's `tsconfig` `include`.
+Published framework packages contain compiled JavaScript and declarations. Consumer repositories install those artifacts and never include framework source in their `tsconfig`.
+
+<Details summary="Framework maintainers using workspace links">
+
+When testing unpublished packages inside the framework checkout, build them before using workspace links.
+The framework repository's `pnpm release` builds packages before publishing. Each package's `prepack` refuses a missing or stale build.
+These commands belong to the framework repository, not to an independent consumer workspace.
+
+</Details>
 
 ## Related
 
 - [The Angular adapter](/docs/reference/angular-adapter) — what the generated `src/mfe.ts` imports.
-- [Build and publish a container](/docs/build-and-publish) — the React build, for comparison.
+- [Build and publish a container](/docs/build-and-publish) — output files and the registry handoff.
 - [Registry entry](/docs/reference/registry-entry) — what the build publishes.
 - [Decision log](/docs/how-it-works/decisions) — decision 31, why webpack and why Nx.

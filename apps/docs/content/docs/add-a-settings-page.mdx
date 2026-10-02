@@ -14,6 +14,9 @@ panel and from the command palette. The shell decides where the link goes and ne
 
 ### 1. Mark the route
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```tsx title="examples/operations/src/routes/settings.tsx"
 import { createFileRoute } from '@tanstack/react-router'
 import type { ReactNode } from 'react'
@@ -37,6 +40,39 @@ function Settings(): ReactNode {
 }
 ```
 
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative src/app.routes.ts"
+import { Component } from '@angular/core'
+import type { Routes } from '@angular/router'
+import { mfeRouteData } from '@company/mfe-angular'
+
+@Component({
+  selector: 'operations-settings',
+  template: `<h2>Operations settings</h2>`,
+})
+export class SettingsComponent {}
+
+export const routes: Routes = [
+  {
+    path: 'settings',
+    component: SettingsComponent,
+    data: mfeRouteData({
+      capability: {
+        name: 'settings',
+        label: 'Operations settings',
+        icon: 'settings',
+      },
+      breadcrumb: 'Settings',
+    }),
+  },
+]
+```
+
+</Tab>
+</Tabs>
+
 `capability` holds everything the shell reads about the page. Its `name` and `label` are required
 and `icon` is optional. Write every field as a plain string, because the build reads the mark out
 of the file without running it.
@@ -47,12 +83,28 @@ of the file without running it.
 
 ### 2. Generate the description record
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```sh
 pnpm run generate
 ```
 
-This writes your container's description record and rebuilds the registry the shell reads at boot.
-`pnpm dev` runs both steps when it starts.
+</Tab>
+<Tab value="Angular">
+
+```sh
+pnpm exec nx run operations:generate
+```
+
+Run this in your Angular Nx workspace. Replace `operations` with your Nx project name.
+
+</Tab>
+</Tabs>
+
+This writes your container's registry description. The host includes that record in its registry.
+Publish or register that updated record through your host's registry workflow; starting your
+container's development server does not update a separately maintained shell registry.
 
 </Step>
 
@@ -60,13 +112,13 @@ This writes your container's description record and rebuilds the registry the sh
 
 ### 3. Confirm what the build published
 
-```json title="examples/operations/.mfe/mfe-registry.json"
+```json shared title="examples/operations/.mfe/mfe-registry.json"
 "capabilities": [
   { "name": "settings", "label": "Operations settings", "icon": "settings", "path": "/settings" }
 ]
 ```
 
-`path` comes from `createFileRoute`, so the route file decides the URL. One App publishes at most
+`path` comes from the route: React uses `createFileRoute`, and Angular uses a literal `path`. One App publishes at most
 one settings page.
 
 </Step>
@@ -75,17 +127,17 @@ one settings page.
 
 ## Check it works
 
-Run `pnpm dev` and open the shell at `http://localhost:3000`. Press <Kbd>g</Kbd> <Kbd>s</Kbd>, or
-use the gear button in the header. Your page is listed under "Application settings", with your
-`label` and the path `/operations/settings`. That is your `/settings` route under the prefix the
-shell mounts your App at. It is also in the command palette, under "Application pages", which
-opens with <Kbd>⌘</Kbd> <Kbd>K</Kbd> or <Kbd>Ctrl</Kbd> <Kbd>K</Kbd>.
+Start your container with its own development script and open the separately running shell that
+registers your App. Find your capability in the host's application-settings menu or command
+palette. Check the published `label`, select it, and confirm that `/settings` resolves under your
+App's assigned mount prefix. For example, a mount at `/operations` produces
+`/operations/settings`. The shell team determines the menu and keyboard shortcuts.
 
 ## Errors
 
 <Callout type="error" title="expected one of 'settings', 'help' and 'releaseNotes'">
 
-```text
+```text shared
 /home/you/operations/src/routes/settings.tsx:10:7: 'operations' failed to extract a capability
 route: expected one of 'settings', 'help' and 'releaseNotes', found "setings".
 ```
@@ -97,7 +149,7 @@ route: expected one of 'settings', 'help' and 'releaseNotes', found "setings".
 
 <Callout type="error" title="expected an inline object literal { name, label, icon? }">
 
-```text
+```text shared
 /home/you/operations/src/routes/settings.tsx:9:5: 'operations' failed to extract a capability
 route: expected an inline object literal { name, label, icon? }, found 'settings'.
 ```
@@ -110,7 +162,7 @@ capability was one object hit this.
 
 <Callout type="error" title="expected a non-empty `label` string literal">
 
-```text
+```text shared
 /home/you/operations/src/routes/settings.tsx:9:17: 'operations' failed to extract the capability
 route '/settings': expected a non-empty `label` string literal, found no label.
 ```
@@ -121,7 +173,7 @@ route '/settings': expected a non-empty `label` string literal, found no label.
 
 <Callout type="error" title="expected one route per capability">
 
-```text
+```text shared
 /home/you/operations/src/routes/preferences.tsx: 'operations' failed to extract the 'settings'
 capability route: expected one route per capability, found '/settings' and '/preferences' both
 declare it.
@@ -134,7 +186,7 @@ capability.
 
 <Callout type="error" title="expected a capability declared by an App">
 
-```text
+```text shared
 /home/you/alerts/src/routes/settings.tsx:9:5: the build failed to extract the 'settings'
 capability route: expected a capability declared by an App, found a container that exports
 Widgets only.

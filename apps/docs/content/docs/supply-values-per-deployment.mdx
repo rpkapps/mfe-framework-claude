@@ -3,8 +3,7 @@ title: 'Supply values per deployment'
 description: 'Publish runtime-config.json beside your container assets, one file per environment.'
 ---
 
-`runtime-config.json` belongs to the deployment, not to the build, so one build serves every
-environment. The build ships the file with your declared defaults only. Your deployment writes its
+`runtime-config.json` belongs to your container deployment. Build and publish that container from its own repository and CI pipeline. The build ships the file with your declared defaults only. Your deployment writes its
 values into it, and your container reads it at load time.
 
 ## Steps
@@ -15,7 +14,7 @@ values into it, and your container reads it at load time.
 
 ### 1. Write the file for local development
 
-```json title="examples/operations/.mfe/runtime-config.json"
+```json shared title="Illustrative container: .mfe/runtime-config.json"
 {
   "apiBaseUrl": "http://localhost:3010/api/",
   "telemetryEnabled": false
@@ -23,8 +22,7 @@ values into it, and your container reads it at load time.
 ```
 
 A flat object of values, which your dev server answers `runtime-config.json` with and no build
-copies. `pnpm run generate` seeds it with your declared defaults and never changes a value already
-there.
+copies. Your React generation script or Angular project target seeds defaults and preserves existing values.
 
 </Step>
 
@@ -32,7 +30,7 @@ there.
 
 ### 2. Hand the deployment the names
 
-```bash title="examples/operations/.mfe/.env.example (generated, trimmed)"
+```bash shared title="Illustrative container: .mfe/.env.example (generated, trimmed)"
 # apiBaseUrl: a string in uri form
 # Declares an API origin: its origin joins this container's authentication allowlist.
 # Required.
@@ -52,7 +50,7 @@ value.
 
 ### 3. Validate the file before release
 
-```json title="examples/operations/.mfe/runtime-config.schema.json (generated, trimmed)"
+```json shared title="Illustrative container: .mfe/runtime-config.schema.json (generated, trimmed)"
 {
   "type": "object",
   "properties": {
@@ -83,29 +81,62 @@ config, so it neither seeds that file nor excepts it in `.mfe/.gitignore`. Creat
 commit it once with `git add -f`; git keeps tracking it after that.
 
 Earlier versions kept the file in `public/`, which every build copies into its output. The next
-`pnpm run generate` moves it to `.mfe/` byte for byte, and says so. If both exist it leaves both and
+container generation moves it to `.mfe/` byte for byte, and says so. If both exist it leaves both and
 warns that the `public/` copy is no longer read and can now ship in production: delete it.
 
-## Run it in a Docker image
+## Package your container's release artifact
 
-The build writes `.mfe/runtime-config.sh` from your declarations. It needs only `sh` and `awk`, so
-it runs in `nginx:alpine`. The official nginx image runs every script in `/docker-entrypoint.d/`
-before it starts serving.
+Run these commands in your container repository's CI. Framework packages and contract packages are installed from your registry through the repository's lockfile.
+For Angular, replace `orders` and `apps/orders` with your Nx project name and root.
 
-```dockerfile title="Dockerfile"
-FROM node:22 AS build
-WORKDIR /app
-COPY . .
-RUN corepack enable && pnpm install --frozen-lockfile && pnpm run build
+<Tabs items={['React', 'Angular']} defaultValue="React">
+<Tab value="React">
 
-FROM nginx:alpine
-COPY --from=build /app/dist/ /usr/share/nginx/html/
-COPY --from=build /app/.mfe/runtime-config.sh /docker-entrypoint.d/40-mfe-runtime-config.sh
+```sh title="React container CI"
+# Run from the React package directory, such as apps/field-notes.
+pnpm install --frozen-lockfile
+pnpm run build
+mkdir -p image-context/assets
+cp -R dist/. image-context/assets/
+cp .mfe/runtime-config.sh image-context/runtime-config.sh
 ```
 
-```sh
+</Tab>
+<Tab value="Angular">
+
+```sh title="Angular container CI"
+pnpm install --frozen-lockfile
+pnpm exec nx build orders --configuration=production
+mkdir -p image-context/assets
+cp -R dist/apps/orders/. image-context/assets/
+cp apps/orders/.mfe/runtime-config.sh image-context/runtime-config.sh
+```
+
+</Tab>
+</Tabs>
+
+The scaffold uses these output paths. If you change the bundler's output directory, stage that directory instead.
+For React, these paths are relative to the package directory; for Angular, they are relative to the Nx workspace root. Upload `image-context/` from that directory as the release artifact. It contains this container's built assets and generated configuration script.
+The framework development workspace and demo backend are not part of the artifact.
+
+## Run the artifact in a Docker image
+
+Build this image from the downloaded `image-context/` artifact. The generated script needs `sh` and `awk`.
+The official nginx image runs executable scripts in `/docker-entrypoint.d/` before serving assets.
+
+```dockerfile shared title="Illustrative release artifact: Dockerfile"
+FROM nginx:alpine
+COPY assets/ /usr/share/nginx/html/
+COPY runtime-config.sh /docker-entrypoint.d/40-mfe-runtime-config.sh
+RUN chmod +x /docker-entrypoint.d/40-mfe-runtime-config.sh
+```
+
+```sh shared title="Release image"
+docker build -t my-container image-context/
 docker run -e API_BASE_URL=https://api.example.com/ -e TELEMETRY_ENABLED=false my-container
 ```
+
+Include this Dockerfile in `image-context/` before building. Each environment runs the same image with its own values.
 
 When the container starts, the script:
 
@@ -121,8 +152,10 @@ When the container starts, the script:
 The script checks booleans, numbers and enum members. The browser still validates every value
 against your full schema, formats and bounds included.
 
-A file mounted over `runtime-config.json`, for example from a Kubernetes ConfigMap, works the same
-way: the variables you set replace its values, and everything else is kept.
+The startup script replaces `runtime-config.json` using a temporary file and rename, so the served
+directory and target must be writable. For a Kubernetes ConfigMap, copy its file into the writable
+served directory before running the script. Alternatively, serve the mounted file directly and
+skip the startup script; deployment variables will then not modify that file.
 
 Another server works as well. Run the script before the server starts and pass it the served
 directory, as in `runtime-config.sh /srv/www`, or set `MFE_RUNTIME_CONFIG_DIR`. Without either, it
@@ -131,17 +164,16 @@ needs that directory owned by its user.
 
 ## Check it works
 
-Start your container's dev server and open `http://localhost:3001/runtime-config.json`. It answers
+Start your own container's dev server and open its `runtime-config.json` URL. It answers
 with `.mfe/runtime-config.json`, the values your App will read, and reads the file again on every
-request. A container scaffolded as a Widget has no configuration, so run `pnpm run generate` after
-you add `src/mfe.config.ts` to create the file. In a deployment the values are a snapshot, so
+request. A container scaffolded as a Widget has no configuration, so run its generation script or Nx project target after adding `src/mfe.config.ts`. In a deployment the values are a snapshot, so
 changing one takes a new deployment and a page reload.
 
 ## Errors
 
 <Callout type="error" title="runtime-config.sh: … is required">
 
-```text
+```text shared
 runtime-config.sh: API_BASE_URL is required (apiBaseUrl: a string in uri form). Set it on the container.
 ```
 
@@ -152,19 +184,18 @@ container stops at start so the browser never loads a file with the value missin
 
 <Callout type="error" title="config/missing">
 
-```text
+```text shared
 operations failed to load its runtime configuration: expected a file at
 http://localhost:3001/runtime-config.json, received 404 Not Found.
 ```
 
-**Fix.** Publish the file next to the container's assets. In development, run `pnpm run generate`,
-which creates `.mfe/runtime-config.json` for the dev server to answer with, and reload.
+**Fix.** Publish the file next to the container's assets. In development, run your React container's generation script or Angular project's generation target, then reload.
 
 </Callout>
 
 <Callout type="error" title="config/unreachable">
 
-```text
+```text shared
 operations failed to load its runtime configuration: expected a 200 response from
 http://localhost:3001/runtime-config.json, received 503 Service Unavailable.
 ```
@@ -176,7 +207,7 @@ configuration, and nothing retries in the background.
 
 <Callout type="error" title="config/invalid">
 
-```text
+```text shared
 operations failed to read its runtime configuration: expected a JSON object of configuration
 values, received a body that is not JSON.
 ```
@@ -190,7 +221,7 @@ lands here.
 
 A host, the shell that loads the containers, gets the same files: declare its values in its own
 `src/mfe.config.ts`, add `pluginMfeHostConfig()` from `@company/mfe-rspack` to its Rsbuild config,
-and give it a `generate` script of `mfe-generate --host`. Its `#mfe/config` is read the same way and
+and give that shell repository its own `generate` script of `mfe-generate --host`. Its `#mfe/config` is read the same way and
 fails the same way, but validates without Zod: a host reads its configuration before anything else
 on the page loads, so the generated module checks each value against the JSON Schema the build
 derived from your declaration, and the declarations reach it as a type only. The build already

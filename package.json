@@ -26,13 +26,14 @@
     "dev:shell": "pnpm run build:stale && pnpm --filter @company/shell dev",
     "dev:mfes": "pnpm run build:stale && node tools/dev/dev.mjs --only-mfes",
     "docs:dev": "pnpm --filter @company/docs dev",
-    "docs:build": "pnpm --filter @company/docs build",
+    "docs:build": "pnpm --filter @company/docs build && node tools/docs/write-redirects.mjs",
     "docs:preview": "pnpm --filter @company/docs preview",
     "build:mfes": "pnpm run build:stale && pnpm -r --filter \"./examples/*\" run build",
     "verify:page": "pnpm run generate && node tools/dev/verify-page.mjs",
     "hmr:probe": "node tools/dev/hmr-probe.mjs",
     "changeset": "changeset",
-    "release": "pnpm run build && changeset publish"
+    "release": "pnpm run build && changeset publish",
+    "docs:check": "pnpm docs:build && node tools/docs/check-links.mjs"
   },
   "devDependencies": {
     "@changesets/cli": "catalog:",

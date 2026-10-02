@@ -3,8 +3,17 @@ title: 'Block navigation when edits are unsaved'
 description: 'Refuse a navigation while a form is dirty, and draw your own confirmation, inside an App or inside a Widget.'
 ---
 
-Apps and Widgets. You decide what counts as unsaved, and you draw the dialog. The shell asks you
-before it moves, so the same check covers your own links and a jump to another application.
+Apps and Widgets. You decide what counts as unsaved, and you draw the dialog. The shell checks your blocker or guard before leaving. App router blockers also cover your own links.
+
+<Diagram
+  src="/diagrams/capability-navigation.svg"
+  alt="The shell asks container navigation blockers before leaving an App or Widget."
+  caption="How your container connects to the shell"
+>
+  The shell checks your mounted container before navigating. React Apps use their router blocker,
+  and Angular Apps use route guards. Widgets register a mount blocker. Your confirmation either
+  resumes the waiting navigation or keeps the current page.
+</Diagram>
 
 ## Steps
 
@@ -13,6 +22,9 @@ before it moves, so the same check covers your own links and a jump to another a
 <Step>
 
 ### 1. Block inside your App
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```tsx title="examples/lab/src/routes/unsaved.tsx"
 import { useBlocker } from '@tanstack/react-router'
@@ -26,14 +38,40 @@ const blocker = useBlocker({
 })
 ```
 
-Use TanStack's own hook. It covers moves inside your App and the moves the shell makes, because
-the framework asks it about both.
+</Tab>
+<Tab value="Angular">
+
+```ts title="examples/fieldwork/src/app.routes.ts (adapted)"
+import type { CanDeactivateFn, Routes } from '@angular/router'
+import { SettingsComponent } from './settings.component'
+
+const confirmUnsavedChanges: CanDeactivateFn<SettingsComponent> = component =>
+  component.confirmLeave()
+
+export const routes: Routes = [
+  {
+    path: 'settings',
+    component: SettingsComponent,
+    canDeactivate: [confirmUnsavedChanges],
+  },
+]
+```
+
+Your component implements `confirmLeave` below. Angular asks this guard for internal route changes and shell navigation leaving the App.
+
+</Tab>
+</Tabs>
+
+Both router integrations cover App links and shell navigation. Keep route-owned form state behind the router's blocker or guard.
 
 </Step>
 
 <Step>
 
 ### 2. Draw your own confirmation
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```tsx title="examples/lab/src/routes/unsaved.tsx"
 <Dialog
@@ -53,7 +91,52 @@ the framework asks it about both.
 </Dialog>
 ```
 
-`blocker.next` is where the navigation was going. Its `routeId` is `__notFound__` when the target
+</Tab>
+<Tab value="Angular">
+
+```ts title="examples/fieldwork/src/settings.component.ts (adapted)"
+import { Component, signal } from '@angular/core'
+
+@Component({
+  selector: 'fieldwork-settings',
+  template: `
+    <input aria-label="Draft name" (input)="dirty.set(true)" />
+    @if (pending()) {
+      <section role="dialog" aria-modal="true" aria-label="Unsaved changes">
+        <p>Leave with unsaved changes?</p>
+        <button (click)="answer(false)">Keep editing</button>
+        <button (click)="answer(true)">Discard and leave</button>
+      </section>
+    }
+  `,
+})
+export class SettingsComponent {
+  readonly dirty = signal(false)
+  readonly pending = signal(false)
+  private resolve: ((leave: boolean) => void) | null = null
+
+  confirmLeave(): boolean | Promise<boolean> {
+    if (!this.dirty()) return true
+    this.pending.set(true)
+    return new Promise(resolve => {
+      this.resolve = resolve
+    })
+  }
+
+  answer(leave: boolean): void {
+    this.resolve?.(leave)
+    this.resolve = null
+    this.pending.set(false)
+  }
+}
+```
+
+This shows the guard's answer flow. Use your design system dialog for focus management and keyboard interaction.
+
+</Tab>
+</Tabs>
+
+In React, `blocker.next` is where the navigation was going. Its `routeId` is `__notFound__` when the target
 is outside your App, so you can word the two cases differently.
 
 </Step>
@@ -61,6 +144,9 @@ is outside your App, so you can word the two cases differently.
 <Step>
 
 ### 3. Block inside a Widget
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```tsx
 import { useNavigationBlock } from '@company/mfe-react'
@@ -71,7 +157,37 @@ if (pending === null) return null
 return <ConfirmDialog onConfirm={proceed} onCancel={stay} />
 ```
 
-A Widget has no router of its own, so it uses this hook instead. Pass a function to look at the
+</Tab>
+<Tab value="Angular">
+
+```ts title="examples/fieldwork/src/settings.component.ts (adapted)"
+import { Component, signal } from '@angular/core'
+import { injectNavigationBlock } from '@company/mfe-angular'
+
+@Component({
+  selector: 'fieldwork-draft-widget',
+  template: `
+    <input aria-label="Draft name" (input)="dirty.set(true)" />
+    @if (block.pending() !== null) {
+      <p>Leave with unsaved changes?</p>
+      <button (click)="block.stay()">Keep editing</button>
+      <button (click)="block.proceed()">Discard and leave</button>
+    }
+  `,
+})
+export class DraftWidgetComponent {
+  readonly dirty = signal(false)
+  readonly block = injectNavigationBlock(this.dirty)
+}
+```
+
+When `block.pending()` is non-null, show your confirmation. Bind its buttons to `block.proceed()` and `block.stay()`.
+Pass the signal itself so the blocker reads the current dirty state.
+
+</Tab>
+</Tabs>
+
+A Widget has no router of its own, so it registers a mount blocker instead. Pass a function to look at the
 navigation first, as `useNavigationBlock(intent => intent.leavesBoundary && isDirty)`. A function
 also asks for the browser's reload prompt every time, so pass a boolean when nothing is at risk.
 
@@ -81,29 +197,43 @@ also asks for the browser's reload prompt every time, so pass a boolean when not
 
 ## Check it works
 
-Run `pnpm dev` and open `http://localhost:3000/lab/unsaved`. Type in the form, then try to leave
-four ways:
+Start your container with its own development script and open its guarded route in the separately
+running shell. Type in the form, then try to leave using:
 
 - a link in the App's own nav
-- the application finder at the top left
-- the command palette
+- the shell's application switcher or command palette, if provided
 - the browser's back button
 
-All four stop and wait for your dialog. Save the form, and the same navigation goes straight
-through.
+Each supported navigation should wait for your dialog. Cancel and confirm the form stays mounted
+with its changes. Save the form and confirm the same navigation succeeds.
 
-A reload is not a navigation, and no page may draw its own dialog for one. `enableBeforeUnload`
-decides whether the browser shows its own prompt.
+Reloads use the browser's own prompt. React App blockers opt in with `enableBeforeUnload`.
+Angular `canDeactivate` guards do not intercept reloads. `injectNavigationBlock` supports the browser prompt through `unloadPrompt`.
 
 ## Errors
 
 <Callout type="error" title="expected a component rendered inside an App or Widget mount">
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```text
 <unmounted> failed to call useNavigationBlock: expected a component rendered inside an App or
 Widget mount, received a component rendered outside any mount. Move the useNavigationBlock call
 into a component the App or Widget renders.
 ```
+
+</Tab>
+<Tab value="Angular">
+
+`injectNavigationBlock()` requires an App or Widget mount and an Angular injection context.
+If the component or service was created outside a mount, it reports `mount/failure`.
+
+**Fix.** Inject the blocker in a component the definition renders, or a service created by its mount injector.
+Do not inject it into shell chrome.
+
+</Tab>
+</Tabs>
 
 **Fix.** Move the call into a component your App or Widget renders. Shell chrome and test harness
 code sit outside every mount.
@@ -116,6 +246,6 @@ code sit outside every mount.
 - [Create a Widget](/docs/create-a-widget) — the shape that uses `useNavigationBlock`.
 - [Test storage and the lifecycle](/docs/test-storage-and-lifecycle) — how to test a held
   navigation.
-- [Hooks and components](/docs/reference/hooks-and-components) — the full signatures.
+- [Hooks and components](/docs/reference/hooks-and-components#usenavigationblock) — the full signatures.
 - [The mount lifecycle](/docs/how-it-works/the-mount-lifecycle) — why the mount stays alive while
   you answer.

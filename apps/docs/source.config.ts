@@ -5,6 +5,7 @@
 import { defineConfig } from 'fumadocs-mdx/config'
 
 import { remarkRepoMarkdown } from './src/lib/remark-repo-markdown.ts'
+import { remarkSharedCodeTabs } from './src/lib/remark-shared-code-tabs.ts'
 import { plainTextStringify } from './src/lib/structured-text.ts'
 
 export default defineConfig({
@@ -26,7 +27,7 @@ export default defineConfig({
      * repository-relative prefixes onto the URL the site serves.
      */
     remarkImageOptions: false,
-    remarkPlugins: plugins => [remarkRepoMarkdown, ...plugins],
+    remarkPlugins: plugins => [remarkRepoMarkdown, remarkSharedCodeTabs, ...plugins],
     /*
      * `remark-structure` exports the records the search index is built from. Its default
      * serialiser writes them back out as Markdown, so a snippet would show `**bold**` and a

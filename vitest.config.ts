@@ -47,6 +47,16 @@ export default defineConfig({
     projects: [
       {
         test: {
+          name: 'docs',
+          root: './apps/docs',
+          environment: 'jsdom',
+          include: ['src/**/*.test.ts', 'src/**/*.test.tsx'],
+          server: tectonServerForTests,
+        },
+        resolve: tectonResolveForTests,
+      },
+      {
+        test: {
           name: 'core',
           root: './packages/mfe-core',
           environment: 'node',
@@ -129,14 +139,6 @@ export default defineConfig({
           name: 'mfe-nx',
           root: './packages/mfe-nx',
           environment: 'node',
-          include: ['src/**/*.test.ts'],
-        },
-      },
-      {
-        test: {
-          name: 'legacy-angular',
-          root: './packages/mfe-legacy-angular',
-          environment: 'jsdom',
           include: ['src/**/*.test.ts'],
         },
       },

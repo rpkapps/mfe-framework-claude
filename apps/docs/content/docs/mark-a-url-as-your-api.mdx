@@ -1,111 +1,71 @@
 ---
-title: 'Mark a URL as your API'
-description: 'Declare an origin with { api: true } so requests to it carry the shell session token.'
+title: 'API URL'
+description: 'Declare trusted API origins and the base URL used by generated fetch.'
 ---
 
-`{ api: true }` on a declared value puts its origin on the list that may receive the shell's
-session token. The first field declared this way is also the base a relative request resolves
-against.
+Apps and Widgets, in React and Angular. Mark your API URL with `{ api: true }` so generated fetch can attach the shell token.
+Your deployment supplies the URL; your container declares which values describe trusted APIs.
 
 ## Steps
 
 <Steps>
-
 <Step>
 
-### 1. Declare the URL with the flag
+### 1. Declare your API URL
 
-```ts title="examples/operations/src/mfe.config.ts"
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```ts title="src/mfe.config.ts"
+import { env } from '@company/mfe-rspack'
+import { z } from 'zod'
+
 export default {
   apiBaseUrl: env('API_BASE_URL', z.string().url(), { api: true }),
-  telemetryEnabled: env('TELEMETRY_ENABLED', z.coerce.boolean().default(true)),
 }
 ```
 
-Declare one field per API origin, and write the flag inline as a literal.
+</Tab>
+<Tab value="Angular">
 
-</Step>
+```ts title="src/mfe.config.ts"
+import { env } from '@company/mfe-nx/env'
+import { z } from 'zod'
 
-<Step>
-
-### 2. Send relative requests
-
-```ts title="examples/operations/src/queries/assets.ts"
-const response = await fetch(`assets?site=${encodeURIComponent(siteId)}`, { signal })
+export default {
+  apiBaseUrl: env('API_BASE_URL', z.string().url(), { api: true }),
+}
 ```
 
-A relative URL resolves against your first `{ api: true }` value, so a trailing slash on the base
-matters as usual.
+</Tab>
+</Tabs>
+
+Supply `API_BASE_URL` per deployment, for example `https://api.example.test/v1/`.
+The first `{ api: true }` field becomes the relative-request base. Keep its trailing slash when you want paths appended.
+Declare additional API origins in separate flagged fields. Origins match exactly, without wildcards.
 
 </Step>
-
-<Step>
-
-### 3. Leave every other origin undeclared
-
-```ts
-// Sent without the session token: this origin is not one of yours.
-await fetch('https://reports.example.test/collect', { method: 'POST' })
-```
-
-An undeclared origin never receives the token, and the match is on the exact origin with no
-wildcards.
-
-</Step>
-
 </Steps>
 
 ## Check it works
 
-Open the network panel and look at a request to your API. It carries
-`Authorization: Bearer <token>`, which no code of yours wrote. A request to any other origin
-carries no such header. Set an `Authorization` header yourself and it wins, because the framework
-neither replaces nor refreshes a credential you supplied.
+Supply an API URL in your container deployment, then mount the container in your shell.
+Send a relative request through `#mfe/fetch` and inspect the destination in the network panel.
+Confirm it uses your API base rather than the shell origin. Check that an undeclared origin receives no framework token.
 
 ## Errors
 
-<Callout type="error" title="auth/undeclared-origin">
-
-```text
-operations failed to attach the access token for https://reports.example.test: expected a request
-to an origin the author declared as an API with { api: true }, received a request to
-https://reports.example.test, which is not declared.
-```
-
-**Fix.** If this is your API, declare the origin. If it must never receive the token, leave it
-undeclared and expect a 401 from an endpoint that requires one.
-
-</Callout>
-
 <Callout type="error" title="config/missing">
 
-```text
-operations failed to resolve the request URL: expected an absolute URL, or an apiBaseUrl to
-resolve a relative one against, received the relative URL "assets?site=north" and no configured
-apiBaseUrl.
-```
+A relative request requires a configured API base.
 
-**Fix.** Declare a field with `{ api: true }`, or pass the absolute URL at the call site.
-
-</Callout>
-
-<Callout type="error" title="config/invalid">
-
-```text
-operations failed to accept apiBaseUrl: expected an absolute http(s) URL such as
-"https://api.example.test/v1/", received an empty string.
-```
-
-**Fix.** Check the variable the deployment was meant to set. An unsubstituted one leaves an empty
-string here.
+**Fix.** Supply the deployment value for your first `{ api: true }` declaration, or send an absolute URL.
 
 </Callout>
 
 ## Related
 
-- [Declare an environment variable](/docs/declare-an-env-variable) — where the flag goes.
-- [Call your API](/docs/call-your-api) — sending the request.
-- [Supply values per deployment](/docs/supply-values-per-deployment) — the URL each environment
-  gets.
-- [The isolation boundaries](/docs/how-it-works/the-isolation-boundaries) — why the list is
-  declared.
+- [Environment variables](/docs/declare-an-env-variable) — declare and supply deployment values.
+- [API requests](/docs/call-your-api) — authentication and retry behavior.
+- [TanStack Query](/docs/fetch-with-tanstack-query) — query functions use generated fetch.
+- [The isolation boundaries](/docs/how-it-works/the-isolation-boundaries) — why trusted origins are declared.

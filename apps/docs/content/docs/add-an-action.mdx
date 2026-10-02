@@ -1,11 +1,19 @@
 ---
 title: 'Add an action to the palette'
-description: 'Register an action with useAction, and the shell lists it in the command palette for as long as your component is on the page.'
+description: 'Register actions from React or Angular, and run them through the shell palette or your own button.'
 ---
 
-Apps and Widgets. Call `useAction` and your action appears in the shell's command palette. You
-decide what it does and whether it may run right now. The shell's agent can call it too:
-[Offer an action to the agent](/docs/offer-an-action-to-the-agent) says what to declare for it.
+Apps and Widgets. Register an action to make it available in the shell command palette. Your container owns its implementation and availability.
+
+<Diagram
+  src="/diagrams/capability-actions.svg"
+  alt="How React and Angular containers connect to the shell for actions."
+  caption="How your container connects to the shell"
+>
+  Your component registers through `useAction` or `injectAction`. The shell lists the action and
+  checks `canExecute` before calling your implementation. Your own button runs the same
+  registration. Leaving the component removes it.
+</Diagram>
 
 ## Steps
 
@@ -13,145 +21,72 @@ decide what it does and whether it may run right now. The shell's agent can call
 
 <Step>
 
-### 1. Register the action
+### 1. Register an action and connect your button
 
-```tsx title="examples/alert-panel/src/alert-panel.tsx (simplified)"
-import { useAction } from '@company/mfe-react'
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
-export function AlertPanel({ inputs, emit }: WidgetRenderProps<typeof alertPanelContract>) {
-  const [state, setState] = useState<'open' | 'acknowledged' | 'dismissed'>('open')
+```tsx title="examples/alert-panel/src/alert-panel.tsx (adapted)"
+import { useState } from 'react'
+import { allow, deny, useAction } from '@company/mfe-react'
 
-  useAction({
+export function AcknowledgeButton() {
+  const [acknowledged, setAcknowledged] = useState(false)
+  const acknowledge = useAction({
     name: 'acknowledge',
-    label: `Acknowledge alert ${inputs.alertId}`,
+    label: 'Acknowledge alert',
+    canExecute: () => (acknowledged ? deny('Already acknowledged.') : allow()),
     execute: () => {
-      setState('acknowledged')
-      emit('acknowledged', { alertId: inputs.alertId, acknowledgedAt: new Date().toISOString() })
+      setAcknowledged(true)
     },
   })
-
-  return <Alert>{/* … */}</Alert>
+  return <button onClick={() => void acknowledge()}>Acknowledge</button>
 }
 ```
 
-`name` is letters, digits and hyphens, starting with a letter. The action lives as long as the
-component renders, so leaving the page takes it out of the palette.
+</Tab>
+<Tab value="Angular">
+
+```ts title="examples/fieldwork/src/overview.component.ts (adapted)"
+import { Component, signal } from '@angular/core'
+import { allow, deny, injectAction } from '@company/mfe-angular'
+
+@Component({
+  selector: 'fieldwork-acknowledge',
+  template: `<button (click)="acknowledge()">Acknowledge</button>`,
+})
+export class AcknowledgeComponent {
+  readonly acknowledged = signal(false)
+  readonly acknowledge = injectAction(() => ({
+    name: 'acknowledge',
+    label: 'Acknowledge alert',
+    canExecute: () => (this.acknowledged() ? deny('Already acknowledged.') : allow()),
+    execute: () => {
+      this.acknowledged.set(true)
+    },
+  }))
+}
+```
+
+Use a factory when the registration reads signals. Call `injectAction` in a constructor or field initializer.
+
+</Tab>
+</Tabs>
+
+The palette and your button use the same availability checks. A denied action stays visible with its reason.
+Keep `canExecute` a state check, and authorize requests in your API.
+The registration ends when its component unmounts or injector is destroyed.
 
 </Step>
 
 <Step>
+### 2. Choose the lifetime and optional shortcut
 
-### 2. Say when it may run
-
-```tsx title="examples/alert-panel/src/alert-panel.tsx (trimmed)"
-import { allow, deny, useAction } from '@company/mfe-react'
-
-useAction({
-  name: 'acknowledge',
-  label: `Acknowledge alert ${inputs.alertId}`,
-  canExecute: () =>
-    state === 'open' ? allow() : deny(`Alert ${inputs.alertId} is no longer open.`),
-  execute: () => {
-    setState('acknowledged')
-  },
-})
-```
-
-A denied action stays in the list, greyed out, with your reason beside it. Keep `canExecute` a
-plain read of state you already have, and do the work in `execute`. It decides for every caller,
-but it is not a permission check. Your API still authorizes the request.
-
-</Step>
-
-<Step>
-
-### 3. Run it from your own button
-
-```tsx title="examples/alert-panel/src/alert-panel.tsx (trimmed)"
-const acknowledge = useAction({
-  name: 'acknowledge',
-  label: `Acknowledge alert ${inputs.alertId}`,
-  canExecute: () =>
-    state === 'open' ? allow() : deny(`Alert ${inputs.alertId} is no longer open.`),
-  execute: () => {
-    setState('acknowledged')
-  },
-})
-
-return <Button onClick={() => void acknowledge()}>Acknowledge</Button>
-```
-
-`useAction` returns a function that runs the action through the palette's checks. It runs this
-component's action, even when the Widget is mounted twice. It never rejects, and resolves to one
-result:
-
-| `status`      | What happened                                                                         |
-| ------------- | ------------------------------------------------------------------------------------- |
-| `executed`    | `execute` ran. `value` holds what it returned.                                        |
-| `denied`      | `canExecute` refused, with its `reason`. The shell also shows the user your reason.   |
-| `declined`    | The user was asked about an agent's call and said no.                                 |
-| `invalid`     | The input did not match `inputSchema`, so nothing ran.                                |
-| `unavailable` | The component that registered the action is gone, or unmounted while the run went on. |
-| `failed`      | `execute` threw, or its value did not match `outputSchema`. `error` says which.       |
-
-In an Angular component, `injectAction` returns the same function. See the
-[Angular adapter](/docs/reference/angular-adapter#read-the-shell-from-inside-a-mount).
-
-</Step>
-
-<Step>
-
-### 4. Register App-wide actions from your layout
-
-```tsx title="examples/operations/src/routes/__root.tsx"
-useAction({
-  name: 'open-wells',
-  label: 'Operations: open the wells inventory',
-  effect: 'read',
-  canExecute: () => allow(),
-  execute: () => {
-    void navigate({ to: '/wells' })
-  },
-})
-```
-
-An action registered by a layout route lasts as long as the App is mounted. An action registered
-by a page lasts as long as that page.
-
-</Step>
-
-<Step>
-
-### 5. Give it a shortcut
-
-```tsx title="examples/operations/src/routes/__root.tsx"
-useAction({
-  name: 'open-wells',
-  label: 'Operations: open the wells inventory',
-  effect: 'read',
-  shortcut: 'o w',
-  canExecute: () => allow(),
-  execute: () => {
-    void navigate({ to: '/wells' })
-  },
-})
-```
-
-A chord joins modifiers and one key with `+`: `mod+s`, `alt+enter`. A sequence is chords
-separated by spaces: `o w`. `mod` is <Kbd>⌘</Kbd> on a Mac and <Kbd>Ctrl</Kbd> elsewhere.
-Spell a named key out: `escape`, `enter`, `space`, `plus`, `arrowup`, `f1`.
-
-The shell runs the action when the keys are pressed, the same way the palette runs it, so
-`canExecute` still decides. The palette shows the keys beside the action, and the help sheet
-lists them.
-
-- **When it fires.** An App's shortcut works while the page is inside that App. A Widget's is
-  ignored, because a Widget does not own the page's keys.
-- **Typing.** A key without <Kbd>Ctrl</Kbd>, <Kbd>⌘</Kbd> or <Kbd>Alt</Kbd> typed into a field
-  stays in the field.
-- **Keys you cannot have.** The shell's own keys are reserved: <Kbd>mod+k</Kbd>, <Kbd>mod+i</Kbd>,
-  <Kbd>?</Kbd>, <Kbd>mod+j</Kbd>, <Kbd>g r</Kbd>, <Kbd>g d</Kbd>, <Kbd>g s</Kbd> and <Kbd>g w</Kbd>.
-  Pick keys that neither equal nor begin nor extend one of those, so a lone <Kbd>g</Kbd> is taken.
+Register in a layout component for App-wide actions, or a page component for page actions.
+An App action can declare `shortcut: 'o w'`. Widgets cannot register shortcuts.
+Use `+` for chords such as `mod+s`, and spaces for sequences. `mod` means Command on macOS and Control elsewhere.
+Choose keys that do not conflict with shell shortcuts or other live actions.
+See the [shortcut rules](/docs/reference/hooks-and-components#useaction) before assigning keys.
 
 </Step>
 
@@ -159,18 +94,15 @@ lists them.
 
 ## Check it works
 
-Run `pnpm dev` and open the shell at `http://localhost:3000`. Add the Alert panel to the dashboard
-from the palette, under "Add to the dashboard". Open the palette again with <Kbd>⌘</Kbd> <Kbd>K</Kbd>
-or <Kbd>Ctrl</Kbd> <Kbd>K</Kbd>, and look under "From the mounted application". The right-hand
-column names the App or Widget that owns the action, and a denied one shows your reason there
-instead. The panel's Acknowledge button runs the same action, so pressing it greys the action out
-in the palette.
+Open the palette with Command+K or Control+K while your component is mounted. Find “Acknowledge alert”, then run it.
+Reopen the palette and confirm the reason reads “Already acknowledged.” Your button should use the same check.
+Leave the component and confirm its action disappears.
 
 ## Errors
 
 <Callout type="error" title="expected a name of letters, digits and hyphens">
 
-```text
+```text shared
 alert-panel failed to register action: expected a name of letters, digits and hyphens starting
 with a letter (for example "refresh"), received "acknowledge alert".
 ```
@@ -181,7 +113,7 @@ with a letter (for example "refresh"), received "acknowledge alert".
 
 <Callout type="error" title="expected one registration per action name within a mount">
 
-```text
+```text shared
 alert-panel failed to register action 'refresh': expected one registration per action name
 within a mount, received a second registration of 'refresh' in the same mount.
 ```
@@ -193,7 +125,7 @@ throws instead.
 
 <Callout type="error" title="expected a non-empty label">
 
-```text
+```text shared
 alert-panel failed to register action 'refresh': expected a non-empty label, received an empty
 string.
 ```
@@ -202,65 +134,9 @@ string.
 
 </Callout>
 
-<Callout type="error" title="expected a shortcut such as 'mod+s'">
-
-```text
-operations failed to register action 'open-wells': expected a shortcut such as "mod+s" —
-modifiers (mod, ctrl, alt, shift, meta) and one key joined by + — or a sequence of them separated
-by spaces, such as "g r", received "mod+shift": "mod+shift" is only modifiers, with no key to
-press.
-```
-
-**Fix.** Add the key the modifiers are held with, such as `mod+shift+w`. The message names what it
-could not read.
-
-</Callout>
-
-<Callout type="error" title="expected keys the host page does not use">
-
-```text
-operations failed to register the shortcut 'g w' for action 'open-wells': expected keys the host
-page does not use, received the host page’s '@host:dashboard' (g w) uses them.
-```
-
-**Fix.** Choose other keys. The action stays in the palette; only the shortcut is ignored.
-
-</Callout>
-
-<Callout type="error" title="expected keys no other live action can be pressed for at the same time">
-
-```text
-operations failed to register the shortcut 'mod+e' for action 'export': expected keys no other
-live action can be pressed for at the same time, received 'operations:print' (mod+e) already
-claims them.
-```
-
-**Fix.** Give one of the two different keys. Neither runs while both are registered. Two Apps at
-different URLs may use the same keys, because only one of them is live at a time.
-
-</Callout>
-
-<Callout type="error" title="expected a shortcut from an App or the host page">
-
-```text
-alert-panel failed to register the shortcut 'mod+e' for action 'acknowledge': expected a
-shortcut from an App or the host page, received a shortcut from a Widget, which does not own the
-page’s keys.
-```
-
-**Fix.** Drop the shortcut. If the keys matter, emit an output and let the App that places the
-Widget register the shortcut.
-
-</Callout>
-
 ## Related
 
-- [Create a Widget](/docs/create-a-widget) — the container this example lives in.
-- [Ask the owning App to navigate or set the title](/docs/ask-the-app-to-navigate) — a Widget must
-  not move the page itself.
-- [Offer an action to the agent](/docs/offer-an-action-to-the-agent) — what the agent needs from
-  it.
-- [Hooks and components](/docs/reference/hooks-and-components) — every `useAction` field and result.
-- [Run the shell with your container](/docs/run-the-shell-locally) — how to get the palette on
-  screen.
-- [Error codes](/docs/reference/error-codes) — every message, with its fix.
+- [Action fields and results](/docs/reference/hooks-and-components#useaction) — exact contract and shortcut rules.
+- [Angular injection](/docs/reference/angular-adapter#read-the-shell-from-inside-a-mount) — factory and lifecycle details.
+- [Offer an action to the agent](/docs/offer-an-action-to-the-agent) — schemas and approval behavior.
+- [Error codes](/docs/reference/error-codes) — registration and shortcut failures.

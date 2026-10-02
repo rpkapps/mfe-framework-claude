@@ -3,8 +3,8 @@ title: 'Add a route'
 description: 'Add a page to your App as a file in src/routes, with a path written relative to your own boundary.'
 ---
 
-Apps only. A route is one file in `src/routes`. Write its path as if your App owned the whole
-address bar, and the shell's prefix is added for you.
+Apps only. React uses files in `src/routes`. Angular uses a `Routes` array.
+Write paths relative to your App. The shell's prefix is added for you.
 
 ## Steps
 
@@ -13,6 +13,9 @@ address bar, and the shell's prefix is added for you.
 <Step>
 
 ### 1. Create the route file
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```tsx title="examples/operations/src/routes/assets.tsx"
 import { createFileRoute } from '@tanstack/react-router'
@@ -28,14 +31,29 @@ function Assets(): ReactNode {
 }
 ```
 
-Write `/assets`, never `/operations/assets`. The file name decides the path, and `pnpm dev`
-rewrites `src/routeTree.gen.ts` as you add files.
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/app.routes.ts"
+import type { Routes } from '@angular/router'
+import { AssetsComponent } from './assets.component'
+
+export const routes: Routes = [{ path: 'assets', component: AssetsComponent }]
+```
+
+</Tab>
+</Tabs>
+
+React writes `/assets` in a route file. Angular writes `assets` in its route array. Neither includes the shell's mount prefix.
 
 </Step>
 
 <Step>
 
 ### 2. Load its data
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```tsx title="examples/operations/src/routes/assets.tsx"
 export const Route = createFileRoute('/assets')({
@@ -49,14 +67,44 @@ export const Route = createFileRoute('/assets')({
 })
 ```
 
-`context.mfe` holds the user, the groups, the theme, telemetry, storage and the mount's abort
-signal. `context.queryClient` is the mount's own Query client.
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/app.routes.ts"
+import { inject } from '@angular/core'
+import { type ResolveFn, type Routes } from '@angular/router'
+import { injectTelemetry } from '@company/mfe-angular'
+import { fetch } from '#mfe/fetch'
+import { AssetsComponent } from './assets.component'
+
+const assetsResolver: ResolveFn<unknown> = async route => {
+  const telemetry = injectTelemetry()
+  const site = route.queryParamMap.get('site') ?? 'north'
+  telemetry.debug('Loading assets', { site })
+  const response = await fetch(`assets?site=${encodeURIComponent(site)}`)
+  if (!response.ok) throw new Error(`Loading assets failed: ${response.status}`)
+  return response.json()
+}
+
+export const routes: Routes = [
+  { path: 'assets', component: AssetsComponent, resolve: { assets: assetsResolver } },
+]
+// AssetsComponent reads its result from ActivatedRoute.snapshot.data['assets'].
+```
+
+</Tab>
+</Tabs>
+
+React loaders read mount services from `context.mfe` and use `context.queryClient`. Angular resolvers inject mount services and publish results through route data.
 
 </Step>
 
 <Step>
 
 ### 3. Link to it
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
 ```tsx title="examples/operations/src/routes/__root.tsx"
 const NAV = [
@@ -65,6 +113,24 @@ const NAV = [
   { to: '/wells', label: 'Wells', icon: DrillIcon },
 ]
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/navigation.component.ts"
+import { Component } from '@angular/core'
+import { RouterLink } from '@angular/router'
+
+@Component({
+  selector: 'app-navigation',
+  imports: [RouterLink],
+  template: `<a routerLink="/assets">Assets</a>`,
+})
+export class AppNavigation {}
+```
+
+</Tab>
+</Tabs>
 
 `Link` and `navigate` resolve under your boundary, so the same code works wherever the shell
 mounts you. Use `/wells/$wellId` for per-item pages.
@@ -75,15 +141,17 @@ mounts you. Use `/wells/$wellId` for per-item pages.
 
 ## Check it works
 
-Run `pnpm dev` and open `http://localhost:3000/operations/assets`. The page renders below the
-shell's header, and the header trail ends with your `breadcrumb` label. Your nav link marks itself
-active, because it resolved under the same prefix the URL has.
+Start your container with its own development script and open the separately running shell at
+your App's assigned mount prefix followed by `/assets`. For example, a mount at `/operations`
+produces `/operations/assets`. Confirm the page renders inside the shell and that navigation stays
+under that prefix. React's `breadcrumb` label adds its trail entry; Angular uses the route metadata
+shown above. Your nav link should mark itself active for the matching route.
 
 ## Errors
 
 <Callout type="error" title="expected a routes directory">
 
-```text
+```text shared
 /home/you/orders/src/routes: 'orders' failed to generate the route tree: expected a routes
 directory, found no such directory.
 ```
@@ -95,7 +163,7 @@ exports Widgets rather than an App.
 
 <Callout type="error" title="expected the reserved key forwarded unchanged">
 
-```text
+```text shared
 operations failed to merge route context for /assets: expected the reserved key "mfe" to be
 forwarded unchanged, received route /assets returned its own "mfe".
 ```

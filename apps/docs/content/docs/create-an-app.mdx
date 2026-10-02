@@ -5,6 +5,7 @@ description: 'Scaffold a container, declare an App in src/mfe.ts, and have the s
 
 An App owns a prefix of the address bar and brings its own router. You declare it once, in the
 container's entry file, and the shell mounts it at whatever prefix it assigns.
+Create the container in your own consumer repository, using the [quickstart setup](/docs/quickstart).
 
 ## Steps
 
@@ -14,12 +15,25 @@ container's entry file, and the shell mounts it at whatever prefix it assigns.
 
 ### 1. Scaffold the container
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```sh
-pnpm create @company/mfe examples/operations --id operations
+pnpm create @company/mfe apps/operations --id operations
 ```
 
-The id is lower-case letters, digits and single hyphens. It is also your storage prefix and your
-style scope, so pick one you can live with.
+</Tab>
+<Tab value="Angular">
+
+```sh title="terminal"
+pnpm exec nx g @company/mfe-nx:app operations --id operations --port 3001
+```
+
+</Tab>
+</Tabs>
+
+Run the generator in your own consumer workspace. Before installing a React scaffold, replace its `workspace:*` and `catalog:` dependencies with compatible published versions.
+Angular generates published dependency ranges. Install with `pnpm install` in your consumer repository.
 
 </Step>
 
@@ -27,7 +41,10 @@ style scope, so pick one you can live with.
 
 ### 2. Declare the App in the entry file
 
-```ts title="examples/operations/src/mfe.ts"
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```ts title="apps/operations/src/mfe.ts"
 import { createApp, type AppRouterOptions, type MfeStaticData } from '@company/mfe-react'
 import { createRouter } from '@tanstack/react-router'
 
@@ -55,8 +72,21 @@ declare module '@tanstack/react-router' {
 export default createApp({ id: 'operations', version: '2.1.0', router: makeRouter })
 ```
 
-Pass all three values straight through. `basepath: basePath` keeps every `Link` and `navigate`
-relative, so your routes stay `/assets` and `/wells/$wellId`.
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/mfe.ts"
+import { createApp } from '@company/mfe-angular'
+import { routes } from './app.routes'
+
+export default createApp({ id: 'operations', version: '2.1.0', routes })
+```
+
+</Tab>
+</Tabs>
+
+React forwards `basePath`, `history`, and `context` to its router factory. Angular supplies `routes` and gets a mount-owned router.
+Both resolve paths under the boundary assigned by the shell.
 
 </Step>
 
@@ -64,15 +94,15 @@ relative, so your routes stay `/assets` and `/wells/$wellId`.
 
 ### 3. Declare the dev port
 
-```json title="examples/operations/package.json"
+```json title="apps/operations/package.json" shared
 "mfe": {
   "port": 3001,
   "definitions": ["operations"]
 }
 ```
 
-The registry builder reads the port and writes your dev URL into the shell's registry. Without it
-the registry build stops.
+This metadata records the local port and definition ids. Angular's Nx generator also configures its `serve` target with the same port.
+Register the generated container record with the shell separately. This package metadata does not register your App with a remote shell.
 
 </Step>
 
@@ -80,18 +110,18 @@ the registry build stops.
 
 ## Check it works
 
-Run `pnpm dev` from the repository root and open `http://localhost:3000`. Your App is in the
-application finder at the top left, under the title the registry gives it. Opening it puts you at
-`http://localhost:3000/operations`, with your own routes below that.
+React runs `pnpm run generate`, `pnpm run build`, and `pnpm run dev` in its container directory.
+Angular runs `pnpm exec nx run operations:generate`, `pnpm exec nx build operations`, and `pnpm exec nx serve operations` in its consumer workspace.
+Hand the generated `mfe-registry.json` record to the shell owner, together with your manifest URL.
 
-The entry file is read, never run. Write `id`, `version`, `title` and `description` as plain
-strings, and export every definition from `src/mfe.ts`.
+Start the shell independently in its repository. Open `/operations` at that shell's origin after its registry includes your App.
+The entry file is read without executing it. Export every definition from `src/mfe.ts` and declare ids and metadata as literal strings.
 
 ## Errors
 
 <Callout type="error" title="expected lower-case letters, digits and single hyphens">
 
-```text
+```text shared
 Order_Book failed to createApp: expected lower-case letters, digits and single hyphens (for
 example "alert-panel"), received "Order_Book".
 ```
@@ -102,7 +132,7 @@ example "alert-panel"), received "Order_Book".
 
 <Callout type="error" title="expected a router factory function">
 
-```text
+```text shared
 orders failed to create App definition: expected a router factory function, received nothing.
 ```
 
@@ -113,7 +143,7 @@ module, and twice in development under StrictMode.
 
 <Callout type="error" title="expected the supplied basePath passed through unchanged">
 
-```text
+```text shared
 operations@2.1.0 failed to mount App: expected the supplied basePath "/operations" passed through
 unchanged as createRouter({ basepath }), received no basepath on the router.
 ```
@@ -125,7 +155,7 @@ check, because a nested App is mounted somewhere else.
 
 <Callout type="error" title="expected the supplied context.mfe namespace">
 
-```text
+```text shared
 operations@2.1.0 failed to mount App: expected the supplied context.mfe namespace, spread into the
 router context unchanged, received no mfe key.
 ```

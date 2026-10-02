@@ -3,16 +3,24 @@ title: 'Share state across Apps and Widgets'
 description: 'Keep a units preference or selected well in sync between React and Angular components.'
 ---
 
-Suppose an App has a units switch and a Widget shows a chart. When the user changes from metric
-to imperial, the chart should change too. Shared state gives both components the same value,
-even if one uses React and the other uses Angular.
+Share a selection or preference between the shell, React Apps and Angular Widgets.
+All consumers read one reactive record. The shell supplies backend persistence and controls its user or workspace scope.
 
 The shell must [configure shared state](/docs/configure-shared-state) before mounting your definition.
+For a preference belonging to one definition in this browser, use [browser storage](/docs/remember-a-value).
 
-The [running example](https://github.com/rpkapps/mfe-framework-claude/tree/dev/examples/shared-state)
-puts a React survey App and an Angular inspection Widget beside each other. Choosing a well in
-React updates the Angular planner; changing the survey or depth units in Angular updates React.
-The Widget receives no selection as props. Both consumers read and write the shell's shared store.
+<Diagram
+  src="/diagrams/capability-shared-state.svg"
+  alt="React and Angular consumers connect to the shell-owned shared-state store and persistence adapter."
+  caption="Both framework adapters connect to the same shell-owned record."
+>
+  The shell connects a shared-state store to its persistence adapter. React hooks and Angular
+  injectors subscribe to that store through their mount. A setter updates subscribed consumers and
+  saves through the adapter. The setter's promise resolves after persistence accepts the write.
+</Diagram>
+
+Try the [running React and Angular example](https://github.com/rpkapps/mfe-framework-claude/tree/dev/examples/shared-state).
+Choosing a well in React updates the Angular planner. Changing units in Angular updates React.
 
 ## Steps
 
@@ -20,33 +28,24 @@ The Widget receives no selection as props. Both consumers read and write the she
 <Step>
 ### 1. Import the schema from its package
 
-The schema belongs to a shared contract package, not to each App. In these examples, the package
-is `@example/shared-state-contracts`; the React Lab and Angular Fieldwork both depend on it.
+Import the schema from your shared contract package. Publish it as an independently versioned package and install a compatible release in each container repository. The sample uses `@acme/shared-state-contracts`.
 
-```ts title="src/mfe.ts"
-import { sharedStateSchema } from '@example/shared-state-contracts'
+```ts shared title="Illustrative src/mfe.ts"
+import { sharedStateSchema } from '@acme/shared-state-contracts'
 ```
 
-That package defines `display:units`, which starts as `metric`, and `well:selection`, which starts
-as `null`. Using the same package keeps the keys, value types and defaults consistent.
-In your project, import the package your team publishes for this domain.
-
-<Details summary="Where is the example schema defined?">
-  The single authoring declaration lives in `examples/shared-state-contracts/src/index.ts`. That
-  package also publishes compiled schema files for the shell and build checks. Consumers import the
-  declaration; they do not copy its Zod object into their own source.
-</Details>
+The package defines `display:units` and `well:selection`. Import your team's published contract instead of copying its Zod declaration.
 
 </Step>
 <Step>
 ### 2. Add the schema to your definition
 
-<Tabs items={['React', 'Angular']}>
+<Tabs items={['React', 'Angular']} defaultValue="React">
 <Tab value="React">
 
-```ts title="src/mfe.ts"
+```ts title="Illustrative src/mfe.ts"
 import { createApp } from '@company/mfe-react'
-import { sharedStateSchema } from '@example/shared-state-contracts'
+import { sharedStateSchema } from '@acme/shared-state-contracts'
 
 import { makeRouter } from './router'
 
@@ -56,9 +55,9 @@ export default createApp({ id: 'operations', router: makeRouter, sharedStateSche
 </Tab>
 <Tab value="Angular">
 
-```ts title="src/mfe.ts"
+```ts title="Illustrative src/mfe.ts"
 import { createApp } from '@company/mfe-angular'
-import { sharedStateSchema } from '@example/shared-state-contracts'
+import { sharedStateSchema } from '@acme/shared-state-contracts'
 
 import { routes } from './app.routes'
 
@@ -68,9 +67,7 @@ export default createApp({ id: 'operations', routes, sharedStateSchema })
 </Tab>
 </Tabs>
 
-Widgets put `sharedStateSchema` on their `createWidget` options in the same way.
-Run your container's `pnpm generate` script. You can then import its hooks or injectors from
-`#mfe/shared-state`; TypeScript knows the keys and the values they accept.
+Widgets use the same `sharedStateSchema` option on `createWidget`. Run `pnpm generate` to create typed bindings in `#mfe/shared-state`.
 
 <Details summary="My container exports more than one definition">
 Import from `#mfe/shared-state/<definition-id>` so each App or Widget uses its own declaration.
@@ -81,10 +78,10 @@ For example, the `operations` App uses `#mfe/shared-state/operations`.
 <Step>
 ### 3. Read a key and handle rejected updates
 
-<Tabs items={['React', 'Angular']}>
+<Tabs items={['React', 'Angular']} defaultValue="React">
 <Tab value="React">
 
-```tsx title="src/unit-picker.tsx"
+```tsx title="Illustrative src/unit-picker.tsx"
 import { useState } from 'react'
 import { useSharedState } from '#mfe/shared-state'
 
@@ -113,7 +110,7 @@ export function UnitPicker() {
 </Tab>
 <Tab value="Angular">
 
-```ts title="src/unit-picker.component.ts"
+```ts title="Illustrative src/unit-picker.component.ts"
 import { Component, signal } from '@angular/core'
 import { injectSharedState } from '#mfe/shared-state'
 
@@ -138,66 +135,123 @@ export class UnitPicker {
 }
 ```
 
-Call Angular injectors in an injection context, such as a component field initializer.
-The subscription ends when that context is destroyed.
+Angular injectors run in an injection context. Destroying the context ends the subscription.
 
 </Tab>
 </Tabs>
 
-Clicking the button changes every component reading `display:units` immediately. The `await`
-finishes once the change has been saved. If saving fails, the catch shows the user a message.
-Always change a value through its setter; modifying the object you read will not save an update.
+The setter updates subscribed components immediately. Await it before reporting a successful save. Catch a rejected promise to display failure.
+Always write through the setter.
 
 </Step>
 <Step>
 ### 4. Update only the object fields that changed
 
-```ts title="src/selection-actions.ts (inside a mounted consumer)"
+```ts shared title="Illustrative src/selection-actions.ts (inside a mounted consumer)"
 await store.set('well:selection', { wellId: 'well-42', runId: 'run-7' })
 await store.set('well:selection', { runId: 'run-8' })
 ```
 
 Take `store` with the generated `useSharedStateStore()` or `injectSharedStateStore()` binding.
-After these writes, the well is still `well-42` and the run is `run-8`. The comparison mode keeps
-its default, `baseline`. You changed the run without resending the well. The same rule applies to nested objects: leaving out a field
-keeps its saved value.
+The second write changes only `runId`. It preserves `wellId` and the default comparison mode. Nested objects follow the same rule.
 
-To clear this selection, write `null`. Sending an empty object does not clear it, and `undefined`
-is not allowed. If a value is an array, send the complete new array.
+To clear this selection, write `null`. Sending an empty object preserves it. `undefined` is not allowed. If a value is an array, send the complete new array.
 
 </Step>
 </Steps>
 
+## Read state in a loader or resolver
+
+<Tabs items={['React', 'Angular']} defaultValue="React">
+<Tab value="React">
+
+```ts title="Illustrative React router"
+import { createRootRouteWithContext } from '@tanstack/react-router'
+import type { MfeRouterContext } from '#mfe/shared-state'
+
+const root = createRootRouteWithContext<MfeRouterContext>()({
+  loader: ({ context }) => context.mfe.sharedState.get('well:selection'),
+})
+```
+
+Forward the shell's router context when [creating your router](/docs/add-a-route).
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular resolver"
+import type { ResolveFn } from '@angular/router'
+import { injectSharedStateStore, type SharedStateValues } from '#mfe/shared-state'
+
+export const selectionResolver: ResolveFn<SharedStateValues['well:selection']> = () =>
+  injectSharedStateStore().get('well:selection')
+```
+
+Attach this resolver to the route's `resolve` options. Capture the store before any `await`.
+
+</Tab>
+</Tabs>
+
+`get()` returns the current selection or `null`. For handlers, capture `useSharedStateStore()` or
+`injectSharedStateStore()` and await `store.set(key, value)` before reporting success.
+Read again after other awaited work to avoid using an earlier selection.
+
+Changing state does not rerun a React loader. Call `router.invalidate()` when its data depends on
+that selection. If you call `store.subscribe(key, listener)`, clean up with the returned unsubscribe function.
+
 ## Check it works
 
-Open the units picker in an App and a Widget on the same page. Click either button: both should
-show `imperial`. Close and reopen the Widget; it should still show `imperial`. Reload the page
-and check that the saved preference returns.
+Open a units picker in an App and a Widget. Toggle either picker and confirm both update. Reload and check that persistence restores the preference. Open a selection-dependent route and confirm its loader or resolver reads the current selection.
 
 ## Errors
 
 <Callout type="error" title="shared-state/unsupported-schema, at build">
-  Use JSON values with fixed object fields and literal defaults. Replace transforms, coercion,
-  custom refinements or computed defaults with a supported declaration; perform domain calculations
-  before writing the value.
+
+```text shared
+shared-state/unsupported-schema: sharedStateSchema must be a fixed-shape z.object
+```
+
+Use JSON values with fixed object fields and literal defaults. **Fix.** Replace transforms, coercion, custom refinements or computed defaults with a supported declaration.
+Calculate domain values before writing them.
+
 </Callout>
 
 <Callout type="error" title="shared-state/invalid-value, at write">
-Supply the fields needed to form a valid record. From a null selection, `{ runId: 'run-8' }` alone
-cannot provide the required `wellId`. To reset this nullable key, write `null`; `undefined` is not
-a deletion marker.
+
+```text shared
+well:selection: <root> must be finite JSON data
+```
+
+**Fix.** Supply the fields needed to form a valid record. From a null selection, `{ runId: 'run-8' }` alone
+cannot provide the required `wellId`. To reset this nullable key, write `null`. `undefined` is invalid.
+
 </Callout>
 
 <Callout type="error" title="shared-state/conflict, at write">
-  Another write changed the record before yours was accepted. Read the refreshed value and let the
-  user choose again. Do not silently retry the old intention over someone else's change.
+
+```text shared
+well:selection: Record changed since this intention was formed; refresh and choose again
+```
+
+Another write changed the record before yours was accepted. **Fix.** Read the refreshed value and let the user choose again.
+
+</Callout>
+
+<Callout type="error" title="shared-state/scope-disposed">
+
+```text shared
+<scope>: This binding belongs to a disposed scope
+```
+
+**Fix.** Capture a new store from the remounted definition after the shell changes identity or workspace.
+Stop using the old store in late callbacks.
+
 </Callout>
 
 ## Related
 
-- [Run the React and Angular examples](https://github.com/rpkapps/mfe-framework-claude/tree/dev/examples/shared-state) — the shared package, pages and local backend
-
-- [Use shared state outside render](/docs/shared-state-outside-render) — loaders, actions and resolvers
+- [Run the React and Angular examples](https://github.com/rpkapps/mfe-framework-claude/tree/dev/examples/shared-state) — shared package and persistence adapter
 - [Configure shared state in the shell](/docs/configure-shared-state) — persistence and scopes
-- [Evolve a shared-state schema](/docs/evolve-shared-state) — keep deployed consumers compatible
-- [Remember a value across reloads](/docs/remember-a-value) — a definition's own browser storage
+- [Evolve a shared-state schema](/docs/evolve-shared-state) — compatible releases
+- [Browser storage](/docs/remember-a-value) — preferences within one definition
+- [Add a route](/docs/add-a-route) — router context and loaders

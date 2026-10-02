@@ -33,7 +33,7 @@ export function restrictedImports(
 }
 
 const neutral = (pkg: string, what: string): string =>
-  `Package boundary: ${pkg} is framework-neutral, so it cannot depend on ${what}. Put the code that needs it in @company/mfe-react (React) or @company/mfe-legacy-angular (single-spa), and keep the contract in the neutral package.`
+  `Package boundary: ${pkg} is framework-neutral, so it cannot depend on ${what}. Put the code that needs it in @company/mfe-react (React) or @company/mfe-angular (Angular), and keep the contract in the neutral package.`
 
 const STATE_MESSAGE =
   'Package boundary: framework packages do not take a general state-management dependency, because it would be forced on every consumer and duplicated once per MFE. Model framework state with the primitives in @company/mfe-core (`Subscribable`) and @company/mfe-runtime (`SnapshotSource`) instead.'
@@ -62,7 +62,7 @@ export function neutralPackagePaths(pkg: string): RestrictedPath[] {
     { name: '@tanstack/react-query', message: neutral(pkg, 'a React data client') },
     {
       name: 'single-spa',
-      message: `Package boundary: only @company/mfe-legacy-angular knows the legacy single-spa contract, so ${pkg} must not import it.`,
+      message: `Package boundary: ${pkg} uses the App and Widget lifecycle and must not import single-spa.`,
     },
   ]
 }
@@ -222,6 +222,6 @@ export function deepImportPattern(adapterModules: readonly string[]): Restricted
 export function singleSpaPattern(adapterModules: readonly string[]): RestrictedPattern {
   return {
     group: ['single-spa', 'single-spa-*'],
-    message: `Package boundary: single-spa is the legacy interop layer, owned by @company/mfe-legacy-angular. A new MFE targets the App and Widget contract in ${joined(adapterModules)}.`,
+    message: `Package boundary: single-spa is unsupported. An MFE targets the App and Widget contract in ${joined(adapterModules)}.`,
   }
 }

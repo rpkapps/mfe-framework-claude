@@ -1,10 +1,10 @@
 # `@company/docs` — the documentation site
 
-The author-facing documentation for the micro-frontend framework: an overview, a quickstart, a
-tutorial, one recipe per task, the How it works pages with the design map and the decision log, and
-a reference section with a glossary. It is a Vite + TanStack Start application,
-prerendered to static files, and every piece of its interface is a component from `@tecton/react`,
-the design system the shell and the example containers use.
+The author-facing documentation for the micro-frontend framework: getting started, Apps, Widgets,
+browser storage, shared state, telemetry, shell integration, development and deployment.
+Reference and architecture sections hold API contracts, the design map and decision history.
+It is a Vite + TanStack Start application, prerendered to static files.
+Its interface uses `@tecton/react`, the design system the shell and React containers use.
 
 ## Running it
 
@@ -13,10 +13,14 @@ From the repository root:
 | Command             | What it does                                                                                                                                    |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm docs:dev`     | Dev server on <http://localhost:3020> (3000–3008, 3010 and 3011 are the shell, the example containers, the stand-in API and the agent backend). |
-| `pnpm docs:build`   | Production build, then prerenders every page into `apps/docs/dist/client`.                                                                      |
+| `pnpm docs:build`   | Production build, prerenders pages into `apps/docs/dist/client`, then writes redirects for consolidated guide URLs.                             |
+| `pnpm docs:check`   | Builds the docs, then checks every built page for broken internal page links, heading links and diagram assets.                                 |
 | `pnpm docs:preview` | Serves the build output, which is what a static host sees.                                                                                      |
 
-Inside `apps/docs`, the same three are `pnpm dev`, `pnpm build`, `pnpm preview`, plus
+`pnpm docs:check` runs `pnpm docs:build` followed by `node tools/docs/check-links.mjs`.
+Run it after changing pages, navigation, heading anchors or diagrams.
+
+Inside `apps/docs`, the three server and build commands are `pnpm dev`, `pnpm build`, `pnpm preview`, plus
 `pnpm typecheck` and `pnpm lint`. `pnpm generate` writes `src/routeTree.gen.ts`; `pnpm dev` and
 `pnpm build` write it themselves, and `pnpm check` at the root runs it before type-checking so
 neither `tsc` nor ESLint needs a build first. It is generated output: never edit it, never commit
@@ -28,7 +32,10 @@ it.
 apps/docs/content/docs/
   meta.json          the sidebar: its sections, in order
   index.mdx          /docs            "Overview"
-  quickstart.mdx     /docs/quickstart … and one file per recipe
+  quickstart.mdx     /docs/quickstart … and one file per task guide
+  remember-a-value.mdx /docs/remember-a-value   browser storage
+  shared-state.mdx   /docs/shared-state   consumer bindings and route callbacks
+  telemetry.mdx      /docs/telemetry   events, errors and traces
   how-it-works/
     meta.json        the How it works pages, in order
     the-mount-lifecycle.mdx   /docs/how-it-works/the-mount-lifecycle   … and two more
@@ -47,16 +54,42 @@ separator:
 {
   "root": true,
   "pages": [
+    "---Getting started---",
     "index",
-    "architecture",
     "quickstart",
     "tutorial",
-    "---Plug into the shell---",
-    "add-a-settings-page",
+    "architecture",
+    "---Apps---",
+    "create-an-app",
     "…",
-    "---More---",
-    "how-it-works",
-    "reference"
+    "---Widgets---",
+    "create-a-widget",
+    "…",
+    "---Browser storage---",
+    "remember-a-value",
+    "change-the-shape-of-a-stored-value",
+    "---Shared state---",
+    "shared-state",
+    "configure-shared-state",
+    "evolve-shared-state",
+    "---Telemetry---",
+    "telemetry",
+    "---Shell integration---",
+    "add-an-action",
+    "…",
+    "---API---",
+    "call-your-api",
+    "mark-a-url-as-your-api",
+    "fetch-with-tanstack-query",
+    "---Env---",
+    "declare-an-env-variable",
+    "read-an-env-variable",
+    "supply-values-per-deployment",
+    "---Development & deployment---",
+    "run-the-shell-locally",
+    "…",
+    "reference",
+    "how-it-works"
   ]
 }
 ```
@@ -65,20 +98,79 @@ separator:
 group's title and the order of its pages, which keep their `/docs/how-it-works/<name>` and
 `/docs/reference/<name>` URLs.
 
-### `design.md` and `decisions.md` are rendered, not copied
+### Content conventions
 
-`/docs/how-it-works/design` and `/docs/how-it-works/decisions` come straight from `docs/design.md` and `docs/decisions.md` in
-the repository. Those files are the single source: `docs/design.md` has to render on GitHub, and
-`docs/decisions.md` is the decision log every other document links to. Neither is duplicated here.
+Read [STYLE.md](STYLE.md) before adding or reorganizing content.
+The sidebar groups guides by framework feature. The overview gives starting points for React, Angular,
+shell builders and framework maintainers. Reference and architecture remain accessible in the sidebar.
+`NAV_LABELS` in `src/lib/source.ts` provides short sidebar labels through a page-tree transformer.
+The full frontmatter title remains in the page header and search index. Add a label when a task title
+would wrap awkwardly in the sidebar.
+
+Task guides explain shared behavior once and put framework-specific examples in React / Angular tabs.
+Use `items={['React', 'Angular']}` and matching tab values, with React first.
+Every framework pair starts on React and switches independently. Shared prose stays outside the tabs.
+Every code section in a task guide uses paired tabs or a `shared` fence marker. The shared marker renders
+one neutral source snippet in both framework tabs through `SharedCode`; use it only when the code
+applies unchanged to both frameworks. The build rejects unpaired guide fences.
+For framework-specific pages, state applicability in the opener.
+
+Give each complete procedure and API contract one canonical home. Package READMEs link to those
+pages and retain setup, package boundaries and unique maintainer details.
+Short prerequisites and warnings can repeat beside the example where readers need them.
+Env configuration has its own sidebar group. The top-level API group contains three task guides:
+API requests, API URL and TanStack Query. Consolidated guides have one current destination:
+
+| Topic                                                        | Canonical guide               |
+| ------------------------------------------------------------ | ----------------------------- |
+| Browser preferences, channel selection and imperative access | `/docs/remember-a-value`      |
+| Shared-state components, loaders and resolvers               | `/docs/shared-state`          |
+| Events, caught errors, measurements and traces               | `/docs/telemetry`             |
+| Generated styles, inheritance and overlays                   | `/docs/use-the-design-system` |
+| React and Angular adapter architecture                       | `/docs/how-it-works/adapters` |
+
+Link to the canonical page or section when editing content.
+
+### Redirects for consolidated guides
+
+`src/lib/doc-redirects.json` maps removed guide slugs to their canonical page or section.
+The docs route reads the map before looking up a page. `tools/docs/write-redirects.mjs` uses that same
+map to write redirect HTML after the root `pnpm docs:build`, so static hosts keep old links working.
+The static redirect keeps query strings and chooses the destination anchor when one is supplied.
+
+When consolidating a page, add its old slug to the map and update current links to the new destination.
+Run `pnpm docs:check` to verify the built destinations and heading anchors.
+
+### Paragraph and table widths
+
+`src/styles/app.css` keeps ordinary article content in a centered column up to `40rem` wide.
+Tables stay inside that content column. `src/components/mdx.tsx` wraps each table in a
+focusable region with visible horizontal scrollbars. Tables retain their intrinsic width, cells retain useful width,
+and inline code stays unbroken. Put reference facts in real Markdown tables and let the wrapper scroll.
+Do not add page-level width overrides or force API names to wrap.
+
+### Repository Markdown is rendered, not copied
+
+Three repository files are rendered directly into the architecture section:
+
+| Source                 | Site route                        | Purpose                                        |
+| ---------------------- | --------------------------------- | ---------------------------------------------- |
+| `docs/design.md`       | `/docs/how-it-works/design`       | Design map                                     |
+| `docs/decisions.md`    | `/docs/how-it-works/decisions`    | Decision history                               |
+| `docs/shared-state.md` | `/docs/how-it-works/shared-state` | Shared-state protocol and maintainer contracts |
+
+These files are the single source and also render on GitHub. None is duplicated here.
+The author task guide remains at `/docs/shared-state`. It links to the protocol for deeper detail.
 
 A `fumadocs-mdx` collection takes one directory, so `src/lib/docs.ts` declares a second collection
-over `../../docs` limited to those two files, and `src/lib/source.ts` concatenates the two virtual
-file lists into one page tree, mapping the two files into the `how-it-works` folder. That is why
-`content/docs/how-it-works/meta.json` can list `design` and `decisions` beside the pages written
-here.
+over `../../docs` limited to these three files. `src/lib/source.ts` concatenates the two collections' virtual
+file lists into one page tree and maps the repository files into the `how-it-works` folder.
+That lets `content/docs/how-it-works/meta.json` list `design`, `decisions` and `shared-state`
+beside the MDX pages written here.
 
-Neither file carries frontmatter, so `src/lib/repo-page.ts` derives the title from the `# ` heading
-and the description from the paragraph under it.
+The repository files carry no frontmatter. `src/lib/repo-page.ts` derives their titles from the `# ` heading
+and descriptions from the paragraph under it. Title overrides distinguish the shared-state protocol
+from the author task guide.
 
 ## Writing MDX here
 
@@ -155,6 +247,11 @@ The text equivalent, as Markdown. Paragraphs and lists both render as prose.
 - `caption` — optional, shown under the figure.
 - `children` — mandatory. The text equivalent, in Markdown. It renders below the figure inside a
   disclosure labelled "Read this diagram as text".
+
+For a capability diagram, show the container API, runtime boundary and shell-owned service.
+Keep the shell and runtime layout consistent between React and Angular views.
+Reuse a diagram for related tasks, with a text equivalent beside every use.
+Show shipped behavior. Label a proposed flow clearly when discussing an unimplemented decision.
 
 The SVGs are exported light-on-transparent so GitHub can show them. The dark theme inverts them in
 CSS (`invert(1) hue-rotate(180deg)`, the way Excalidraw's own dark export works, so blue stays blue

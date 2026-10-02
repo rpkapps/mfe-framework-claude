@@ -217,8 +217,8 @@
       </div>
     </div>
     <!-- The theme before first paint, because a document that boots dark and flips to light on
-         hydration is a flash every light-theme user sees on every load. It reads the bare key
-         the legacy Angular applications read too, the same way `preferences.ts` does (§24). -->
+         hydration is a flash every light-theme user sees on every load. It reads the same
+         shell-owned preference key as `preferences.ts`, before the runtime exists. -->
     <script>
       ;(function () {
         try {
