@@ -21,6 +21,7 @@ import { InspectionLog, PADS } from './inspections'
     <section class="fieldwork-page">
       <h1>Field inspections</h1>
       <p>Signed in as {{ user()?.name ?? 'nobody' }}.</p>
+      <p>Choose a well pad to review scheduled inspections and record a walkdown.</p>
       <div class="fieldwork-row">
         <p-select
           [options]="pads"
