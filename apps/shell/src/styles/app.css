@@ -1,6 +1,7 @@
 /* Tecton's palette replaces Tailwind's, so stock colour utilities (`bg-red-500`) generate no CSS at all. */
 
-@import '@tecton/react/globals.css';
+/* Automatic scanning watches generated data too, so persisting shared state could hot-reload the shell's CSS. */
+@import '@tecton/react/globals.css' source(none);
 
 /* Each container ships the utilities its own classes need (§17); what stays here is the document-level half every mounted subtree inherits. */
 @source "../**/*.{ts,tsx}";

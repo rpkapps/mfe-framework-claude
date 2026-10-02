@@ -29,6 +29,21 @@ export async function verifySharedStateScale(browser) {
   const shots = fileURLToPath(new URL('../../screenshots/', import.meta.url))
   await mkdir(shots, { recursive: true })
   const panel = page.locator('[data-mfe-devtools-panel]')
+  const checkTabStrip = async () => {
+    const strip = panel.getByRole('tablist', { name: /^Inspect .* data$/ })
+    const layout = await strip.evaluate(element => {
+      const viewport = element.parentElement
+      const lastTab = element.querySelector('[role="tab"]:last-child')
+      const indicator = getComputedStyle(lastTab, '::after')
+      return {
+        verticalOverflow: viewport.scrollHeight > viewport.clientHeight,
+        indicatorFits:
+          lastTab.getBoundingClientRect().bottom - parseFloat(indicator.bottom) <=
+          viewport.getBoundingClientRect().bottom,
+      }
+    })
+    expect(layout).toEqual({ verticalOverflow: false, indicatorFits: true })
+  }
   const errors = []
   page.on('pageerror', error => {
     // Chromium reports deferred ResizeObserver delivery as a window error; it is not a thrown
@@ -42,6 +57,7 @@ export async function verifySharedStateScale(browser) {
     await expect(panel.getByText('30 keys · Read only')).toBeVisible()
     const list = panel.getByRole('navigation', { name: 'Shared-state contracts' })
     await expect(list.getByRole('button')).toHaveCount(30)
+    await checkTabStrip()
     const first = list.getByRole('button').first()
     expect((await first.boundingBox()).height).toBeLessThanOrEqual(32)
     const well = list.getByRole('button', { name: 'Inspect well:selection' })
@@ -95,11 +111,13 @@ export async function verifySharedStateScale(browser) {
 
     await page.setViewportSize({ width: 390, height: 844 })
     await expect(page.getByLabel('current value of well:selection', { exact: true })).toBeVisible()
+    await checkTabStrip()
     await panel.screenshot({ path: `${shots}shared-state-30-keys-mobile.png` })
     expect(await panel.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
     // A very short narrow dock still lets the detail body scroll independently.
     await page.setViewportSize({ width: 800, height: 360 })
     await page.getByRole('tab', { name: 'Contract', exact: true }).click()
+    await checkTabStrip()
     const body = panel.getByRole('tabpanel', { name: 'Contract', exact: true })
     expect(await body.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true)
     await panel.screenshot({ path: `${shots}shared-state-30-keys-short-dock.png` })

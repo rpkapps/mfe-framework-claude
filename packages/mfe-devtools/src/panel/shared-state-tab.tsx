@@ -240,7 +240,7 @@ function StateDetail({ entry }: { readonly entry: SharedStateInspectionEntry }):
           <StateStatus entry={entry} />
         </PanelActions>
       </PanelHeader>
-      <PanelContent className="flex flex-col gap-3">
+      <PanelContent className="flex flex-col gap-3 overflow-hidden">
         {entry.error === undefined ? null : (
           <Alert variant="destructive">
             <TriangleAlertIcon />
@@ -249,15 +249,18 @@ function StateDetail({ entry }: { readonly entry: SharedStateInspectionEntry }):
           </Alert>
         )}
         <Tabs defaultValue="effective" className="min-h-0 flex-1">
-          <TabsList
-            variant="line"
-            aria-label={`Inspect ${entry.contract.id} data`}
-            className="w-fit max-w-full shrink-0 overflow-x-auto"
-          >
-            <TabsTrigger value="effective">Current value</TabsTrigger>
-            <TabsTrigger value="confirmed">Confirmed</TabsTrigger>
-            <TabsTrigger value="contract">Contract</TabsTrigger>
-          </TabsList>
+          {/* The line indicator extends below the list; reserve its space inside the scrollport. */}
+          <div className="min-w-0 shrink-0 overflow-x-auto overflow-y-hidden pb-1.5">
+            <TabsList
+              variant="line"
+              aria-label={`Inspect ${entry.contract.id} data`}
+              className="w-max"
+            >
+              <TabsTrigger value="effective">Current value</TabsTrigger>
+              <TabsTrigger value="confirmed">Confirmed</TabsTrigger>
+              <TabsTrigger value="contract">Contract</TabsTrigger>
+            </TabsList>
+          </div>
           <TabsContent value="effective" className="min-h-0 overflow-auto">
             <JsonValue
               value={entry.effective}
