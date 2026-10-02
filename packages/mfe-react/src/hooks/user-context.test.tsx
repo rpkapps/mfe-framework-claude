@@ -7,7 +7,7 @@ import {
   createRouter,
 } from '@tanstack/react-router'
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
-import { Component, StrictMode, type ReactNode } from 'react'
+import { Component, StrictMode, useMemo, type ReactNode } from 'react'
 import type {
   UserContextAdapter,
   UserContextScopeService,
@@ -110,6 +110,43 @@ async function setup() {
   }
 }
 describe('definition-bound React user context and routers', () => {
+  it('invalidates memoized render reads while preserving imperative stores and callbacks', async () => {
+    const environment = await setup()
+    const consumer = renderHook(
+      () => {
+        const store = bindings.useUserContext()
+        const imperative = bindings.useUserContextStore()
+        // React Compiler memoizes these reads using the hook result or its read methods.
+        const units = useMemo(() => store.get('units'), [store])
+        const { get, getSnapshot } = store
+        const methodUnits = useMemo(() => get('units'), [get])
+        const snapshotUnits = useMemo(() => getSnapshot().units, [getSnapshot])
+        return { store, imperative, units, methodUnits, snapshotUnits }
+      },
+      { wrapper: environment.wrapper },
+    )
+    const initial = consumer.result.current
+    expect(initial.units).toBe('metric')
+    consumer.rerender()
+    expect(consumer.result.current.store).toBe(initial.store)
+    await act(async () => {
+      await initial.store.set('units', 'imperial')
+    })
+    expect(consumer.result.current).toMatchObject({
+      units: 'imperial',
+      methodUnits: 'imperial',
+      snapshotUnits: 'imperial',
+    })
+    expect(consumer.result.current.store).not.toBe(initial.store)
+    expect(consumer.result.current.imperative).toBe(initial.imperative)
+    expect(consumer.result.current.store.set).toBe(initial.store.set)
+    expect(consumer.result.current.store.subscribe).toBe(initial.store.subscribe)
+    expect(consumer.result.current.store.observe).toBe(initial.store.observe)
+    expect(initial.store.get('units')).toBe('imperial')
+    expect(initial.store.getSnapshot().units).toBe('imperial')
+    consumer.unmount()
+    await environment.dispose()
+  })
   it('returns a typed owner store, updates all consumers and keeps callbacks stable under StrictMode', async () => {
     const environment = await setup()
     const first = renderHook(() => bindings.useUserContext(), {
@@ -158,7 +195,8 @@ describe('definition-bound React user context and routers', () => {
     const read = renderHook(
       () => {
         const store = observer.useUserContext<Values>('reader')
-        return { store, units: store.get('units') }
+        const units = useMemo(() => store.get('units'), [store])
+        return { store, units }
       },
       { wrapper },
     )

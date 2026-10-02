@@ -1,4 +1,4 @@
-import { useCallback, useSyncExternalStore } from 'react'
+import { useCallback, useMemo, useSyncExternalStore } from 'react'
 import {
   UserContextError,
   type UserContextReader,
@@ -43,8 +43,19 @@ export function createUserContextBindings<V>(definitionId: string) {
     const store = useBoundUserContext(ownerId)
     const subscribe = useCallback((listener: () => void) => store.observe(listener), [store])
     const getSnapshot = useCallback(() => store.getSnapshot(), [store])
-    useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
-    return store
+    const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
+    // Render reads must change identity with the snapshot so memoized consumers (including
+    // React Compiler output) do not reuse values from a previous committed slice.
+    return useMemo(
+      () => ({
+        ...store,
+        get: <K extends keyof V & string>(key: K) => store.get(key),
+        getSnapshot: () => store.getSnapshot(),
+      }),
+      // The snapshot invalidates the facade; its methods retain live runtime reads.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      [store, snapshot],
+    )
   }
   return { useUserContext, useUserContextStore }
 }
