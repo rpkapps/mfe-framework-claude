@@ -116,6 +116,7 @@ Angular declares matching component inputs and outputs. Every schema field must 
 <Tab value="React">
 
 ```ts title="src/mfe.ts"
+import packageJson from '../package.json'
 import { createWidget } from '@company/mfe-react'
 import { BellIcon } from 'lucide-react'
 import { z } from 'zod'
@@ -135,7 +136,7 @@ export const alertPanelContract = {
 
 export const alertPanel = createWidget({
   id: 'alert-panel',
-  version: '1.4.0',
+  version: packageJson.version,
   title: 'Alert panel',
   description: 'Open alerts for one asset, acknowledged or dismissed in place.',
   tags: ['alerts', 'operations', 'safety'],
@@ -149,6 +150,7 @@ export const alertPanel = createWidget({
 <Tab value="Angular">
 
 ```ts title="src/mfe.ts"
+import packageJson from '../package.json'
 import { createWidget } from '@company/mfe-angular'
 import { z } from 'zod'
 import { AlertPanelComponent } from './alert-panel.component'
@@ -166,7 +168,7 @@ export const alertPanelContract = {
 
 export const alertPanel = createWidget({
   id: 'alert-panel',
-  version: '1.4.0',
+  version: packageJson.version,
   title: 'Alert panel',
   ...alertPanelContract,
   component: AlertPanelComponent,
@@ -177,7 +179,7 @@ export const alertPanel = createWidget({
 </Tabs>
 
 The build reads `src/mfe.ts` and no other file, so export every definition from it and write
-`id`, `version`, `title`, `description` and `tags` as plain literals.
+`id`, `title`, `description` and `tags` as plain literals. Import `version` from `package.json` to keep one release version.
 
 </Step>
 

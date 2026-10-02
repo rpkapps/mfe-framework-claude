@@ -1,6 +1,7 @@
 import { createWidget } from '@company/mfe-angular'
 import { z } from 'zod'
 
+import packageJson from '../package.json'
 import { <%= pascal %>Component } from './<%= id %>.component'
 import { providePrimeNgForMfe } from './primeng'
 
@@ -18,7 +19,7 @@ export const <%= camel %>Contract = {
 
 export const <%= camel %> = createWidget({
   id: '<%= id %>',
-  version: '0.1.0',
+  version: packageJson.version,
   ...<%= camel %>Contract,
   component: <%= pascal %>Component,
   // Environment providers for each mount's own application.

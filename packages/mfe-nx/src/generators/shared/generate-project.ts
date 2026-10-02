@@ -37,7 +37,7 @@ function templateSubstitutions(options: NormalizedSchema, template: MfeTemplate)
     isWidget: template === 'widget',
     // The Widget component's class name and the contract's variable name, as `packages/create-mfe`
     // spells them; harmless when a template does not reference them.
-    camel: propertyName,
+    camel: propertyName === 'packageJson' ? 'packageJsonWidget' : propertyName,
     pascal: className,
   }
 }

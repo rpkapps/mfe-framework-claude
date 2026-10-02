@@ -49,6 +49,8 @@ describe('the App starter', () => {
 
     const entry = await readFile(join(directory, 'src/mfe.ts'), 'utf8')
     expect(entry).toContain("id: 'operations'")
+    expect(entry).toContain("import packageJson from '../package.json'")
+    expect(entry).toContain('version: packageJson.version')
     expect(entry).toContain('basepath: basePath')
     expect(entry).toContain('history,')
     expect(entry).toContain('context: { ...context }')
@@ -187,6 +189,8 @@ describe('the Widget starter', () => {
 
     const entry = await readFile(join(directory, 'src/mfe.ts'), 'utf8')
     expect(entry).toContain('export const alertPanelContract')
+    expect(entry).toContain("import packageJson from '../package.json'")
+    expect(entry).toContain('version: packageJson.version')
     expect(entry).toContain("id: 'alert-panel'")
     expect(entry).toContain('...alertPanelContract')
   })

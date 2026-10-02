@@ -4,6 +4,7 @@ import { createApp, type AppRouterOptions } from '@company/mfe-react'
 import { createRouter } from '@tanstack/react-router'
 import { LoaderIcon } from 'lucide-react'
 
+import packageJson from '../package.json'
 import { routeTree } from './routeTree.gen'
 
 function makeRouter({ basePath, history, context }: AppRouterOptions) {
@@ -24,7 +25,7 @@ declare module '@tanstack/react-router' {
 
 export default createApp({
   id: 'loaders',
-  version: '0.1.0',
+  version: packageJson.version,
   title: 'Loaders',
   description: 'Every loading screen the shell can draw, to preview and choose from.',
   tags: ['loaders', 'design'],

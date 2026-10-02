@@ -5,6 +5,7 @@ import { createApp, type AppRouterOptions, type MfeStaticData } from '@company/m
 import { HardHatIcon } from 'lucide-react'
 import { createRouter } from '@tanstack/react-router'
 
+import packageJson from '../package.json'
 import { routeTree } from './routeTree.gen'
 import { RouteError, RouteNotFound, RoutePending } from './route-states.tsx'
 
@@ -42,7 +43,7 @@ declare module '@tanstack/react-router' {
 
 export default createApp({
   id: 'operations',
-  version: '2.1.0',
+  version: packageJson.version,
   description: 'Day-to-day field operations: wells, alerts and daily reports.',
   tags: ['operations'],
   icon: HardHatIcon,

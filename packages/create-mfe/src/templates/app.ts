@@ -36,6 +36,7 @@ export function appTemplate(options: TemplateOptions): readonly TemplateFile[] {
       contents: `import { createApp, type AppRouterOptions, type MfeStaticData } from '@company/mfe-react'
 import { createRouter } from '@tanstack/react-router'
 
+import packageJson from '../package.json'
 import { routeTree } from './routeTree.gen'
 
 // Called once per mount, not once per module. Pass basePath, history and
@@ -67,7 +68,7 @@ declare module '@tanstack/react-router' {
 
 export default createApp({
   id: '${id}',
-  version: '0.1.0',
+  version: packageJson.version,
   router: makeRouter,
 })
 `,

@@ -36,11 +36,12 @@ and `platformBrowserDynamic`. The host owns the application, so a container neve
 ## Declare an App
 
 ```ts title="src/mfe.ts"
+import packageJson from '../package.json'
 import { createApp } from '@company/mfe-angular'
 
 import { routes } from './app.routes'
 
-export const reportsApp = createApp({ id: 'reports', version: '0.1.0', routes })
+export const reportsApp = createApp({ id: 'reports', version: packageJson.version, routes })
 ```
 
 ```ts title="src/app.routes.ts"
@@ -67,15 +68,15 @@ host's navigation bridge through `BoundaryLocationStrategy`, and never touches `
 The build reads capability routes statically, so write `data: mfeRouteData({ … })` inline, on a
 route object with a literal `path`.
 
-| Option           | What it is                                                            |
-| ---------------- | --------------------------------------------------------------------- |
-| `id`             | The definition id.                                                    |
-| `version`        | Optional. Recorded in diagnostics.                                    |
-| `routes`         | The App's route tree.                                                 |
-| `component`      | Optional. A root of your own, which must render `<router-outlet />`.  |
-| `routerFeatures` | Optional. `withComponentInputBinding()` and the like.                 |
-| `providers`      | Optional. Environment providers, created once per mount.              |
-| `breadcrumbs`    | Optional. `false` stops the App deriving breadcrumbs from its routes. |
+| Option           | What it is                                                                                 |
+| ---------------- | ------------------------------------------------------------------------------------------ |
+| `id`             | The definition id.                                                                         |
+| `version`        | Optional. Recorded in diagnostics. Import from `package.json` to keep one release version. |
+| `routes`         | The App's route tree.                                                                      |
+| `component`      | Optional. A root of your own, which must render `<router-outlet />`.                       |
+| `routerFeatures` | Optional. `withComponentInputBinding()` and the like.                                      |
+| `providers`      | Optional. Environment providers, created once per mount.                                   |
+| `breadcrumbs`    | Optional. `false` stops the App deriving breadcrumbs from its routes.                      |
 
 Your providers are applied first, so none of them can replace what the mount owns: change
 detection, the error handler, the mount tokens and the router's location.
@@ -83,6 +84,7 @@ detection, the error handler, the mount tokens and the router's location.
 ## Declare a Widget
 
 ```ts title="src/mfe.ts"
+import packageJson from '../package.json'
 import { createWidget } from '@company/mfe-angular'
 import { z } from 'zod'
 
@@ -95,7 +97,7 @@ export const alertPanelContract = {
 
 export const alertPanel = createWidget({
   id: 'alert-panel',
-  version: '0.1.0',
+  version: packageJson.version,
   ...alertPanelContract,
   component: AlertPanelComponent,
 })

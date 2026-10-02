@@ -41,6 +41,41 @@ function parsesOf(root: string, plan: () => unknown): readonly string[] {
 }
 
 describe('a planner', () => {
+  it('updates every definition and artifact when only the package version changes', () => {
+    const root = createContainer({
+      ...CONTAINER,
+      'src/mfe.ts': `import packageJson from '../package.json'\n${CONTAINER['src/mfe.ts'].replace(
+        "id: 'operations', routes",
+        "id: 'operations', version: packageJson.version, routes",
+      )}
+import { createWidget } from '@acme/mfe-adapter'
+import { z } from 'zod'
+export const row = createWidget({
+  id: 'row', version: packageJson.version,
+  inputSchema: z.object({}), outputSchema: z.object({}), render: () => null,
+})`,
+    })
+    const plan = createContainerPlanner(TEST_PROFILE, { containerRoot: root })
+    plan()
+    writeFileSync(join(root, 'package.json'), JSON.stringify({ version: '2.0.0' }))
+    const second = plan()
+
+    expect(second.discovery.definitions.map(definition => definition.version)).toEqual([
+      '2.0.0',
+      '2.0.0',
+    ])
+    expect(second.generated.descriptor.definitions.map(definition => definition.version)).toEqual([
+      '2.0.0',
+      '2.0.0',
+    ])
+    expect(
+      second.generated.frameworkMetadata.definitions.map(definition => definition.version),
+    ).toEqual(['2.0.0', '2.0.0'])
+    expect(second.generated.files.find(file => file.path.endsWith('/meta.ts'))?.contents).toContain(
+      "version: '2.0.0'",
+    )
+  })
+
   it('parses each source a plan needs once, and a source nothing needs never', () => {
     const root = createContainer(CONTAINER)
     const plan = createContainerPlanner(TEST_PROFILE, { containerRoot: root })

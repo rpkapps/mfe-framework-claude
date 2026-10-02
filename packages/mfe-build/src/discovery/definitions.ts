@@ -19,6 +19,7 @@ import type { JsonObject } from '../config/zod-static.ts'
 import { createBuildError, listNames } from '../diagnostics.ts'
 import { readIconData } from './icon.ts'
 import { standaloneSources, type ContainerSources } from './sources.ts'
+import { importedPackageVersion } from './version.ts'
 import { readWidgetContract, type WidgetContractSource } from './widget-contract.ts'
 import {
   calleeName,
@@ -267,7 +268,7 @@ function readDefinition(
   { imports, topLevel, syntax, sources }: EntryScope,
 ): DiscoveredDefinition {
   const id = readIdentity(sourceFile, factory)
-  const version = readVersion(sourceFile, factory, id)
+  const version = readVersion(sourceFile, factory, id, imports, sources)
   const stateSchema = sharedStateExpression(factory.options)
   const sharedState =
     stateSchema === undefined ? undefined : compileSharedState(stateSchema, sourceFile, sources)
@@ -476,11 +477,21 @@ function readVersion(
   sourceFile: ts.SourceFile,
   factory: FactoryCall,
   id: string,
+  imports: ReadonlyMap<string, ImportedBinding>,
+  sources: ContainerSources,
 ): string | undefined {
-  const property = objectProperty(factory.options, 'version')
+  const property =
+    objectProperty(factory.options, 'version') ??
+    factory.options.properties.find(
+      (candidate): candidate is ts.ShorthandPropertyAssignment =>
+        ts.isShorthandPropertyAssignment(candidate) && candidate.name.text === 'version',
+    )
   if (property === undefined) return undefined
 
-  const value = stringLiteralValue(property.initializer)
+  const expression = ts.isPropertyAssignment(property) ? property.initializer : property.name
+  const value =
+    stringLiteralValue(expression) ??
+    importedPackageVersion(expression, sourceFile.fileName, id, imports, sources)
   if (value === null) {
     const { line, column } = positionOf(sourceFile, property)
     throw createBuildError({
@@ -490,11 +501,11 @@ function readVersion(
       column,
       id,
       operation: 'read the definition version',
-      expected: 'a plain string literal',
-      observed: describeNode(sourceFile, property.initializer),
+      expected: 'a plain string literal or a version imported directly from package.json',
+      observed: describeNode(sourceFile, expression),
       declaredBy: 'Static discovery',
       repair:
-        "Write the version inline, for example version: '2.1.0'. It appears in diagnostics, so it has to be the same string on every machine that builds this container.",
+        "Import packageJson from '../package.json' and use version: packageJson.version. The build reads that JSON without running your code, so the registry and diagnostics use the package version.",
     })
   }
 

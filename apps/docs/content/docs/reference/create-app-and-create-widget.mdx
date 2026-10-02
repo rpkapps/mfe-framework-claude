@@ -8,6 +8,7 @@ description: 'Every option the two definition factories take, with its type and 
 ## createApp options
 
 ```ts title="examples/operations/src/mfe.ts"
+import packageJson from '../package.json'
 import { createApp, type AppRouterOptions } from '@company/mfe-react'
 import { HardHatIcon } from 'lucide-react'
 import { createRouter } from '@tanstack/react-router'
@@ -20,7 +21,7 @@ function makeRouter({ basePath, history, context }: AppRouterOptions) {
 
 export default createApp({
   id: 'operations',
-  version: '2.1.0',
+  version: packageJson.version,
   description: 'Day-to-day field operations: wells, alerts and daily reports.',
   tags: ['operations'],
   icon: HardHatIcon,
@@ -42,6 +43,7 @@ export default createApp({
 ## createWidget options
 
 ```ts title="examples/alert-panel/src/mfe.ts"
+import packageJson from '../package.json'
 import { createWidget } from '@company/mfe-react'
 import { BellIcon } from 'lucide-react'
 import { z } from 'zod'
@@ -50,7 +52,7 @@ import { AlertPanel } from './alert-panel.tsx'
 
 export const alertPanel = createWidget({
   id: 'alert-panel',
-  version: '1.4.0',
+  version: packageJson.version,
   title: 'Alert panel',
   description: 'Open alerts for one asset, acknowledged or dismissed in place.',
   tags: ['alerts', 'operations', 'safety'],
@@ -73,7 +75,7 @@ export const alertPanel = createWidget({
 | `inputSchema`  | `z.ZodType`                               | yes      | One `z.object` with a property per prop. A Widget that takes none writes `z.object({})`.             |
 | `outputSchema` | `z.ZodObject`                             | yes      | One property per output, holding its payload schema. A Widget that emits none writes `z.object({})`. |
 | `render`       | `(props: WidgetRenderProps) => ReactNode` | yes      | The component. Keep it in its own module.                                                            |
-| `version`      | `string`                                  | no       | Recorded in diagnostics.                                                                             |
+| `version`      | `string`                                  | no       | Recorded in diagnostics. Import from `package.json` to keep one release version.                     |
 | `title`        | `string`                                  | no       | Presentation.                                                                                        |
 | `description`  | `string`                                  | no       | Presentation.                                                                                        |
 | `tags`         | `readonly string[]`                       | no       | Presentation.                                                                                        |

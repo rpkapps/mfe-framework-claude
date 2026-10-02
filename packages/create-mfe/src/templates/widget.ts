@@ -29,7 +29,7 @@ const TAKEN_NAMES: ReadonlySet<string> = new Set([
   // Imported, declared or read as globals by the files below.
   ...['createWidget', 'z', 'WidgetRenderProps', 'ReactNode', 'Date', 'renderWidget', 'screen'],
   ...['userEvent', 'afterEach', 'expect', 'it', 'vi', 'cleanup', 'dispose', 'onActivated'],
-  ...['rendered', 'lazyWidget', 'inputSchema', 'outputSchema'],
+  ...['rendered', 'lazyWidget', 'inputSchema', 'outputSchema', 'packageJson'],
 ])
 
 /**
@@ -68,6 +68,7 @@ export function widgetTemplate(options: TemplateOptions): readonly TemplateFile[
       contents: `import { createWidget } from '@company/mfe-react'
 import { z } from 'zod'
 
+import packageJson from '../package.json'
 import { ${pascal} } from './${id}.tsx'
 
 // The schemas are the source of truth for runtime validation and for the
@@ -84,7 +85,7 @@ export const ${camel}Contract = {
 
 export const ${camel} = createWidget({
   id: '${id}',
-  version: '0.1.0',
+  version: packageJson.version,
   ...${camel}Contract,
   render: ${pascal},
 })

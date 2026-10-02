@@ -218,13 +218,13 @@ Every build message names the file, and most name the line and column.
 
 ## Build diagnostics: reading a definition
 
-| What the build expected                                                | Fix                                                                   |
-| ---------------------------------------------------------------------- | --------------------------------------------------------------------- |
-| an `id` property                                                       | Add an id, for example `{ id: 'order-row', … }`.                      |
-| a plain string literal, for an id, a version, a title or a description | Write the value inline. The build reads it without running your code. |
-| lower-case letters, digits and single hyphens                          | Rename the definition.                                                |
-| an array of plain, non-empty string literals, for `tags`               | Write the tags inline.                                                |
-| an imported identifier the build can resolve to a drawable icon        | Import the icon and pass the identifier, or import the `.svg`.        |
+| What the build expected                                         | Fix                                                                                    |
+| --------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| an `id` property                                                | Add an id, for example `{ id: 'order-row', … }`.                                       |
+| a plain string literal, for an id, a title or a description     | Write the value inline. For `version`, a direct import from `package.json` also works. |
+| lower-case letters, digits and single hyphens                   | Rename the definition.                                                                 |
+| an array of plain, non-empty string literals, for `tags`        | Write the tags inline.                                                                 |
+| an imported identifier the build can resolve to a drawable icon | Import the icon and pass the identifier, or import the `.svg`.                         |
 
 ## Build diagnostics: a Widget's contract
 
