@@ -19,6 +19,7 @@ export async function verifySharedStateFieldwork(browser) {
     // Seed the same well before navigating to the Angular-only consumer.
     await page.goto('http://localhost:3000/lab/shared-state?devtools=1', { waitUntil: 'load' })
     await page.getByLabel('Well', { exact: true }).selectOption('well-42')
+    await page.getByLabel('Survey run', { exact: true }).selectOption('run-7')
     await expect(panel.getByText('Pending', { exact: true })).toHaveCount(0)
     await page.goto('http://localhost:3000/fieldwork/shared-state?devtools=1', {
       waitUntil: 'load',
@@ -81,14 +82,13 @@ export async function verifySharedStateFieldwork(browser) {
       ['October survey', 'run-8'],
       ['Baseline survey', 'run-7'],
     ]) {
-      let release
-      const pending = new Promise(resolve => {
-        release = resolve
+      let route
+      await page.route('**/api/shared-state/write', pending => {
+        route = pending
       })
-      await page.route('**/api/shared-state/write', route => release(route))
       await survey.click()
       await page.getByRole('option', { name, exact: true }).click()
-      const route = await pending
+      await expect.poll(() => route !== undefined, { timeout: 10000 }).toBe(true)
       await expect(current).toContainText(run)
       await expect(panel.getByText('Pending', { exact: true })).toHaveCount(2)
       expect(
