@@ -265,7 +265,11 @@ function StateDetail({ entry }: { readonly entry: SharedStateInspectionEntry }):
             <JsonValue
               value={entry.effective}
               label={`current value of ${entry.contract.id}`}
-              description="The value visible to consumers, including optimistic updates awaiting persistence."
+              description={
+                entry.pendingWrites > 0
+                  ? 'Includes optimistic updates awaiting persistence.'
+                  : 'The value visible to consumers of the current contract.'
+              }
             />
           </TabsContent>
           <TabsContent value="confirmed" className="min-h-0 overflow-auto">
