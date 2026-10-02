@@ -1,5 +1,5 @@
 import { useId, useState, type ReactNode } from 'react'
-import { useLoaderData, useRouter } from '@tanstack/react-router'
+import { useLoaderData } from '@tanstack/react-router'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
 import { Button } from '@tecton/react/components/button'
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from '@tecton/react/components/empty'
@@ -27,7 +27,6 @@ export function SharedStatePage(): ReactNode {
   const [units, setUnits] = useSharedState('display:units')
   const [selection, setSelection] = useSharedState('well:selection')
   const store = useSharedStateStore()
-  const router = useRouter()
   const loadedSelection = useLoaderData({ from: '/shared-state' })
   const well = wells.find(candidate => candidate.id === selection?.wellId)
   const [error, setError] = useState('')
@@ -38,7 +37,6 @@ export function SharedStatePage(): ReactNode {
     setPending(true)
     try {
       await write()
-      await router.invalidate()
       setError('')
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
