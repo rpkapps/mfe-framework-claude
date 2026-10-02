@@ -100,8 +100,9 @@ export async function verifySharedStateScale(browser) {
     // A very short narrow dock still lets the detail body scroll independently.
     await page.setViewportSize({ width: 800, height: 360 })
     await page.getByRole('tab', { name: 'Contract', exact: true }).click()
-    const body = panel.locator('[data-slot="panel-content"]').last()
+    const body = panel.getByRole('tabpanel', { name: 'Contract', exact: true })
     expect(await body.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true)
+    await panel.screenshot({ path: `${shots}shared-state-30-keys-short-dock.png` })
     expect(errors).toEqual([])
     console.log(
       'Shared State scale: 30 compact full-row targets, keyboard scrolling, narrow picker, mobile and short docks verified.',

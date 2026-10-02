@@ -252,13 +252,13 @@ function StateDetail({ entry }: { readonly entry: SharedStateInspectionEntry }):
           <TabsList
             variant="line"
             aria-label={`Inspect ${entry.contract.id} data`}
-            className="w-fit max-w-full overflow-x-auto"
+            className="w-fit max-w-full shrink-0 overflow-x-auto"
           >
             <TabsTrigger value="effective">Current value</TabsTrigger>
             <TabsTrigger value="confirmed">Confirmed</TabsTrigger>
             <TabsTrigger value="contract">Contract</TabsTrigger>
           </TabsList>
-          <TabsContent value="effective">
+          <TabsContent value="effective" className="min-h-0 overflow-auto">
             <JsonValue
               value={entry.effective}
               label={`current value of ${entry.contract.id}`}
@@ -269,14 +269,14 @@ function StateDetail({ entry }: { readonly entry: SharedStateInspectionEntry }):
               }
             />
           </TabsContent>
-          <TabsContent value="confirmed">
+          <TabsContent value="confirmed" className="min-h-0 overflow-auto">
             <JsonValue
               value={entry.confirmed}
               label={`confirmed value of ${entry.contract.id}`}
               description="Last authoritative value accepted by the runtime; revision 0 uses the contract default."
             />
           </TabsContent>
-          <TabsContent value="contract">
+          <TabsContent value="contract" className="min-h-0 overflow-auto">
             <JsonValue
               value={entry.contract}
               label={`contract for ${entry.contract.id}`}
