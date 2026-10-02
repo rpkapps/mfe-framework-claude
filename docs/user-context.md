@@ -1,22 +1,29 @@
 # User-context protocol
 
-User context is a shell-owned service for the current authenticated scope. Each App or Widget owns one object slice under its definition ID. Owners declare `userContextSchema`; readers declare `userContextReads` keyed by owner ID. A definition can write only its own slice. An explicit-owner binding exposes a read-only store.
+User context is a shell-owned service for the current authenticated scope. Each App or Widget owns one object slice under its definition ID. Owners declare `userContextSchema`; readers declare `userContextReads` keyed by owner ID. A definition can write only its own slice. An explicit-owner binding exposes only a reactive read.
 
 ## Authoring and generated bindings
 
 Declare a fixed Zod object directly on literal `createApp` or `createWidget` options. Local exported schemas and supported relative imports can be compiled. Independently published schemas are optional conveniences, not required infrastructure.
 
-The build compiles one contract for the owner's whole object slice, plus reader requirements for explicitly declared owners. The contract ID is the definition ID; its properties are local context keys. Generated `#mfe/user-context` bindings expose React `useUserContext` and `useUserContextStore`, or Angular `injectUserContext` and `injectUserContextStore`. A container with multiple definitions uses `#mfe/user-context/<definition-id>`.
+The build compiles one contract for the owner's whole object slice, plus reader requirements for explicitly declared owners. The contract ID is the definition ID; its properties are local context keys. Generated `#mfe/user-context` bindings expose one primary binding per framework: React `useUserContext` or Angular `injectUserContext`. A container with multiple definitions uses `#mfe/user-context/<definition-id>`. Generated types infer the owner slice and each declared read schema; callers do not supply cross-owner generics.
 
 ```ts
-const context = useUserContext()
-const selection = context.get('selection')
-const result = await context.set('selection', { wellId: 'well-42' })
+// React: selected value and stable owner-only setter.
+const [wellId, set] = useUserContext(context => context.selection.wellId)
+const result = await set('selection', { wellId: 'well-42' })
 if (!result.ok) reportFailure(result.error)
-const stop = context.subscribe('selection', onSelectionChanged)
 ```
 
-Calling `useUserContext<OperationsContext>('operations')` or `injectUserContext<OperationsContext>('operations')` uses the reader's declared cross-owner contract and returns an object without `set`. Supply a type matching the subset declared in `userContextReads`; it determines the readable keys and value types. The runtime independently checks the mounted definition identity and declared read requirements. Router callbacks use `context.mfe.userContext`; Angular guards and resolvers use the generated imperative injector.
+```ts
+// Angular: a selected-value signal and owner-only setter.
+readonly selection = injectUserContext(context => context.selection.wellId)
+// Read with this.selection.value(); write with this.selection.set('selection', patch).
+```
+
+Selectors must be pure and synchronous: read nested properties or derive a value without mutating the JSON context. Return strings, numbers, booleans, `null`, `undefined`, plain objects or arrays; returned data is immutable. Functions, class instances such as `Map` or `Date`, promises and cyclic results are unsupported. Subscriptions track the paths the selector reads; unrelated sibling changes do not update the consumer. Replacing a parent object updates a nested selection when its selected value changes. React manages cleanup through the hook lifecycle; Angular attaches cleanup to its injection context. Application code does not manage unsubscribe functions.
+
+Calling `useUserContext('operations', context => context.selection.wellId)` returns a readonly one-element tuple. Calling `injectUserContext('operations', context => context.selection.wellId)` returns only `{ value: Signal<T> }`. Both use the declared cross-owner read contract. No setter is present in either the read-only type or the returned binding. The runtime independently checks the mounted definition identity and declared read requirements. React router callbacks retain imperative access through `context.mfe.userContext`; Angular guards and resolvers can read a selected signal created once by a service provided within the mounted definition. The subscription lasts until that service's injection context is destroyed; a resolver callback returning does not dispose it.
 
 ## Commit behavior
 

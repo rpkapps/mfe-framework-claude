@@ -8,8 +8,7 @@ import {
 } from '@company/mfe-angular/testing'
 import { schema } from '@example/user-context-demo/schema'
 import { expect, it } from 'vitest'
-import { injectUserContextStore } from '#mfe/user-context/well-inspection'
-import type { LabUserContext } from './user-context.schema'
+import { injectUserContext } from '#mfe/user-context/well-inspection'
 import { fieldwork as app, wellInspection } from './mfe'
 
 async function state() {
@@ -45,10 +44,10 @@ it('reads Lab without a setter and prepares a local inspection brief', async () 
   expect(mounted.element.textContent).toContain('North Ridge 42')
   expect(mounted.element.textContent).toContain('Inspection depth: 8,038 ft')
   const foreign = runInInjectionContext(mounted.injector, () =>
-    injectUserContextStore<LabUserContext>('lab'),
+    injectUserContext('lab', context => context['well:selection']),
   )
   expect(foreign).not.toHaveProperty('set')
-  expect(foreign.get('well:selection')?.comparisonMode).toBe('overlay')
+  expect(foreign.value()?.comparisonMode).toBe('overlay')
   const prepare = [...mounted.element.querySelectorAll<HTMLButtonElement>('button')].find(button =>
     button.textContent?.includes('Prepare inspection'),
   )!

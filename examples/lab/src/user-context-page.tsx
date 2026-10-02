@@ -24,12 +24,11 @@ import { LabPage, LabSection, WidgetSkeleton } from './lab-page.tsx'
 
 export function UserContextPage(): ReactNode {
   const id = useId()
-  const store = useUserContext()
-  const units = store.get('display:units')
-  const selection = store.get('well:selection')
-  const setUnits = (value: 'metric' | 'imperial') => store.set('display:units', value)
-  const setSelection = (value: Parameters<typeof store.set<'well:selection'>>[1]) =>
-    store.set('well:selection', value)
+  const [units, set] = useUserContext(context => context['display:units'])
+  const [selection] = useUserContext(context => context['well:selection'])
+  const setUnits = (value: 'metric' | 'imperial') => set('display:units', value)
+  const setSelection = (value: Parameters<typeof set<'well:selection'>>[1]) =>
+    set('well:selection', value)
   const loadedSelection = useLoaderData({ from: '/user-context' })
   const well = wells.find(candidate => candidate.id === selection?.wellId)
   const [error, setError] = useState('')
@@ -96,7 +95,7 @@ export function UserContextPage(): ReactNode {
                 onChange={event => {
                   const runId = event.target.value
                   if (well?.runs.some(run => run.id === runId))
-                    void save(() => store.set('well:selection', { runId }))
+                    void save(() => set('well:selection', { runId }))
                 }}
               >
                 <NativeSelectOption value="">Choose a survey</NativeSelectOption>
@@ -207,11 +206,12 @@ const InspectionPlanner = memo(function InspectionPanel(): ReactNode {
 })
 
 function SurveyResults(): ReactNode {
-  const store = useUserContext()
-  const units = store.get('display:units')
-  const selection = store.get('well:selection')
-  const well = wells.find(candidate => candidate.id === selection?.wellId)
-  const run = well?.runs.find(candidate => candidate.id === selection?.runId)
+  const [units] = useUserContext(context => context['display:units'])
+  const [wellId] = useUserContext(context => context['well:selection']?.wellId)
+  const [runId] = useUserContext(context => context['well:selection']?.runId)
+  const [comparisonMode] = useUserContext(context => context['well:selection']?.comparisonMode)
+  const well = wells.find(candidate => candidate.id === wellId)
+  const run = well?.runs.find(candidate => candidate.id === runId)
   if (!well || !run)
     return (
       <Empty>
@@ -241,7 +241,7 @@ function SurveyResults(): ReactNode {
             <TableCell>{run.name}</TableCell>
             <TableCell>{formatDepth(run.depthMetres, units)}</TableCell>
           </TableRow>
-          {selection?.comparisonMode === 'overlay' && run.id !== baseline.id && (
+          {comparisonMode === 'overlay' && run.id !== baseline.id && (
             <TableRow>
               <TableCell>{baseline.name}</TableCell>
               <TableCell>{formatDepth(baseline.depthMetres, units)}</TableCell>

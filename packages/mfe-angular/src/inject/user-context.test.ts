@@ -1,5 +1,14 @@
 import { stateCapabilities } from '@company/mfe-core/user-context'
-import { Component, createEnvironmentInjector, runInInjectionContext } from '@angular/core'
+import {
+  Component,
+  Injectable,
+  inject,
+  computed,
+  createEnvironmentInjector,
+  effect,
+  isSignal,
+  runInInjectionContext,
+} from '@angular/core'
 import { Router } from '@angular/router'
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { z } from 'zod'
@@ -14,6 +23,7 @@ import { createUserContextBindings } from './user-context.ts'
 
 type Values = {
   units: 'metric' | 'imperial'
+  preferences: { appearance: { theme: string; fontSize: number } }
 }
 const bindings = createUserContextBindings<Values>('reader')
 const contract: StateContract = {
@@ -24,6 +34,21 @@ const contract: StateContract = {
     kind: 'object',
     strict: true,
     fields: {
+      preferences: {
+        kind: 'default',
+        inner: {
+          kind: 'object',
+          strict: true,
+          fields: {
+            appearance: {
+              kind: 'object',
+              strict: true,
+              fields: { theme: { kind: 'string' }, fontSize: { kind: 'number' } },
+            },
+          },
+        },
+        value: { appearance: { theme: 'light', fontSize: 14 } },
+      },
       units: {
         kind: 'default',
         inner: { kind: 'enum', values: ['metric', 'imperial'] },
@@ -62,9 +87,9 @@ function options() {
     adapter,
   }
 }
-@Component({ selector: 'user-context-reader', template: '{{ context.get("units") }}' })
+@Component({ selector: 'user-context-reader', template: '{{ context.value() }}' })
 class ReaderComponent {
-  readonly context = bindings.injectUserContext()
+  readonly context = bindings.injectUserContext(values => values.units)
 }
 
 describe('definition-bound Angular user context', () => {
@@ -82,17 +107,70 @@ describe('definition-bound Angular user context', () => {
     })
     const mounted = await mountWidget(definition, { environment })
     expect(mounted.element.textContent).toContain('metric')
-    const context = runInInjectionContext(mounted.injector, () => bindings.injectUserContext())
-    expect(context.get('units')).toBe('metric')
+    const context = runInInjectionContext(mounted.injector, () =>
+      bindings.injectUserContext(values => values.units),
+    )
+    expect(context.value()).toBe('metric')
+    expect(isSignal(context.value)).toBe(true)
+    expect(Object.isFrozen(context)).toBe(true)
+    expect(() =>
+      runInInjectionContext(mounted.injector, () =>
+        createUserContextBindings<Values>('different-definition').injectUserContext(
+          values => values.units,
+        ),
+      ),
+    ).toThrowError(expect.objectContaining({ code: 'user-context/unsupported-contract' }))
     expect(await context.set('units', 'imperial')).toEqual({ ok: true, value: 'imperial' })
     await mounted.whenStable()
-    expect(context.get('units')).toBe('imperial')
+    expect(context.value()).toBe('imperial')
     expect(mounted.element.textContent).toContain('imperial')
     await mounted.dispose()
     const remounted = await mountWidget(definition, { environment })
     expect(remounted.element.textContent).toContain('imperial')
     await remounted.dispose()
     environment.dispose()
+  })
+  it('tracks nested keys without reevaluating selectors or effects for sibling changes', async () => {
+    const selector = vi.fn((context: Readonly<Values>) => context.preferences.appearance.theme)
+    const render = vi.fn()
+    @Component({ selector: 'nested-reader', template: '{{ label() }}' })
+    class NestedReader {
+      readonly theme = bindings.injectUserContext(selector)
+      readonly label = computed(() => `Theme: ${this.theme.value()}`)
+      constructor() {
+        effect(() => {
+          render(this.theme.value())
+        })
+      }
+    }
+    const definition = createWidget({
+      id: 'reader',
+      userContext: requirements,
+      inputSchema: z.object({}),
+      outputSchema: z.object({}),
+      component: NestedReader,
+    })
+    const mounted = await mountWidget(definition, { userContext: options() })
+    const commands = runInInjectionContext(mounted.injector, () =>
+      bindings.injectUserContext(values => values.units),
+    )
+    const stableSetter = commands.set
+    await mounted.whenStable()
+    expect(mounted.element.textContent).toBe('Theme: light')
+    selector.mockClear()
+    render.mockClear()
+    await commands.set('preferences', { appearance: { theme: 'light', fontSize: 18 } })
+    await mounted.whenStable()
+    expect(selector).not.toHaveBeenCalled()
+    expect(render).not.toHaveBeenCalled()
+    expect(mounted.element.textContent).toBe('Theme: light')
+    await commands.set('preferences', { appearance: { theme: 'dark', fontSize: 18 } })
+    await mounted.whenStable()
+    expect(selector).toHaveBeenCalledTimes(1)
+    expect(render).toHaveBeenCalledExactlyOnceWith('dark')
+    expect(mounted.element.textContent).toBe('Theme: dark')
+    expect(commands.set).toBe(stableSetter)
+    await mounted.dispose()
   })
   it('unsubscribes at injector destruction without deleting shell state', async () => {
     const definition = createWidget({
@@ -104,12 +182,17 @@ describe('definition-bound Angular user context', () => {
     })
     const mounted = await mountWidget(definition, { userContext: options() })
     const child = createEnvironmentInjector([], mounted.injector)
-    const context = runInInjectionContext(child, () => bindings.injectUserContext())
-    const store = runInInjectionContext(mounted.injector, () => bindings.injectUserContextStore())
+    const select = vi.fn((context: Readonly<Values>) => context.units)
+    const context = runInInjectionContext(child, () => bindings.injectUserContext(select))
+    const store = runInInjectionContext(mounted.injector, () =>
+      bindings.injectUserContext(values => values.units),
+    )
     child.destroy()
+    select.mockClear()
     await store.set('units', 'imperial')
-    expect(context.get('units')).toBe('metric')
-    expect(store.get('units')).toBe('imperial')
+    expect(context.value()).toBe('metric')
+    expect(select).not.toHaveBeenCalled()
+    expect(store.value()).toBe('imperial')
     await mounted.dispose()
   })
   it.each(['scope switch', 'mount disposal'] as const)(
@@ -126,8 +209,10 @@ describe('definition-bound Angular user context', () => {
       })
       const mounted = await mountWidget(definition, { userContext: options() })
       const child = createEnvironmentInjector([], mounted.injector)
-      const context = runInInjectionContext(child, () => bindings.injectUserContext())
-      expect(context.get('units')).toBe('metric')
+      const context = runInInjectionContext(child, () =>
+        bindings.injectUserContext(values => values.units),
+      )
+      expect(context.value()).toBe('metric')
       child.destroy()
       if (transition === 'scope switch') {
         ;(mounted.environment.runtime.userContext as UserContextScopeService).setScope(
@@ -136,7 +221,7 @@ describe('definition-bound Angular user context', () => {
       } else {
         await mounted.dispose()
       }
-      expect(() => context.get('units')).toThrowError(
+      expect(() => context.value()).toThrowError(
         expect.objectContaining({ code: 'user-context/scope-disposed' }),
       )
       if (transition === 'scope switch') await mounted.dispose()
@@ -150,10 +235,12 @@ describe('definition-bound Angular user context', () => {
       outputSchema: z.object({}),
       component: ReaderComponent,
     })
-    const observerBindings = createUserContextBindings<Record<string, never>>('observer')
-    @Component({ selector: 'context-observer', template: '{{ context.get("units") }}' })
+    const observerBindings = createUserContextBindings<Record<string, never>, { reader: Values }>(
+      'observer',
+    )
+    @Component({ selector: 'context-observer', template: '{{ context.value() }}' })
     class ObserverComponent {
-      readonly context = observerBindings.injectUserContext<Values>('reader')
+      readonly context = observerBindings.injectUserContext('reader', values => values.units)
     }
     const observer = createWidget({
       id: 'observer',
@@ -169,21 +256,25 @@ describe('definition-bound Angular user context', () => {
     const mountedOwner = await mountWidget(owner, { environment })
     const mountedObserver = await mountWidget(observer, { environment })
     const foreign = runInInjectionContext(mountedObserver.injector, () =>
-      observerBindings.injectUserContext<Values>('reader'),
+      observerBindings.injectUserContext('reader', values => values.units),
     )
     expect('set' in foreign).toBe(false)
     expectTypeOf(foreign).not.toHaveProperty('set')
-    expect(foreign.get('units')).toBe('metric')
+    expectTypeOf(foreign.value()).toEqualTypeOf<Values['units']>()
+    expect(Object.keys(foreign)).toEqual(['value'])
+    expectTypeOf(bindings).not.toHaveProperty('injectUserContextStore')
+    expect(foreign.value()).toBe('metric')
     const store = runInInjectionContext(mountedOwner.injector, () =>
-      bindings.injectUserContextStore(),
+      bindings.injectUserContext(values => values.units),
     )
     await store.set('units', 'imperial')
     await mountedObserver.whenStable()
-    expect(foreign.get('units')).toBe('imperial')
+    expect(foreign.value()).toBe('imperial')
     expect(mountedObserver.element.textContent).toContain('imperial')
     expect(() =>
       runInInjectionContext(mountedObserver.injector, () =>
-        observerBindings.injectUserContextStore<Values>('undeclared'),
+        // @ts-expect-error: undeclared owner IDs are rejected by the generated map
+        observerBindings.injectUserContext('undeclared', () => ''),
       ),
     ).toThrow()
     await mountedObserver.dispose()
@@ -193,10 +284,10 @@ describe('definition-bound Angular user context', () => {
   it('invalidates a mounted template when the user context scope changes', async () => {
     @Component({ selector: 'scope-reader', template: '{{ read() }}' })
     class ScopeReader {
-      readonly context = bindings.injectUserContext()
+      readonly context = bindings.injectUserContext(values => values.units)
       read() {
         try {
-          return this.context.get('units')
+          return this.context.value()
         } catch (error) {
           return (error as { code: string }).code
         }
@@ -219,27 +310,37 @@ describe('definition-bound Angular user context', () => {
     await mounted.dispose()
   })
   it('allows route resolvers and guards to access the prepared store', async () => {
-    const resolver = vi.fn(() => bindings.injectUserContextStore().get('units'))
+    const select = vi.fn((context: Readonly<Values>) => context.units)
+    @Injectable()
+    class UserPreferences {
+      readonly units = bindings.injectUserContext(select).value
+    }
+    const resolver = vi.fn(() => inject(UserPreferences).units())
     const definition = createApp({
       id: 'reader',
       userContext: requirements,
+      providers: [UserPreferences],
       routes: [
         {
           path: '',
           component: ReaderComponent,
-          canActivate: [() => bindings.injectUserContextStore().get('units') === 'metric'],
+          canActivate: [() => inject(UserPreferences).units() === 'metric'],
           resolve: { units: resolver },
         },
       ],
     })
     const mounted = await mountApp(definition, { userContext: options() })
     expect(resolver).toHaveBeenCalled()
+    const calls = select.mock.calls.length
+    expect(runInInjectionContext(mounted.injector, resolver)).toBe('metric')
+    expect(runInInjectionContext(mounted.injector, resolver)).toBe('metric')
+    expect(select).toHaveBeenCalledTimes(calls)
     expect(mounted.injector.get(Router).routerState.snapshot.root.firstChild?.data['units']).toBe(
       'metric',
     )
     await mounted.dispose()
   })
-  it('rejects wrong-definition and outside-injection-context access', () => {
-    expect(() => bindings.injectUserContextStore()).toThrow()
+  it('rejects outside-injection-context access', () => {
+    expect(() => bindings.injectUserContext(values => values.units)).toThrow()
   })
 })

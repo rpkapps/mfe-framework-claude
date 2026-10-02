@@ -113,7 +113,13 @@ describe('user-context generated bindings and production pipeline', () => {
       file.path.endsWith('user-context/reader.ts'),
     )!.contents
     expect(binding).toContain('"selected": Exclude<string, undefined>')
-    expect(binding).not.toContain('Exclude<number, undefined>')
+    expect(binding).toContain(
+      'export type UserContextReads = { "other-owner": { "selected": Exclude<number, undefined> } }',
+    )
+    expect(binding).toContain(
+      'createUserContextBindings<UserContextValues, UserContextReads>("reader")',
+    )
+    expect(binding).not.toContain('useUserContextStore')
   })
   it('fails closed on incompatible and wrong-owner explicit baselines', () => {
     const root = createContainer({ 'src/mfe.ts': entry })
@@ -154,15 +160,21 @@ describe('user-context generated bindings and production pipeline', () => {
     const file = plan.generated.files.find(candidate =>
       candidate.path.endsWith('user-context/reader.ts'),
     )!
-    expect(file.contents).toContain('injectUserContext, injectUserContextStore')
+    expect(file.contents).toContain('export const { injectUserContext }')
+    expect(file.contents).not.toContain('injectUserContextStore')
     expect(file.contents).not.toContain('useUserContext')
     expect(file.contents).toContain(
       "export type { UserContextReader, UserContextStore, UserContextSetter } from '@company/mfe-angular/user-context'",
     )
     expect(file.contents).not.toContain('@company/mfe-core')
   })
-  it('typechecks generated React bindings and router context, rejecting wrong keys, wrong values and missing materialized fields', () => {
-    const root = createContainer({ 'src/mfe.ts': entry })
+  it('typechecks generated React selectors, inferred owner reads and router context', () => {
+    const root = createContainer({
+      'src/mfe.ts': entry.replace(
+        'userContextSchema:',
+        "userContextReads:{'other-owner':z.object({selected:z.string().default('')})}, userContextSchema:",
+      ),
+    })
     const plan = planContainer(profile, { containerRoot: root })
     const directory = mkdtempSync(join(tmpdir(), 'mfe-state-types-'))
     temporary.push(directory)
@@ -176,21 +188,29 @@ describe('user-context generated bindings and production pipeline', () => {
       file,
       `import {useUserContext, type UserContextValues, type AppRouterOptions} from './user-context'; import {createApp} from '@company/mfe-react';
 function component(){
- const context = useUserContext();
- const units: 'metric' | 'imperial' = context.get('units');
- void context.set('units', 'imperial');
- // @ts-expect-error unknown key
- context.get('unknown');
+ const [units, set] = useUserContext(context => context.units);
+ const checkedUnits: 'metric' | 'imperial' = units;
+ void set('units', 'imperial');
+ // @ts-expect-error unknown selected key
+ useUserContext(context => context.unknown);
  // @ts-expect-error incorrect enum
- context.set('units', 'wrong');
- void context.set('selection', {id:'42',run:null});
- void context.set('selection', {id:'42'});
+ set('units', 'wrong');
+ void set('selection', {id:'42',run:null});
+ void set('selection', {id:'42'});
+ const [run] = useUserContext(context => context.selection?.run);
+ const checkedRun: string | null | undefined = run;
  // @ts-expect-error materialized read requires run
  const invalidRead: UserContextValues['selection'] = {id:'42'};
- const other = useUserContext<{ selected: string }>('other-owner');
- const selected: string = other.get('selected');
- // @ts-expect-error cross-owner contexts are read-only
- other.set('selected', 'no');
+ const other = useUserContext('other-owner', context => context.selected);
+ const selected: string = other[0];
+ // @ts-expect-error cross-owner tuple has no setter
+ const [value, foreignSet] = other;
+ // @ts-expect-error undeclared owners cannot be read
+ useUserContext('undeclared', context => context.selected);
+ // @ts-expect-error foreign keys come from the declared read schema
+ useUserContext('other-owner', context => context.units);
+ // @ts-expect-error owner selection must be explicit
+ useUserContext();
  return units + selected;
 }
 function makeRouter({context}:AppRouterOptions){ const units:'metric'|'imperial'=context.mfe.userContext.get('units'); void context.mfe.userContext.set('selection',null); return {} as import('@tanstack/react-router').AnyRouter;}
@@ -232,5 +252,71 @@ createApp({id:'reader',router:makeRouter});`,
       diagnostics.map(diagnostic => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')),
     ).toEqual([])
     expect(dirname(generated)).toBe(directory)
+  }, 30_000)
+  it('typechecks generated Angular signals and omits writes from foreign bindings', () => {
+    const root = createContainer({
+      'src/mfe.ts': entry.replace(
+        'userContextSchema:',
+        "userContextReads:{'other-owner':z.object({selected:z.string().default('')})}, userContextSchema:",
+      ),
+    })
+    const plan = planContainer({ ...profile, framework: 'angular' }, { containerRoot: root })
+    const directory = mkdtempSync(join(tmpdir(), 'mfe-context-angular-types-'))
+    temporary.push(directory)
+    const generated = join(directory, 'user-context.ts')
+    writeFileSync(
+      generated,
+      plan.generated.files.find(file => file.path.endsWith('user-context/reader.ts'))!.contents,
+    )
+    const file = join(directory, 'types.ts')
+    writeFileSync(
+      file,
+      `import {injectUserContext} from './user-context';
+function consumer(){
+ const context = injectUserContext(value => value.selection?.run);
+ const run: string | null | undefined = context.value();
+ void context.set('units', 'imperial');
+ // @ts-expect-error invalid owner value
+ context.set('units', 'unknown');
+ // @ts-expect-error invalid selected key
+ injectUserContext(value => value.unknown);
+ const foreign = injectUserContext('other-owner', value => value.selected);
+ const selected: string = foreign.value();
+ // @ts-expect-error read-only binding omits the setter property
+ foreign.set('selected', 'no');
+ // @ts-expect-error undeclared owner
+ injectUserContext('undeclared', value => value.selected);
+ // @ts-expect-error selected key must belong to the declared foreign schema
+ injectUserContext('other-owner', value => value.units);
+ return selected;
+}`,
+    )
+    const repository = resolve(import.meta.dirname, '../../../..')
+    const program = ts.createProgram([file], {
+      target: ts.ScriptTarget.ES2023,
+      module: ts.ModuleKind.ESNext,
+      moduleResolution: ts.ModuleResolutionKind.Bundler,
+      customConditions: ['mfe-source'],
+      strict: true,
+      skipLibCheck: true,
+      allowImportingTsExtensions: true,
+      noEmit: true,
+      paths: {
+        '@company/mfe-angular/user-context': [
+          join(repository, 'packages/mfe-angular/src/inject/user-context.ts'),
+        ],
+        '@company/mfe-core/user-context': [
+          join(repository, 'packages/mfe-core/src/user-context/index.ts'),
+        ],
+      },
+    })
+    const diagnostics = ts
+      .getPreEmitDiagnostics(program)
+      .filter(
+        diagnostic => diagnostic.file?.fileName === file || diagnostic.file?.fileName === generated,
+      )
+    expect(
+      diagnostics.map(diagnostic => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')),
+    ).toEqual([])
   }, 30_000)
 })

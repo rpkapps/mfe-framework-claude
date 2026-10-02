@@ -444,3 +444,5 @@ export function assertStateContract(value: unknown): asserts value is StateContr
   while (root.kind === 'default') root = root.inner
   if (root.kind !== 'object') fail()
 }
+
+export { createUserContextSelection } from './selection.ts'

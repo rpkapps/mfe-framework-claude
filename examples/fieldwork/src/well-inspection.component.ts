@@ -3,7 +3,6 @@ import { Button } from 'primeng/button'
 
 import { formatDepth, wells } from '@example/user-context-demo/wells'
 import { injectUserContext } from '#mfe/user-context/well-inspection'
-import type { LabUserContext } from './user-context.schema'
 
 @Component({
   selector: 'well-inspection',
@@ -35,9 +34,8 @@ import type { LabUserContext } from './user-context.schema'
   </section>`,
 })
 export class WellInspectionComponent {
-  readonly #lab = injectUserContext<LabUserContext>('lab')
-  readonly units = computed(() => this.#lab.get('display:units'))
-  readonly selection = computed(() => this.#lab.get('well:selection'))
+  readonly units = injectUserContext('lab', context => context['display:units']).value
+  readonly selection = injectUserContext('lab', context => context['well:selection']).value
   readonly well = computed(() => wells.find(well => well.id === this.selection()?.wellId))
   readonly run = computed(() => this.well()?.runs.find(run => run.id === this.selection()?.runId))
   readonly depth = computed(() => {

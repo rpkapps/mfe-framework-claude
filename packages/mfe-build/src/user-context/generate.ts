@@ -59,6 +59,10 @@ export function userContextFiles(context: GenerateContext): readonly GeneratedFi
     const manifest = definition.userContext
     const owner = manifest.contracts.find(contract => contract.id === definition.id)
     const types = owner ? stateType(owner.node) : 'Record<string, never>'
+    const reads = `{ ${manifest.contracts
+      .filter(contract => contract.id !== definition.id)
+      .map(contract => `${JSON.stringify(contract.id)}: ${stateType(contract.node)}`)
+      .join('; ')} }`
     const react = context.profile.framework === 'react'
     files.push({
       path: generatedPath(context.options.generatedDir, `user-context/${definition.id}.ts`),
@@ -66,6 +70,7 @@ export function userContextFiles(context: GenerateContext): readonly GeneratedFi
         banner(context.profile.generator, `#mfe/user-context/${definition.id}`),
         `import { createUserContextBindings } from '@company/mfe-${context.profile.framework}/user-context'`,
         `export type UserContextValues = ${types}`,
+        `export type UserContextReads = ${reads}`,
         `export type { UserContextReader, UserContextStore, UserContextSetter } from '@company/mfe-${context.profile.framework}/user-context'`,
         ...(react
           ? [
@@ -73,7 +78,7 @@ export function userContextFiles(context: GenerateContext): readonly GeneratedFi
               `export type MfeRouterContext = import('@company/mfe-react').MfeRouterContext<UserContextValues>`,
             ]
           : []),
-        `export const { ${react ? 'useUserContext, useUserContextStore' : 'injectUserContext, injectUserContextStore'} } = createUserContextBindings<UserContextValues>(${JSON.stringify(definition.id)})`,
+        `export const { ${react ? 'useUserContext' : 'injectUserContext'} } = createUserContextBindings<UserContextValues, UserContextReads>(${JSON.stringify(definition.id)})`,
         '',
       ].join('\n'),
     })

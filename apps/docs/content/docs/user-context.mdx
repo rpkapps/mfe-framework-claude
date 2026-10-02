@@ -65,17 +65,16 @@ A shared schema package is optional. Each owner can author and release its schem
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">
 
-The hook returns an object with `get`, `set` and `subscribe`. The hook subscribes to committed changes in the owner slice; use `get` during render to read its values.
+Pass a selector to read the value your component needs. The hook returns a readonly tuple containing the selected value and a stable setter for the owned slice. React manages subscription cleanup automatically.
 
 ```tsx title="src/units.tsx"
 import { useUserContext } from '#mfe/user-context'
 
 export function Units() {
-  const context = useUserContext()
-  const units = context.get('units')
+  const [units, set] = useUserContext(context => context.units)
 
   async function toggle() {
-    const result = await context.set('units', units === 'metric' ? 'imperial' : 'metric')
+    const result = await set('units', units === 'metric' ? 'imperial' : 'metric')
     if (!result.ok) {
       console.error(result.error.message)
       return
@@ -90,7 +89,7 @@ export function Units() {
 </Tab>
 <Tab value="Angular">
 
-`injectUserContext()` returns the same object API. Its `get` method tracks an Angular signal when used in a template or computed value.
+Pass a selector to `injectUserContext`. It returns an object with a selected-value signal and a setter for the owned slice. Angular cleans up the subscription when its injection context is destroyed.
 
 ```ts title="src/units.component.ts"
 import { Component } from '@angular/core'
@@ -98,13 +97,13 @@ import { injectUserContext } from '#mfe/user-context'
 
 @Component({
   selector: 'app-units',
-  template: `<button (click)="toggle()">{{ context.get('units') }}</button>`,
+  template: `<button (click)="toggle()">{{ context.value() }}</button>`,
 })
 export class UnitsComponent {
-  readonly context = injectUserContext()
+  readonly context = injectUserContext(context => context.units)
 
   async toggle() {
-    const units = this.context.get('units')
+    const units = this.context.value()
     const result = await this.context.set('units', units === 'metric' ? 'imperial' : 'metric')
     if (!result.ok) console.error(result.error.message)
   }
@@ -117,6 +116,36 @@ export class UnitsComponent {
 `set` returns `Promise<MfeResult<T>>`: success has `ok: true` and `value`; failure has `ok: false` and `error`. Invalid values, conflicts, persistence failures and disposed scopes produce failure results. A failed write leaves the previous value intact. Pending writes do not appear in reads or notify value subscribers.
 
 Objects merge recursively. Omitted fields remain present, `null` clears a nullable field, and arrays replace the complete array. An older writer preserves fields added by a newer schema.
+
+The setter always addresses an owned top-level key, regardless of the selector. For example, selecting `context.selection.wellId` still uses `set('selection', { wellId: 'well-42' })` in React or `selection.set('selection', { wellId: 'well-42' })` in Angular. Selectors do not become write paths.
+
+### Select nested values
+
+Select a nested property directly to subscribe only to the paths you read:
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="React nested selection"
+const [wellId] = useUserContext(context => context.selection.wellId)
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="Angular nested selection"
+readonly selection = injectUserContext(context => context.selection.wellId)
+// Read selection.value() in the template.
+```
+
+</Tab>
+</Tabs>
+
+Changing `units` does not update these consumers. If `selection` also has a `label` property, changing only `label` does not update a consumer selecting `wellId`. Replacing a parent object is detected when it changes the selected value. You can also derive a value, such as `context => context.selection.wellId !== null`; keep selectors pure and synchronous, and never mutate the JSON context they receive. Primitive selected values use `Object.is` equality.
+
+Selectors return strings, numbers, booleans, `null`, `undefined`, plain objects or arrays. Returned data is immutable; functions, class instances such as `Map` or `Date`, promises and cyclic results are unsupported.
+
+The framework owns both subscriptions and cleanup. There is no unsubscribe function to retain or call.
 
 </Step>
 <Step>
@@ -171,11 +200,9 @@ export default createApp({
 ```tsx title="src/selected-well.tsx"
 import { useUserContext } from '#mfe/user-context'
 
-type OperationsContext = { selection: { wellId: string | null } }
-
 export function SelectedWell() {
-  const operations = useUserContext<OperationsContext>('operations')
-  return <p>{operations.get('selection').wellId ?? 'No well selected'}</p>
+  const [wellId] = useUserContext('operations', context => context.selection.wellId)
+  return <p>{wellId ?? 'No well selected'}</p>
 }
 ```
 
@@ -186,21 +213,41 @@ export function SelectedWell() {
 import { Component } from '@angular/core'
 import { injectUserContext } from '#mfe/user-context'
 
-type OperationsContext = { selection: { wellId: string | null } }
-
 @Component({
   selector: 'app-selected-well',
-  template: `<p>{{ operations.get('selection').wellId ?? 'No well selected' }}</p>`,
+  template: `<p>{{ selection.value() ?? 'No well selected' }}</p>`,
 })
 export class SelectedWellComponent {
-  readonly operations = injectUserContext<OperationsContext>('operations')
+  readonly selection = injectUserContext('operations', context => context.selection.wellId)
 }
 ```
 
 </Tab>
 </Tabs>
 
-The explicit-owner overload has `get` and `subscribe`, but no `set`. Supply a type matching the subset in `userContextReads`; TypeScript uses it for readable keys and values. The runtime enforces the declared owner access and mounted identity. A reader cannot gain write access by choosing another owner ID.
+Generated bindings infer allowed owner IDs and readable properties from `userContextReads`. No explicit generic is needed. The explicit-owner overload returns only a readonly `[selectedValue]` tuple in React or `{ value: Signal<T> }` in Angular. It has no write capability:
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="Read-only access is checked by TypeScript"
+// Compile error — the read-only tuple has no second element.
+const [wellId, set] = useUserContext('operations', context => context.selection.wellId)
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="Read-only access is checked by TypeScript"
+// Compile error — the returned object has no set property.
+const selection = injectUserContext('operations', context => context.selection.wellId)
+selection.set('selection', { wellId: 'well-42' })
+```
+
+</Tab>
+</Tabs>
+
+The runtime also enforces the declared owner access and mounted identity. A reader cannot gain write access by choosing another owner ID.
 
 </Step>
 </Steps>
@@ -219,25 +266,25 @@ loader: ({ context }) => context.mfe.userContext.get('selection')
 </Tab>
 <Tab value="Angular">
 
-Angular resolvers and guards capture a store in their injection context:
+Create the Angular binding once in a service, then let resolvers and guards read its signal. Provide the service within the mounted definition so its binding follows that injector's lifetime:
 
 ```ts title="src/selection.resolver.ts"
-import { injectUserContextStore } from '#mfe/user-context'
+import { inject, Injectable } from '@angular/core'
+import { injectUserContext } from '#mfe/user-context'
 
-export const selectionResolver = () => injectUserContextStore().get('selection')
+@Injectable()
+export class SelectionContext {
+  readonly selection = injectUserContext(context => context.selection)
+}
+
+// Register SelectionContext in the mounted route's providers.
+export const selectionResolver = () => inject(SelectionContext).selection.value()
 ```
 
 </Tab>
 </Tabs>
 
-Use `useUserContextStore()` in React when only an imperative handle is needed. Both store bindings accept a slice type and explicit owner ID for declared read-only access, such as `useUserContextStore<OperationsContext>('operations')` or `injectUserContextStore<OperationsContext>('operations')`. A key subscription returns its cleanup function:
-
-```ts shared title="Subscription cleanup"
-const unsubscribe = context.subscribe('selection', () => {
-  console.log(context.get('selection'))
-})
-// Call unsubscribe when the consuming resource is disposed.
-```
+Angular subscriptions live until the component or service injection context is destroyed, not just until a resolver callback returns. Reuse the service binding across resolver calls instead of creating another subscription on each call.
 
 Bindings are invalidated when their mount or user scope ends. Capture them within the mounted definition and never cache them globally.
 

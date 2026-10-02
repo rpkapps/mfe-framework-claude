@@ -12,6 +12,7 @@ import { AppComponent } from './app.component'
 import { routes } from './app.routes'
 import { providePrimeNgForMfe } from './primeng'
 import { WellInspectionComponent } from './well-inspection.component'
+import { SelectionResolverContext } from './user-context.resolver'
 
 export const wellInspection = createWidget({
   id: 'well-inspection',
@@ -38,5 +39,5 @@ export const fieldwork = createApp({
   // Route parameters arrive as component inputs, as InspectionComponent's inspectionId does.
   routerFeatures: [withComponentInputBinding()],
   // Environment providers for each mount's own application.
-  providers: [providePrimeNgForMfe()],
+  providers: [providePrimeNgForMfe(), SelectionResolverContext],
 })

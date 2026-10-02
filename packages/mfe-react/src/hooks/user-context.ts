@@ -1,5 +1,6 @@
-import { useCallback, useMemo, useSyncExternalStore } from 'react'
+import { useMemo, useSyncExternalStore } from 'react'
 import {
+  createUserContextSelection,
   UserContextError,
   type UserContextReader,
   type UserContextStore,
@@ -12,50 +13,57 @@ export type {
   UserContextSetter,
 } from '@company/mfe-core/user-context'
 
-/** Generated per definition; stores remain owned by the mounted runtime and identity scope. */
-export function createUserContextBindings<V>(definitionId: string) {
-  function useUserContextStore(): UserContextStore<V>
-  function useUserContextStore<OtherSlice>(ownerId: string): UserContextReader<OtherSlice>
-  function useUserContextStore(ownerId?: string): UserContextReader<V> {
-    return useBoundUserContext(ownerId)
-  }
-
-  function useBoundUserContext(ownerId?: string): UserContextReader<V> {
-    const mount = useMfeMount('useUserContextStore()')
+/** Generated per definition; selectors subscribe only to the paths they read. */
+export function createUserContextBindings<
+  V,
+  Reads extends Record<string, unknown> = Record<never, never>,
+>(definitionId: string) {
+  function useUserContext<T>(
+    selector: (context: Readonly<V>) => T,
+  ): readonly [T, UserContextStore<V>['set']]
+  function useUserContext<O extends keyof Reads & string, T>(
+    ownerId: O,
+    selector: (context: Readonly<Reads[O]>) => T,
+  ): readonly [T]
+  function useUserContext(
+    selectorOrOwner: unknown,
+    foreignSelector?: unknown,
+  ): readonly [unknown] | readonly [unknown, UserContextStore<V>['set']] {
+    const mount = useMfeMount('useUserContext()')
+    const ownerId = typeof selectorOrOwner === 'string' ? selectorOrOwner : undefined
+    const selector = ownerId === undefined ? selectorOrOwner : foreignSelector
     if (
       mount.definitionId !== definitionId ||
       !mount.userContext ||
-      (ownerId !== undefined && !mount.resolveUserContext)
+      (ownerId !== undefined && !mount.resolveUserContext) ||
+      typeof selector !== 'function'
     )
       throw new UserContextError(
         'unsupported-contract',
         definitionId,
-        'Use the generated binding for this mounted definition',
+        'Use the generated binding with a selector for this mounted definition',
       )
-    return (
+    const store = (
       ownerId === undefined ? mount.userContext : mount.resolveUserContext?.(ownerId)
     ) as UserContextReader<V>
-  }
-
-  function useUserContext(): UserContextStore<V>
-  function useUserContext<OtherSlice>(ownerId: string): UserContextReader<OtherSlice>
-  function useUserContext(ownerId?: string): UserContextReader<V> {
-    const store = useBoundUserContext(ownerId)
-    const subscribe = useCallback((listener: () => void) => store.observe(listener), [store])
-    const getSnapshot = useCallback(() => store.getSnapshot(), [store])
-    const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
-    // Render reads must change identity with the snapshot so memoized consumers (including
-    // React Compiler output) do not reuse values from a previous committed slice.
+    const selection = useMemo(
+      () => createUserContextSelection(store, selector as (context: Readonly<V>) => unknown),
+      [store, selector],
+    )
+    const value = useSyncExternalStore(
+      selection.subscribe,
+      selection.getSnapshot,
+      selection.getSnapshot,
+    )
+    const set = useMemo(
+      () => (ownerId === undefined ? (store as UserContextStore<V>).set.bind(store) : undefined),
+      [ownerId, store],
+    )
+    // The selected value is part of the return identity so React Compiler can safely memoize it.
     return useMemo(
-      () => ({
-        ...store,
-        get: <K extends keyof V & string>(key: K) => store.get(key),
-        getSnapshot: () => store.getSnapshot(),
-      }),
-      // The snapshot invalidates the facade; its methods retain live runtime reads.
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      [store, snapshot],
+      () => (set === undefined ? ([value] as const) : ([value, set] as const)),
+      [set, value],
     )
   }
-  return { useUserContext, useUserContextStore }
+  return { useUserContext }
 }
