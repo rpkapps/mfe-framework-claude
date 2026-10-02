@@ -178,10 +178,10 @@ describe('reading the registry', () => {
       adapter: 'first',
       definitionKind: 'app',
       manifestUrl: 'memory://reports',
-      requiresRuntime: '>=1.2.0 <2.0.0',
+      requiresRuntime: '>=1.3.0 <2.0.0',
     }
     const options = { signal: new AbortController().signal }
-    expect(runtime.apiVersion).toBe('1.1.0')
+    expect(runtime.apiVersion).toBe('1.2.0')
     await expect(runtime.loader.load(entry, options)).rejects.toMatchObject({
       code: 'contract/runtime-incompatible',
     })

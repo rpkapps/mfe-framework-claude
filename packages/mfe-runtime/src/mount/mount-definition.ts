@@ -90,7 +90,8 @@ const ACCEPTED_INPUTS: WidgetInputState = { status: 'accepted' }
 export function mountDefinition(request: AppMountRequest): DefinitionMount
 export function mountDefinition(request: WidgetMountRequest): WidgetDefinitionMount
 export function mountDefinition(request: MountRequest): DefinitionMount | WidgetDefinitionMount {
-  const { runtime, definitionId, parent } = request
+  const { runtime, definitionId, parent, kind } = request
+  const depth = (parent?.depth ?? 0) + 1
   const entry = runtime.registry.entries.get(definitionId)
   const version = entry?.version
 
@@ -109,6 +110,8 @@ export function mountDefinition(request: MountRequest): DefinitionMount | Widget
     void controller.dispose().catch(() => undefined)
   })
 
+  let stopTracking = (): void => undefined
+
   const controller: MountController<MountableDefinition> = new MountController({
     id: definitionId,
     ...withoutUndefined({ definitionVersion: version }),
@@ -116,13 +119,32 @@ export function mountDefinition(request: MountRequest): DefinitionMount | Widget
     deadlines: runtime.deadlines,
     diagnostics: runtime.diagnostics,
     diagnosticContext: {
-      kind: request.kind,
+      kind,
       ...(entry !== undefined && isFederatedEntry(entry) ? { container: entry.container } : {}),
     },
     onDisposed: () => {
+      stopTracking()
       stopFollowingParent()
       inputState.dispose()
     },
+  })
+
+  stopTracking = runtime.mounts.track(definitionId, () => {
+    const state = controller.getState()
+    if (state.status === 'disposed') return null
+    const identity = operations.identity
+    return {
+      definitionId,
+      kind,
+      status: state.status,
+      attempt: controller.attempt,
+      depth,
+      ...withoutUndefined({
+        version: identity === null ? version : identity.version,
+        adapter: identity === null ? entry?.adapter : identity.framework,
+      }),
+      ...(state.status === 'error' ? { errorCode: state.error.code } : {}),
+    }
   })
 
   if (parent?.signal.aborted === true) void controller.dispose().catch(() => undefined)
@@ -225,6 +247,7 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
   readonly #teardowns = new Set<Promise<void>>()
   readonly #inputState: SnapshotSource<WidgetInputState>
   #attempt: Attempt | null = null
+  #identity: Pick<MountableDefinition, 'version' | 'framework'> | null = null
   /** The latest Widget inputs the host passed, whether or not a definition has them yet. */
   #inputs: Inputs
 
@@ -243,6 +266,10 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
     return this.#attempt?.context.context ?? null
   }
 
+  get identity(): Pick<MountableDefinition, 'version' | 'framework'> | null {
+    return this.#identity
+  }
+
   whenStable(): Promise<void> {
     return this.#attempt?.mounted?.whenStable?.() ?? Promise.resolve()
   }
@@ -250,6 +277,10 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
   async load(signal: AbortSignal): Promise<MountableDefinition> {
     const { runtime, definitionId, kind } = this.#request
     const definition = await resolveDefinition(runtime, definitionId, kind, signal)
+    this.#identity = {
+      framework: definition.framework,
+      ...withoutUndefined({ version: definition.version }),
+    }
     this.#checkOutputs(definition)
     return definition
   }

@@ -47,6 +47,13 @@ export {
   type MfeRuntimeHandle,
 } from './runtime/create-runtime.ts'
 
+export type {
+  RuntimeDefinitionSnapshot,
+  RuntimeMountSnapshot,
+  RuntimeRejectedEntrySnapshot,
+  RuntimeSnapshot,
+} from '@company/mfe-core'
+
 export {
   MountController,
   type MountControllerOptions,

@@ -241,6 +241,183 @@ function errorOf(mount: DefinitionMount): { readonly code: string; readonly mess
   return { code: state.error.code, message: state.error.message }
 }
 
+describe('runtime snapshot mount inventory', () => {
+  it('uses registry metadata while pending and the loaded version after attachment', async () => {
+    const app = plainApp()
+    const { runtime } = memoryRuntime([app.definition])
+    const entry = runtime.registry.entries.get('reports')
+    if (entry === undefined) throw new Error('expected a registered App')
+    Reflect.set(entry, 'version', '1.0.0')
+    const pending = pendingLoader()
+    const mount = mountApp(withLoader(runtime, pending.loader))
+    expect(at(runtime.getSnapshot().mounts)).toMatchObject({ status: 'pending', version: '1.0.0' })
+
+    await vi.waitFor(() => expect(pending.loads).toHaveLength(1))
+    at(pending.loads).resolve(loadedOf(app.definition))
+    await settled(mount, 'mounted')
+
+    expect(at(runtime.getSnapshot().mounts)).toMatchObject({
+      status: 'mounted',
+      version: '2.1.0',
+      adapter: FRAMEWORK,
+    })
+    expect(runtime.getSnapshot().registry.entries[0]?.version).toBe('1.0.0')
+    await mount.dispose()
+  })
+
+  it('includes pending placements before an adapter creates any roots', async () => {
+    const app = plainApp()
+    const { runtime } = memoryRuntime([app.definition])
+    const pending = pendingLoader()
+    const mount = mountApp(withLoader(runtime, pending.loader))
+
+    expect(runtime.getSnapshot().mounts).toEqual([
+      expect.objectContaining({
+        definitionId: 'reports',
+        kind: 'app',
+        status: 'pending',
+        attempt: 1,
+        depth: 1,
+      }),
+    ])
+    expect(scopeRoots()).toEqual([])
+    await mount.dispose()
+    expect(runtime.getSnapshot().mounts).toEqual([])
+    for (const load of pending.loads) load.resolve(loadedOf(app.definition))
+    await flush()
+    expect(runtime.getSnapshot().mounts).toEqual([])
+  })
+
+  it('distinguishes duplicate Widgets and nested mounts using actual lifecycle data', async () => {
+    const app = plainApp()
+    const widget = plainWidget()
+    const { runtime } = memoryRuntime([app.definition, widget.definition])
+    const parent = mountApp(runtime)
+    await settled(parent, 'mounted')
+    const first = mountWidget(runtime, { parent: parent.context })
+    const second = mountWidget(runtime, { parent: parent.context })
+    await settled(first, 'mounted')
+    await settled(second, 'mounted')
+
+    const snapshot = runtime.getSnapshot()
+    expect(
+      snapshot.mounts.map(({ definitionId, kind, depth, status }) => ({
+        definitionId,
+        kind,
+        depth,
+        status,
+      })),
+    ).toEqual([
+      { definitionId: 'reports', kind: 'app', depth: 1, status: 'mounted' },
+      { definitionId: 'alert-panel', kind: 'widget', depth: 2, status: 'mounted' },
+      { definitionId: 'alert-panel', kind: 'widget', depth: 2, status: 'mounted' },
+    ])
+    expect(new Set(snapshot.mounts.map(mount => mount.mountId)).size).toBe(3)
+    expect(snapshot.mounts[0]?.version).toBe('2.1.0')
+    await first.dispose()
+    expect(runtime.getSnapshot().mounts.map(mount => mount.mountId)).toEqual([
+      snapshot.mounts[0]?.mountId,
+      snapshot.mounts[2]?.mountId,
+    ])
+    await parent.dispose()
+    await settled(second, 'disposed')
+    expect(runtime.getSnapshot().mounts).toEqual([])
+    expect(snapshot.mounts).toHaveLength(3)
+  })
+
+  it('preserves placement identity through failure and retry without exporting the error payload', async () => {
+    const app = plainApp()
+    const { runtime } = memoryRuntime([app.definition])
+    const mount = mountApp(runtime)
+    await settled(mount, 'mounted')
+    const first = at(runtime.getSnapshot().mounts)
+    const failure = createMfeError({
+      code: 'mount/failure',
+      id: 'reports',
+      operation: 'render',
+      observed: 'private payload',
+      repair: 'Retry.',
+    })
+    at(app.targets).onFailure?.(failure)
+    await settled(mount, 'error')
+
+    const failed = at(runtime.getSnapshot().mounts)
+    expect(failed).toMatchObject({
+      mountId: first.mountId,
+      status: 'error',
+      attempt: 1,
+      version: '2.1.0',
+      errorCode: 'mount/failure',
+    })
+    expect(JSON.stringify(failed)).not.toContain('private payload')
+    mount.retry()
+    expect(at(runtime.getSnapshot().mounts)).toMatchObject({
+      mountId: first.mountId,
+      status: 'pending',
+      attempt: 2,
+    })
+    await settled(mount, 'mounted')
+    expect(at(runtime.getSnapshot().mounts)).toMatchObject({
+      mountId: first.mountId,
+      status: 'mounted',
+      attempt: 2,
+    })
+    expect(at(runtime.getSnapshot().mounts)).not.toHaveProperty('errorCode')
+    await mount.dispose()
+  })
+
+  it('reports load failures even when no mount context was created', async () => {
+    const { runtime } = memoryRuntime([])
+    const mount = mountApp(runtime, 'missing')
+    await settled(mount, 'error')
+
+    expect(at(runtime.getSnapshot().mounts)).toMatchObject({
+      definitionId: 'missing',
+      status: 'error',
+      errorCode: 'registry/invalid-entry',
+    })
+    expect(mount.context).toBeNull()
+    await mount.dispose()
+    expect(runtime.getSnapshot().mounts).toEqual([])
+  })
+
+  it('omits disposed mounts immediately even when teardown times out', async () => {
+    vi.useFakeTimers()
+    const widget = plainWidget()
+    const teardown = deferred<void>()
+    widget.dispose.mockImplementation(() => teardown.promise)
+    const { runtime } = memoryRuntime([widget.definition], { dispose: 10 })
+    const mount = mountWidget(runtime)
+    await settled(mount, 'mounted')
+
+    const disposing = mount.dispose()
+    const rejected = expect(disposing).rejects.toMatchObject({ code: 'dispose/timeout' })
+    expect(runtime.getSnapshot().mounts).toEqual([])
+    await vi.advanceTimersByTimeAsync(11)
+    await rejected
+    expect(runtime.mounts.read()).toEqual([])
+    teardown.resolve(undefined)
+    await vi.runAllTimersAsync()
+  })
+
+  it('isolates runtime inventories and releases them when the runtime is disposed', async () => {
+    const app = plainApp()
+    const first = memoryRuntime([app.definition])
+    const second = memoryRuntime([app.definition])
+    const mount = mountApp(first.runtime)
+    await settled(mount, 'mounted')
+
+    expect(first.runtime.getSnapshot().mounts).toHaveLength(1)
+    expect(second.runtime.getSnapshot().mounts).toEqual([])
+    const snapshot = first.runtime.getSnapshot()
+    Reflect.set(at(snapshot.mounts), 'definitionId', 'modified')
+    expect(at(first.runtime.getSnapshot().mounts).definitionId).toBe('reports')
+    first.dispose()
+    expect(first.runtime.getSnapshot().mounts).toEqual([])
+    await mount.dispose()
+  })
+})
+
 describe('mounting', () => {
   it('moves from pending to mounted and publishes every step', async () => {
     const app = plainApp()

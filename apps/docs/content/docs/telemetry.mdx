@@ -186,6 +186,31 @@ ended by its author, received 1 span(s) still open: lab.compute.
 
 </Callout>
 
+## Runtime snapshots for a shell bug report
+
+The shell can call `runtime.getSnapshot()` to attach a point-in-time runtime
+inventory to a report. The API and `RuntimeSnapshot` type are available through
+`@company/mfe-react/host` and `@company/mfe-angular/host`.
+
+```ts
+const snapshot = runtime.getSnapshot()
+const attachment = JSON.stringify(snapshot)
+```
+
+The snapshot contains the runtime API version, capture timestamp, current App
+and Widget placements (including pending and failed placements), and accepted
+and rejected registry entries. Duplicate placements have different opaque IDs;
+retries keep the placement ID and advance the attempt. Disposed placements are
+absent. Loaded definition versions and published registry builds are included
+when available.
+
+This API needs no telemetry collector and retains no diagnostic history. Each
+call returns detached records, so it is not a reactive snapshot for a UI hook.
+It omits inputs, outputs, storage, identity, URLs, DOM nodes and raw errors or
+rejected sources. Failed placements carry an error code. Registry rejection
+reasons are developer-facing text; the shell reviews and redacts these before
+sharing, and owns the report form, deployment context and submission.
+
 ## Related
 
 - [Telemetry API](/docs/reference/hooks-and-components#usetelemetry) — service fields and framework exports.

@@ -93,6 +93,49 @@ A definition renders into `target.element`, portals into
 `context.overlayRoot`, and never adds a root of its own. A failure after its
 mount resolved goes to `target.onFailure`, which moves the mount to `error`.
 
+## Runtime diagnostic snapshots
+
+The shell can capture the runtime's current inventory without loading a
+container or retaining a live service:
+
+```ts
+// Reach these types through @company/mfe-react/host or @company/mfe-angular/host.
+const snapshot = runtime.getSnapshot()
+const attachment = JSON.stringify(snapshot)
+```
+
+`RuntimeSnapshot` contains `apiVersion`, `capturedAt` (Unix milliseconds),
+`mounts`, and `registry: { entries, rejected }`. Every call creates detached
+arrays and records; this is an on-demand diagnostic API, not a reactive snapshot
+for `useSyncExternalStore`.
+
+`mounts` lists every placement made through `mountDefinition`, in placement
+order, including pending and failed placements as well as mounted Apps and
+Widgets. Duplicate Widgets have different opaque `mountId`s. A placement keeps
+its ID across retries; `attempt` advances, and `status` follows its controller.
+Each record carries `definitionId`, `kind`, `depth`, and available `version`
+and `adapter`. Before loading these come from the registry; after loading they
+come from the definition, even if it later fails. Failed placements add only an
+`errorCode`, never a raw error, stack or input payload. Disposal removes a
+placement from subsequent snapshots immediately, including during slow or
+failed teardown. Disposing the runtime releases the inventory.
+
+Registry entries carry published `id`, `kind`, `adapter`, optional `version`
+and `build: { hash, time }`, and an `overridden` flag. Builds describe the
+registry's published provenance; they are not verified against downloaded
+code. Rejections carry `id`, `reason`, and an `errorCode` when structured.
+Missing versions and builds stay absent.
+
+The snapshot omits DOM nodes, services, contracts, raw rejected sources,
+manifest URLs, user identity, groups, storage and application inputs/outputs.
+Rejection reasons remain developer-facing text: the shell still reviews and
+redacts them before exporting a report. The shell owns browser and deployment
+context, report formatting, submission and attachment policy. No telemetry
+collector or diagnostic-history buffer is required.
+
+Runtime API 1.2 adds this inventory. Previously built containers with compatible
+1.x requirements still load; newly generated containers require 1.2 or newer.
+
 ## Federation and share scopes
 
 `createFederationContainerLoader({ runtime })` is handed the federation runtime

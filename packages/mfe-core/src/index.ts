@@ -19,6 +19,13 @@ export { type Listener, type Subscribable, type Unsubscribe } from './observable
 
 export { type AttemptToken, type MountHandle, type MountState } from './lifecycle.ts'
 
+export type {
+  RuntimeDefinitionSnapshot,
+  RuntimeMountSnapshot,
+  RuntimeRejectedEntrySnapshot,
+  RuntimeSnapshot,
+} from './runtime-snapshot.ts'
+
 export {
   assertDefinitionId,
   CAPABILITY_NAMES,

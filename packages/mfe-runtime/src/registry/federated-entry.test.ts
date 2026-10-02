@@ -131,14 +131,14 @@ describe('share scopes', () => {
 })
 
 describe('the shell/container protocol', () => {
-  it.each(['>=2.0.0 <3.0.0', '>=1.2.0 <2.0.0', '<1.0.0'])(
+  it.each(['>=2.0.0 <3.0.0', '>=1.3.0 <2.0.0', '<1.0.0'])(
     'rejects an unsatisfied runtime requirement %s before interpreting the entry shape',
     requiresRuntime => {
       const error = rejection(entry({ requiresRuntime, kind: 'future-kind', container: 1 }))
 
       expect(error.code).toBe('contract/runtime-incompatible')
       expect(error.message).toContain(`runtime API ${requiresRuntime}`)
-      expect(error.message).toContain('runtime API 1.1.0')
+      expect(error.message).toContain('runtime API 1.2.0')
     },
   )
 

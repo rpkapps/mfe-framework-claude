@@ -43,7 +43,7 @@ describe('new Angular adapter against an older shared core and shell', () => {
       outputSchema: z.object({}),
       component: EmptyComponent,
     })
-    expect(widget.requiresRuntime).toBe('>=1.1.0 <2.0.0')
+    expect(widget.requiresRuntime).toBe('>=1.2.0 <2.0.0')
     const incompleteTarget = { context: { runtime: {} } }
     const target = incompleteTarget as WidgetMountTarget
     await expect(widget.mount(target)).rejects.toMatchObject({

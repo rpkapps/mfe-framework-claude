@@ -13,6 +13,7 @@ import {
   type MfeAdapter,
   type NavigationBridge,
   type Registry,
+  type RuntimeSnapshot,
   type ShellState,
   type TelemetryProvider,
 } from '@company/mfe-core'
@@ -24,6 +25,7 @@ import type { AgentContextStore } from '../agent-context/agent-context-store.ts'
 import type { BreadcrumbStore } from '../breadcrumbs/breadcrumb-store.ts'
 import { DiagnosticsHub } from '../diagnostics.ts'
 import type { ContainerLoader } from '../loader/container-loader.ts'
+import type { RuntimeMountStore } from '../mount/runtime-mount-store.ts'
 import {
   createBrowserNavigationBridge,
   type BoundaryNavigator,
@@ -47,6 +49,10 @@ export interface MfeRuntime {
   /** Version of the registry, mount protocol and services, independent of package versions. */
   readonly apiVersion: string
   readonly registry: Registry
+  /** @internal Inventory maintained by mountDefinition, shared across adapter copies. */
+  readonly mounts: RuntimeMountStore
+  /** Detached, JSON-serializable diagnostic data, captured afresh on every call. */
+  getSnapshot(): RuntimeSnapshot
   /** Shares in-flight and resolved loads, and runs each load through its adapter's `aroundLoad`. */
   readonly loader: ContainerLoader
   readonly shellState: ShellStateStore
