@@ -22,7 +22,7 @@ import {
   type TelemetryProvider,
 } from '@company/mfe-react/host'
 import { reactAdapter } from '@company/mfe-react/registry'
-import { createDemoSharedState } from '@example/shared-state-demo/browser'
+import { createDemoUserContext } from '@example/user-context-demo/browser'
 import { loadRemote, registerRemotes } from '@module-federation/runtime'
 import { toast } from 'sonner'
 
@@ -95,7 +95,7 @@ installShellAuth({
 const overrideSource = overrideStorage()
 
 const { runtime, activeOverrides } = createMfeRuntime({
-  sharedState: createDemoSharedState(),
+  userContext: createDemoUserContext(),
   registryEntries: await fetchRegistryEntries(),
   // Every framework this shell serves, each listed: nothing is registered implicitly, and no
   // entry is read by an adapter it does not name.

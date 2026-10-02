@@ -68,9 +68,9 @@ describe('reading the devtools flag', () => {
     expect(readDevtoolsSettings()).toMatchObject({ on: true, side: 'right', size: 500 })
   })
 
-  it('restores the Shared State tab after a reload', () => {
-    page('', JSON.stringify({ ...SETTINGS, tab: 'shared-state' }))
-    expect(readDevtoolsSettings().tab).toBe('shared-state')
+  it('restores the User Context tab after a reload', () => {
+    page('', JSON.stringify({ ...SETTINGS, tab: 'user-context' }))
+    expect(readDevtoolsSettings().tab).toBe('user-context')
   })
 
   it('ignores a value that is neither JSON nor a flag word', () => {

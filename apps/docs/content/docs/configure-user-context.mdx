@@ -1,0 +1,57 @@
+---
+title: 'Configure user context in the shell'
+description: 'Connect owner contracts to authenticated persistence and scope changes.'
+---
+
+The shell supplies the user-context service, authenticated scope and storage adapter. Definitions independently declare their own schemas and cross-owner reads. Build output contains compiled JSON contracts; the shell does not import authoring Zod code.
+
+## Load compiled owner contracts
+
+Resolve the current owner contracts from your deployed containers. The generated `user-context.manifest.json` lists contract artifact paths; load the owner contracts from those paths and assemble a runtime manifest with `formatVersion: 1` and `contracts`. Do not register a reader's subset contract as the owner's current schema. `schema` accepts a runtime manifest or an array of runtime manifests, with one current contract per owner. The imports below represent loaded owner contract artifacts.
+
+```ts shared title="src/runtime.ts"
+import { createMfeRuntime } from '@company/mfe-runtime'
+import operations from './deployment/operations-contract.json'
+import reports from './deployment/reports-contract.json'
+
+const runtime = createMfeRuntime({
+  registry,
+  userContext: {
+    scope: JSON.stringify([tenantId, userId, workspaceId]),
+    schema: { formatVersion: 1, contracts: [operations, reports] },
+    adapter: userContextAdapter,
+    onError: reportUserContextFailure,
+  },
+})
+```
+
+The shell configures infrastructure and the current deployed contracts. Authors do not need a common domain package or a global release-policy file. Definitions with only cross-owner reads still need the referenced owner's current contract available.
+
+Before mounting a definition, the runtime checks its generated requirements against the deployed owner contracts, then hydrates the required slices. An unsupported read contract fails before render, loaders or resolvers run.
+
+## Implement persistence
+
+`UserContextAdapter` from `@company/mfe-core/user-context` has `hydrate(scope, ownerIds, signal)` and `write(operation, signal)`. Each record contains the owner's complete object slice, owner ID and monotonic record revision. `write` resolves only after durable acceptance and returns the authoritative record. An optional subscription supplies authoritative records from other clients.
+
+An owner write includes `scope`, `id`, `expectedRevision`, `operationId` and a structural object update. Preserve unknown fields when applying an older writer's update. Deduplicate operation IDs and compare revisions transactionally. Never trust an owner ID or opaque scope as authorization; authorize using the authenticated server session.
+
+For a backend implementation, use `createUserContextBackend` from `@company/mfe-runtime/user-context`. Supply current owner contracts, authenticated authorization, a `resolveOwner` callback derived from the trusted request identity, and a `UserContextRepository` whose `transact` resolves after durable commit. Its transaction applies recursive object merges, validates the resulting slice and stores the idempotency receipt together.
+
+The runtime keeps pending writes invisible. Once storage accepts a write, it publishes the accepted value to subscribers and resolves the caller's success result. Rejected writes return a structured failure without replacing the previous committed value.
+
+## Change the authenticated scope
+
+```ts shared title="src/runtime.ts (scope change)"
+runtime.userContext.setScope(JSON.stringify([tenantId, userId, nextWorkspaceId]))
+```
+
+Remount affected Apps and Widgets after changing scope. Old bindings become unusable, pending operations return failure results, and late responses cannot publish into the new scope. Subscriptions are removed. A workspace is part of your application's scope policy; context is not automatically shared between different users.
+
+## Inspect context
+
+The developer tools' **User Context** tab displays each owner contract, committed value, record revision and pending write count. Merely opening the inspector does not hydrate or write context. Scope IDs are excluded from inspection snapshots.
+
+## Related
+
+- [Use user context in React and Angular](/docs/user-context)
+- [Evolve an owner's schema](/docs/evolve-user-context)

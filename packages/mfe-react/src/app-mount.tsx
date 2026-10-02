@@ -1,5 +1,5 @@
-import type { StateValues } from '@company/mfe-core/shared-state'
-import { emptySharedStateStore } from '@company/mfe-runtime/shared-state'
+import type { StateValues } from '@company/mfe-core/user-context'
+import { emptyUserContextStore } from '@company/mfe-runtime/user-context'
 /**
  * Mounting an App: build the boundary history, call the author's factory once, validate what it
  * returned, then render the router, so an App that ignores the supplied `basePath` or `history`
@@ -28,7 +28,7 @@ export function createRouterContext<V = StateValues>(mount: MfeMount): MfeRouter
   const shellState = mount.runtime.shellState.getSnapshot()
 
   const mfe: MfeContext = Object.freeze({
-    sharedState: mount.sharedState ?? emptySharedStateStore(),
+    userContext: mount.userContext ?? emptyUserContextStore(),
     user: shellState.user,
     groups: shellState.groups,
     theme: shellState.theme,

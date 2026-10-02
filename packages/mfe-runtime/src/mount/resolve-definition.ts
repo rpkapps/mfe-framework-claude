@@ -1,4 +1,4 @@
-import { SharedStateError } from '@company/mfe-core/shared-state'
+import { UserContextError } from '@company/mfe-core/user-context'
 /**
  * Resolving the definition one mount attempt places. Nothing is cached here: the runtime's loader
  * already shares a load in flight and keeps one that resolved, and a rejection is never kept, so
@@ -60,14 +60,26 @@ export async function resolveDefinition(
   // The registry may have remained cached while the deployed container changed. Check the
   // loaded adapter's requirement as well before any mount-owned service is used.
   assertRuntimeCompatibility(runtime, definition)
-  if (definition.sharedState) {
-    if (!runtime.sharedState)
-      throw new SharedStateError(
+  if (definition.id !== id)
+    throw new UserContextError(
+      'unauthorized-owner',
+      id,
+      'Loaded definition identity differs from the registry mount identity',
+    )
+  if (definition.userContext) {
+    if (definition.userContext.ownerId !== id)
+      throw new UserContextError(
+        'unauthorized-owner',
+        id,
+        'User-context requirements differ from the mounted owner',
+      )
+    if (!runtime.userContext)
+      throw new UserContextError(
         'unsupported-contract',
         id,
-        'Shell requires shared-state protocol 1, a deployment contracts and persistence adapter',
+        'Shell requires user-context protocol 1, a deployment contracts and persistence adapter',
       )
-    await runtime.sharedState.prepare(definition.sharedState, signal)
+    await runtime.userContext.prepare(definition.userContext, signal)
   }
   return definition
 }

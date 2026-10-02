@@ -1,0 +1,29 @@
+{
+  "name": "@example/user-context-demo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./browser": "./src/browser.ts",
+    "./wells": {
+      "types": "./src/wells.d.ts",
+      "default": "./src/wells.js"
+    },
+    "./server": "./server.mjs",
+    "./schema": {
+      "types": "./src/schema.d.ts",
+      "default": "./src/schema.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test server.test.mjs browser.test.mjs"
+  },
+  "dependencies": {
+    "@company/mfe-runtime": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "@types/node": "catalog:"
+  }
+}

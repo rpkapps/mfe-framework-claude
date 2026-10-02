@@ -178,5 +178,9 @@ export {
   type IconNode,
 } from '@company/mfe-core'
 
-export { createSharedStateBindings } from './hooks/shared-state.ts'
-export type { SharedStateStore, SharedStateSetter } from '@company/mfe-core/shared-state'
+export { createUserContextBindings } from './hooks/user-context.ts'
+export type {
+  UserContextReader,
+  UserContextStore,
+  UserContextSetter,
+} from '@company/mfe-core/user-context'

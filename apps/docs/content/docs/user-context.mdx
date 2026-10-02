@@ -1,0 +1,252 @@
+---
+title: 'Remember user context across Apps and Widgets'
+description: 'Own a typed context slice, await saved changes, and subscribe to another definition through an explicit read contract.'
+---
+
+User context remembers selections, filters and preferences for the current user scope. Each App or Widget owns one slice under its definition ID. Only that definition can update its slice; other definitions can declare a typed, read-only view.
+
+The shell must [configure user context](/docs/configure-user-context) before mounting your definition.
+
+## Steps
+
+<Steps>
+<Step>
+### 1. Declare your slice
+
+Put a Zod object directly on the definition's literal options. Its properties are local keys, not globally shared IDs.
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```ts title="src/app.tsx"
+import { z } from 'zod'
+import { createApp } from '@company/mfe-react'
+import { makeRouter } from './router'
+
+export default createApp({
+  id: 'operations',
+  router: makeRouter,
+  userContextSchema: z.object({
+    selection: z.object({ wellId: z.string().nullable().default(null) }),
+    units: z.enum(['metric', 'imperial']).default('metric'),
+  }),
+})
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/app.ts"
+import { z } from 'zod'
+import { createApp } from '@company/mfe-angular'
+import { routes } from './routes'
+
+export default createApp({
+  id: 'operations',
+  routes,
+  userContextSchema: z.object({
+    selection: z.object({ wellId: z.string().nullable().default(null) }),
+    units: z.enum(['metric', 'imperial']).default('metric'),
+  }),
+})
+```
+
+</Tab>
+</Tabs>
+
+Angular `createApp` and both adapters' `createWidget` accept the same declarations. Run `pnpm generate` to generate `#mfe/user-context`. Containers with multiple definitions use `#mfe/user-context/<definition-id>` so each binding checks the mounted definition's identity.
+
+A shared schema package is optional. Each owner can author and release its schema in its own repository.
+
+</Step>
+<Step>
+### 2. Read and save context
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+The hook returns an object with `get`, `set` and `subscribe`. The hook subscribes to committed changes in the owner slice; use `get` during render to read its values.
+
+```tsx title="src/units.tsx"
+import { useUserContext } from '#mfe/user-context'
+
+export function Units() {
+  const context = useUserContext()
+  const units = context.get('units')
+
+  async function toggle() {
+    const result = await context.set('units', units === 'metric' ? 'imperial' : 'metric')
+    if (!result.ok) {
+      console.error(result.error.message)
+      return
+    }
+    // The adapter accepted the write and subscribers now see the committed value.
+  }
+
+  return <button onClick={toggle}>{units}</button>
+}
+```
+
+</Tab>
+<Tab value="Angular">
+
+`injectUserContext()` returns the same object API. Its `get` method tracks an Angular signal when used in a template or computed value.
+
+```ts title="src/units.component.ts"
+import { Component } from '@angular/core'
+import { injectUserContext } from '#mfe/user-context'
+
+@Component({
+  selector: 'app-units',
+  template: `<button (click)="toggle()">{{ context.get('units') }}</button>`,
+})
+export class UnitsComponent {
+  readonly context = injectUserContext()
+
+  async toggle() {
+    const units = this.context.get('units')
+    const result = await this.context.set('units', units === 'metric' ? 'imperial' : 'metric')
+    if (!result.ok) console.error(result.error.message)
+  }
+}
+```
+
+</Tab>
+</Tabs>
+
+`set` returns `Promise<MfeResult<T>>`: success has `ok: true` and `value`; failure has `ok: false` and `error`. Invalid values, conflicts, persistence failures and disposed scopes produce failure results. A failed write leaves the previous value intact. Pending writes do not appear in reads or notify value subscribers.
+
+Objects merge recursively. Omitted fields remain present, `null` clears a nullable field, and arrays replace the complete array. An older writer preserves fields added by a newer schema.
+
+</Step>
+<Step>
+### 3. Read another owner's context
+
+Declare the subset you need in `userContextReads`, keyed by the owner's definition ID. The reader owns this declaration; the owner does not need to import or deploy the reader.
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```ts title="src/app.tsx"
+import { z } from 'zod'
+import { createApp } from '@company/mfe-react'
+import { makeRouter } from './router'
+
+export default createApp({
+  id: 'reports',
+  router: makeRouter,
+  userContextReads: {
+    operations: z.object({
+      selection: z.object({ wellId: z.string().nullable().default(null) }),
+    }),
+  },
+})
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/app.ts"
+import { z } from 'zod'
+import { createApp } from '@company/mfe-angular'
+import { routes } from './routes'
+
+export default createApp({
+  id: 'reports',
+  routes,
+  userContextReads: {
+    operations: z.object({
+      selection: z.object({ wellId: z.string().nullable().default(null) }),
+    }),
+  },
+})
+```
+
+</Tab>
+</Tabs>
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="src/selected-well.tsx"
+import { useUserContext } from '#mfe/user-context'
+
+type OperationsContext = { selection: { wellId: string | null } }
+
+export function SelectedWell() {
+  const operations = useUserContext<OperationsContext>('operations')
+  return <p>{operations.get('selection').wellId ?? 'No well selected'}</p>
+}
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/selected-well.component.ts"
+import { Component } from '@angular/core'
+import { injectUserContext } from '#mfe/user-context'
+
+type OperationsContext = { selection: { wellId: string | null } }
+
+@Component({
+  selector: 'app-selected-well',
+  template: `<p>{{ operations.get('selection').wellId ?? 'No well selected' }}</p>`,
+})
+export class SelectedWellComponent {
+  readonly operations = injectUserContext<OperationsContext>('operations')
+}
+```
+
+</Tab>
+</Tabs>
+
+The explicit-owner overload has `get` and `subscribe`, but no `set`. Supply a type matching the subset in `userContextReads`; TypeScript uses it for readable keys and values. The runtime enforces the declared owner access and mounted identity. A reader cannot gain write access by choosing another owner ID.
+
+</Step>
+</Steps>
+
+## Read state in a loader or resolver
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+Generated React router types expose the owner's imperative store at `context.mfe.userContext`. It is available after hydration and before route callbacks run.
+
+```ts title="src/routes/wells.tsx"
+loader: ({ context }) => context.mfe.userContext.get('selection')
+```
+
+</Tab>
+<Tab value="Angular">
+
+Angular resolvers and guards capture a store in their injection context:
+
+```ts title="src/selection.resolver.ts"
+import { injectUserContextStore } from '#mfe/user-context'
+
+export const selectionResolver = () => injectUserContextStore().get('selection')
+```
+
+</Tab>
+</Tabs>
+
+Use `useUserContextStore()` in React when only an imperative handle is needed. Both store bindings accept a slice type and explicit owner ID for declared read-only access, such as `useUserContextStore<OperationsContext>('operations')` or `injectUserContextStore<OperationsContext>('operations')`. A key subscription returns its cleanup function:
+
+```ts shared title="Subscription cleanup"
+const unsubscribe = context.subscribe('selection', () => {
+  console.log(context.get('selection'))
+})
+// Call unsubscribe when the consuming resource is disposed.
+```
+
+Bindings are invalidated when their mount or user scope ends. Capture them within the mounted definition and never cache them globally.
+
+## Check it works
+
+Save a value in the owner and confirm that its declared reader updates after the write succeeds. Reject a persistence operation in your test adapter and confirm that both displays retain the previous value.
+
+## Related
+
+- [Configure user context in the shell](/docs/configure-user-context)
+- [Evolve an owner's schema](/docs/evolve-user-context)
+- [User-context protocol](/docs/how-it-works/user-context)

@@ -1,0 +1,27 @@
+{
+  "formatVersion": 1,
+  "contracts": [
+    {
+      "formatVersion": 1,
+      "id": "well-inspection",
+      "node": { "kind": "object", "strict": false, "fields": {} },
+      "revision": "1ffed6fb24014b41187b0e601faf58f37f98d13035284a416e258818554bbe17"
+    },
+    {
+      "formatVersion": 1,
+      "id": "fieldwork",
+      "node": {
+        "kind": "object",
+        "strict": false,
+        "fields": {
+          "inspection:showCompleted": {
+            "kind": "default",
+            "inner": { "kind": "boolean" },
+            "value": false
+          }
+        }
+      },
+      "revision": "4ddc65cece24754dbbc3369edc79522f18ce3d1ef1897dc6cc12c38d484d7d01"
+    }
+  ]
+}

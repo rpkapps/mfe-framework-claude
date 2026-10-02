@@ -29,10 +29,10 @@
       "types": "./dist/testing/generated/fetch.d.ts",
       "default": "./dist/testing/generated/fetch.js"
     },
-    "./shared-state": {
-      "mfe-source": "./src/shared-state/index.ts",
-      "types": "./dist/shared-state/index.d.ts",
-      "default": "./dist/shared-state/index.js"
+    "./user-context": {
+      "mfe-source": "./src/user-context/index.ts",
+      "types": "./dist/user-context/index.d.ts",
+      "default": "./dist/user-context/index.js"
     }
   },
   "files": [

@@ -2032,6 +2032,6 @@ record — leaves it for the next person on a shared browser profile, and the fr
 nothing to stop it. Clearing it is the container's own work until retention comes back, and
 bringing it back is an optional field, so it would not break anyone who stores today.
 
-## Shared-state contracts and persistence
+## User-context contracts and persistence
 
-Shared-state authoring uses one domain Zod object with actual state IDs as its root keys. Generated bindings expose a typed hook/injector and an imperative store for routes. Contract compilation and compatibility history stay in development/release tooling; runtime values use the shell’s latest compiled schema. Object writes merge recursively, omission never deletes a field, and older consumers need no runtime contract list. Optimistic writes retain original record revisions, merge supplied object fields transactionally, and await durable acceptance. Scope changes invalidate bindings and pending work. See [the shared-state API and protocol](./shared-state.md) for structural clears, supported evolution and backend obligations.
+User-context authoring gives each definition a `userContextSchema` and explicit `userContextReads` for other owners. Generated React and Angular object bindings expose local reads, structured asynchronous write results and subscriptions. Only the owner writes its slice, and pending writes remain invisible until durable acceptance. Recursive object merges preserve unknown fields. Scope changes invalidate bindings and pending work. Compatibility baselines are optional and per owner; no global domain package or policy is required. See [the user-context API and protocol](./user-context.md).

@@ -70,8 +70,8 @@ const config: Linter.Config[] = [
       // the framework preset is the one that holds first-party code to the repository's rules.
       'apps/docs/src/**/*.{ts,tsx}',
       // Schema ownership and the host adapter are supporting packages, not MFE author code.
-      'examples/shared-state-contracts/src/**/*.ts',
-      'examples/shared-state/src/**/*.ts',
+      'examples/user-context-contracts/src/**/*.ts',
+      'examples/user-context/src/**/*.ts',
     ],
     // `rules-of-hooks` reads any call to something named `use` as a hook call, so a bundler
     // plugin building a module rule's `use:` list is told it called a Hook outside a component.
@@ -113,8 +113,8 @@ const config: Linter.Config[] = [
         ...object,
         ignores: [
           ...(object.ignores ?? []),
-          'examples/shared-state-contracts/**',
-          'examples/shared-state/**',
+          'examples/user-context-contracts/**',
+          'examples/user-context/**',
         ],
       })),
   ),
@@ -162,7 +162,7 @@ const config: Linter.Config[] = [
         ...mfe.DEFAULT_TOOLING_FILES,
         'apps/docs/source.config.ts',
         'tools/tecton/*.d.mts',
-        'tools/shared-state/*.d.mts',
+        'tools/user-context/*.d.mts',
       ],
     }),
   ),

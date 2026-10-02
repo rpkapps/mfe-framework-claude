@@ -444,9 +444,9 @@ importers:
 
   apps/shell:
     dependencies:
-      '@example/shared-state-demo':
+      '@example/user-context-demo':
         specifier: workspace:*
-        version: link:../../examples/shared-state
+        version: link:../../examples/user-context
       '@base-ui/react':
         specifier: 'catalog:'
         version: 1.8.0(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -729,12 +729,9 @@ importers:
 
   examples/fieldwork:
     dependencies:
-      '@example/shared-state-demo':
+      '@example/user-context-demo':
         specifier: workspace:*
-        version: link:../shared-state
-      '@example/shared-state-contracts':
-        specifier: workspace:*
-        version: link:../shared-state-contracts
+        version: link:../user-context
       '@angular/animations':
         specifier: 'catalog:'
         version: 19.2.25(@angular/common@19.2.25(@angular/core@19.2.25(rxjs@7.8.2)(zone.js@0.15.1))(rxjs@7.8.2))(@angular/core@19.2.25(rxjs@7.8.2)(zone.js@0.15.1))
@@ -908,12 +905,9 @@ importers:
 
   examples/lab:
     dependencies:
-      '@example/shared-state-demo':
+      '@example/user-context-demo':
         specifier: workspace:*
-        version: link:../shared-state
-      '@example/shared-state-contracts':
-        specifier: workspace:*
-        version: link:../shared-state-contracts
+        version: link:../user-context
       '@base-ui/react':
         specifier: 'catalog:'
         version: 1.8.0(@types/react@19.3.0)(react-dom@19.3.0(react@19.3.0))(react@19.3.0)
@@ -1735,33 +1729,11 @@ importers:
         specifier: catalog:interop
         version: 19.2.8(react@19.2.8)
 
-  examples/shared-state-contracts:
-    dependencies:
-      '@company/mfe-core':
-        specifier: workspace:*
-        version: link:../../packages/mfe-core
-      zod:
-        specifier: 'catalog:'
-        version: 4.6.5
-    devDependencies:
-      '@company/mfe-build':
-        specifier: workspace:*
-        version: link:../../packages/mfe-build
-      prettier:
-        specifier: 'catalog:'
-        version: 3.9.8
-      typescript:
-        specifier: 'catalog:'
-        version: 6.0.3
-
-  examples/shared-state:
+  examples/user-context:
     dependencies:
       '@company/mfe-runtime':
         specifier: workspace:*
         version: link:../../packages/mfe-runtime
-      '@example/shared-state-contracts':
-        specifier: workspace:*
-        version: link:../shared-state-contracts
     devDependencies:
       '@types/node':
         specifier: 'catalog:'

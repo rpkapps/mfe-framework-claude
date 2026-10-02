@@ -1,7 +1,7 @@
 import { basename, resolve } from 'node:path'
 
 import { defineConfig, type TestProjectInlineConfiguration } from 'vitest/config'
-import { sharedStateDeclarationsForTests } from './tools/shared-state/vitest.mjs'
+import { userContextDeclarationsForTests } from './tools/user-context/vitest.mjs'
 
 import { tectonResolveForTests, tectonServerForTests } from './tools/tecton/vitest.mjs'
 import { sourceResolveForTests, sourceSsrForTests } from './tools/workspace/conditions.mjs'
@@ -16,7 +16,7 @@ const mfeMeta = {
   enforce: 'pre' as const,
   resolveId(source: string, importer: string | undefined) {
     if (
-      (source !== '#mfe/meta' && !/^#mfe\/shared-state(?:\/[a-z0-9-]+)?$/.test(source)) ||
+      (source !== '#mfe/meta' && !/^#mfe\/user-context(?:\/[a-z0-9-]+)?$/.test(source)) ||
       importer === undefined
     )
       return null
@@ -24,7 +24,7 @@ const mfeMeta = {
     if (match?.[1] === undefined) return null
     if (source === '#mfe/meta') return resolve(match[1], '.mfe/meta.ts')
     const definition = source.split('/')[2] ?? basename(match[1])
-    return resolve(match[1], `.mfe/shared-state/${definition}.ts`)
+    return resolve(match[1], `.mfe/user-context/${definition}.ts`)
   },
 }
 
@@ -179,7 +179,7 @@ export default defineConfig({
             ...tectonResolveForTests.alias,
           ],
         },
-        plugins: [mfeMeta, sharedStateDeclarationsForTests],
+        plugins: [mfeMeta, userContextDeclarationsForTests],
       },
       {
         test: {

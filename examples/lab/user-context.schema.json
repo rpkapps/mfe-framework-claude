@@ -1,0 +1,47 @@
+{
+  "formatVersion": 1,
+  "contracts": [
+    {
+      "formatVersion": 1,
+      "id": "lab",
+      "node": {
+        "kind": "object",
+        "strict": false,
+        "fields": {
+          "display:units": {
+            "kind": "default",
+            "inner": { "kind": "enum", "values": ["imperial", "metric"] },
+            "value": "metric"
+          },
+          "well:selection": {
+            "kind": "default",
+            "inner": {
+              "kind": "nullable",
+              "inner": {
+                "kind": "object",
+                "strict": true,
+                "fields": {
+                  "comparisonMode": {
+                    "kind": "default",
+                    "inner": {
+                      "kind": "enum",
+                      "values": ["baseline", "overlay"]
+                    },
+                    "value": "baseline"
+                  },
+                  "runId": {
+                    "kind": "nullable",
+                    "inner": { "kind": "string" }
+                  },
+                  "wellId": { "kind": "string" }
+                }
+              }
+            },
+            "value": null
+          }
+        }
+      },
+      "revision": "6473dc4b12081d0ff0bdd080bc1db9157ddb638adaf4e33ac89e8def2852587c"
+    }
+  ]
+}

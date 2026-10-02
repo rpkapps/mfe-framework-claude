@@ -1,6 +1,6 @@
-import type { SharedStateManifest } from '@company/mfe-core/shared-state'
-import { compileSharedState } from '../shared-state/compiler.ts'
-import { sharedStateExpression } from '../shared-state/transform.ts'
+import type { UserContextManifest } from '@company/mfe-core/user-context'
+import { compileUserContext, compileUserContextReads } from '../user-context/compiler.ts'
+import { userContextExpression } from '../user-context/transform.ts'
 /** Everything is read from syntax: no module is evaluated and no render function is called. */
 
 import {
@@ -54,7 +54,7 @@ const FACTORY_KINDS: ReadonlyMap<string, DefinitionKind> = new Map([
 ])
 
 export interface DiscoveredDefinition {
-  readonly sharedState?: SharedStateManifest
+  readonly userContext?: UserContextManifest
   readonly id: string
   readonly kind: DefinitionKind
   readonly version?: string
@@ -269,9 +269,15 @@ function readDefinition(
 ): DiscoveredDefinition {
   const id = readIdentity(sourceFile, factory)
   const version = readVersion(sourceFile, factory, id, imports, sources)
-  const stateSchema = sharedStateExpression(factory.options)
-  const sharedState =
-    stateSchema === undefined ? undefined : compileSharedState(stateSchema, sourceFile, sources)
+  const stateSchema = userContextExpression(factory.options)
+  const reads = userContextExpression(factory.options, 'userContextReads')
+  const contracts =
+    stateSchema === undefined
+      ? []
+      : [...compileUserContext(id, stateSchema, sourceFile, sources).contracts]
+  if (reads) contracts.push(...compileUserContextReads(id, reads, sourceFile, sources))
+  const userContext: UserContextManifest | undefined =
+    stateSchema || reads ? { formatVersion: 1, contracts } : undefined
   const contract =
     factory.kind === 'app'
       ? null
@@ -280,7 +286,7 @@ function readDefinition(
 
   return withoutUndefined({
     id,
-    sharedState,
+    userContext,
     kind: factory.kind,
     version,
     ...presentation,

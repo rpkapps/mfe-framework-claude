@@ -1,5 +1,5 @@
 import { createRootRouteWithContext, Link, Outlet, useMatchRoute } from '@tanstack/react-router'
-import type { MfeRouterContext } from '#mfe/shared-state'
+import type { MfeRouterContext } from '#mfe/user-context'
 import { ScrollArea, ScrollBar } from '@tecton/react/components/scroll-area'
 import type { LucideIcon } from 'lucide-react'
 import {
@@ -25,8 +25,8 @@ const NAV: readonly { to: string; label: string; hint: string; icon: LucideIcon 
   { to: '/shell-state', label: 'Shell state', hint: 'user, groups, theme', icon: UserIcon },
   { to: '/storage', label: 'Storage', hint: 'validated, scoped, retained', icon: DatabaseIcon },
   {
-    to: '/shared-state',
-    label: 'Shared state',
+    to: '/user-context',
+    label: 'User context',
     hint: 'React and Angular together',
     icon: DatabaseIcon,
   },

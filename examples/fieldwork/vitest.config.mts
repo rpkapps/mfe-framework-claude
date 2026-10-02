@@ -2,7 +2,7 @@ import { fileURLToPath } from 'node:url'
 
 import angular from '@analogjs/vite-plugin-angular'
 import { defineConfig } from 'vitest/config'
-import { sharedStateDeclarationsForTests } from '../../tools/shared-state/vitest.mjs'
+import { userContextDeclarationsForTests } from '../../tools/user-context/vitest.mjs'
 
 /**
  * JIT, not AOT: Vitest never runs the webpack build, so the compiler transform has to run
@@ -12,7 +12,7 @@ import { sharedStateDeclarationsForTests } from '../../tools/shared-state/vitest
 export default defineConfig({
   plugins: [
     angular({ jit: true, tsconfig: './tsconfig.spec.json' }),
-    sharedStateDeclarationsForTests,
+    userContextDeclarationsForTests,
   ],
   resolve: {
     alias: {
@@ -25,11 +25,11 @@ export default defineConfig({
       '#mfe/fetch': '@company/mfe-angular/testing/mfe-fetch',
       // Plain generated data with no side effects, so a test reads the real one.
       '#mfe/meta': fileURLToPath(new URL('./.mfe/meta.ts', import.meta.url)),
-      '#mfe/shared-state/fieldwork': fileURLToPath(
-        new URL('./.mfe/shared-state/fieldwork.ts', import.meta.url),
+      '#mfe/user-context/fieldwork': fileURLToPath(
+        new URL('./.mfe/user-context/fieldwork.ts', import.meta.url),
       ),
-      '#mfe/shared-state/well-inspection': fileURLToPath(
-        new URL('./.mfe/shared-state/well-inspection.ts', import.meta.url),
+      '#mfe/user-context/well-inspection': fileURLToPath(
+        new URL('./.mfe/user-context/well-inspection.ts', import.meta.url),
       ),
     },
   },

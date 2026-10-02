@@ -1,4 +1,4 @@
-import type { SharedStateStore } from '@company/mfe-core/shared-state'
+import type { UserContextStore, UserContextReader } from '@company/mfe-core/user-context'
 /**
  * Deriving one mount from the runtime: anything on the context is owned by that mount and torn
  * down with it, whichever adapter renders the definition, and anything on the runtime outlives it.
@@ -17,7 +17,8 @@ import { applyScopeAttributes, createOverlayRoot } from './scope-root.ts'
 
 /** Everything one mount owns. */
 export interface MountContext {
-  readonly sharedState?: SharedStateStore
+  readonly userContext?: UserContextStore
+  readonly resolveUserContext?: (ownerId: string) => UserContextReader
   readonly runtime: MfeRuntime
   readonly definitionId: string
   readonly definitionVersion: string | undefined

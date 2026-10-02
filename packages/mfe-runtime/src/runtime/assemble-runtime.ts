@@ -1,4 +1,4 @@
-import { SharedStateRuntime, type SharedStateOptions } from '../shared-state/store.ts'
+import { UserContextRuntime, type UserContextOptions } from '../user-context/store.ts'
 /**
  * The wiring `createMfeRuntime` and the memory runtime share, so a test runs on a runtime put
  * together exactly as a shell's is: only where the registry, storage, history and loader come
@@ -47,7 +47,7 @@ export function reportRejectedEntries(registry: Registry, diagnostics: Diagnosti
 }
 
 export interface RuntimeParts {
-  readonly sharedState?: SharedStateOptions | undefined
+  readonly userContext?: UserContextOptions | undefined
   readonly registry: Registry
   /** Wrapped in each entry's adapter's `aroundLoad`, then shared. */
   readonly loader: ContainerLoader
@@ -116,26 +116,26 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
     readLocation: () => navigator.read(),
   })
 
-  const sharedState =
-    parts.sharedState === undefined
+  const userContext =
+    parts.userContext === undefined
       ? undefined
-      : new SharedStateRuntime({
-          ...parts.sharedState,
+      : new UserContextRuntime({
+          ...parts.userContext,
           onError: (error, id) => {
             diagnostics.report(
               toMfeError(error, {
-                code: 'shared-state/persistence-failed',
+                code: 'user-context/persistence-failed',
                 id,
-                operation: 'synchronize shared state',
+                operation: 'synchronize user context',
                 repair:
                   'Handle the setter rejection or recover invalid data through the shell adapter.',
               }),
             )
-            parts.sharedState?.onError?.(error, id)
+            parts.userContext?.onError?.(error, id)
           },
         })
   const runtime: MfeRuntime = {
-    ...withoutUndefined({ sharedState }),
+    ...withoutUndefined({ userContext }),
     apiVersion: RUNTIME_API_VERSION,
     registry: parts.registry,
     mounts,
@@ -161,7 +161,7 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
     runtime,
     dispose: () => {
       mounts.dispose()
-      sharedState?.dispose()
+      userContext?.dispose()
       actions.dispose()
       breadcrumbs.dispose()
       agentContext.dispose()

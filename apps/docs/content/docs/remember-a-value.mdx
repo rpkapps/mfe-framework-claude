@@ -22,7 +22,7 @@ Apps and Widgets store it under their own definition id.
 | ------------------------------------------------------- | ------------------------------------------------------------ |
 | A preference for one definition in this browser         | This guide's local storage                                   |
 | A preference for this tab                               | `storage: 'session'`                                         |
-| A selection shared with the shell or another definition | [Shared state](/docs/shared-state), with backend persistence |
+| A selection shared with the shell or another definition | [User context](/docs/user-context), with backend persistence |
 | Data for one hosted Widget                              | [Widget inputs and outputs](/docs/define-inputs-and-outputs) |
 
 <Callout type="warning" title="Browser storage survives sign-out">
@@ -283,7 +283,7 @@ stored value is unchanged.
 
 ## Related
 
-- [Shared state](/docs/shared-state) — records shared across definitions
+- [User context](/docs/user-context) — records shared across definitions
 - [Change the shape of a stored value](/docs/change-the-shape-of-a-stored-value) — versions and migrations
 - [React storage bindings](/docs/reference/hooks-and-components#usestoredstate) — exact options
 - [Angular storage bindings](/docs/reference/angular-adapter#read-the-shell-from-inside-a-mount) — signal and handle APIs

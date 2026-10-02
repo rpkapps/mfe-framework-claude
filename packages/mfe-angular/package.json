@@ -41,10 +41,10 @@
       "types": "./dist/testing/generated/fetch.d.ts",
       "default": "./dist/testing/generated/fetch.js"
     },
-    "./shared-state": {
-      "mfe-source": "./src/inject/shared-state.ts",
-      "types": "./dist/inject/shared-state.d.ts",
-      "default": "./dist/inject/shared-state.js"
+    "./user-context": {
+      "mfe-source": "./src/inject/user-context.ts",
+      "types": "./dist/inject/user-context.d.ts",
+      "default": "./dist/inject/user-context.js"
     }
   },
   "files": [

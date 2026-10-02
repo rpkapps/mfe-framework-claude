@@ -1,4 +1,4 @@
-import type { SharedStateRequirements } from './shared-state/index.ts'
+import type { UserContextRequirements } from './user-context/index.ts'
 /** Neutral definition records; the host's internal mount and scope tokens never appear here. */
 
 import { createMfeError } from './errors.ts'
@@ -115,7 +115,7 @@ export interface ContainerDescriptor {
 }
 
 export interface ExportedDefinitionDescriptor extends DefinitionIdentity {
-  readonly sharedState?: SharedStateRequirements
+  readonly userContext?: UserContextRequirements
   /** App-only; extracted statically from routes marked with `staticData`. */
   readonly capabilities?: readonly CapabilityDescriptor[]
   /** App-only; every route the build could read, sorted by path. */

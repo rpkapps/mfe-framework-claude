@@ -160,18 +160,18 @@ function planSources(
     [ALIASES.meta]: generatedPath(resolved.generatedDir, 'meta.ts'),
   }
   const stateDefinitions = discovery.definitions.filter(
-    definition => definition.sharedState !== undefined,
+    definition => definition.userContext !== undefined,
   )
   for (const definition of stateDefinitions)
-    aliases[`#mfe/shared-state/${definition.id}`] = generatedPath(
+    aliases[`#mfe/user-context/${definition.id}`] = generatedPath(
       resolved.generatedDir,
-      `shared-state/${definition.id}.ts`,
+      `user-context/${definition.id}.ts`,
     )
   const soleStateDefinition = stateDefinitions[0]
   if (stateDefinitions.length === 1 && soleStateDefinition)
-    aliases['#mfe/shared-state'] = generatedPath(
+    aliases['#mfe/user-context'] = generatedPath(
       resolved.generatedDir,
-      `shared-state/${soleStateDefinition.id}.ts`,
+      `user-context/${soleStateDefinition.id}.ts`,
     )
   if (configSource !== undefined) {
     aliases[ALIASES.config] = generatedPath(resolved.generatedDir, 'config.ts')

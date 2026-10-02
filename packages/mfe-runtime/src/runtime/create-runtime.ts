@@ -1,5 +1,5 @@
-import type { SharedStateScopeService } from '@company/mfe-core/shared-state'
-import type { SharedStateOptions } from '../shared-state/store.ts'
+import type { UserContextScopeService } from '@company/mfe-core/user-context'
+import type { UserContextOptions } from '../user-context/store.ts'
 /**
  * Assembling the shell-side runtime once per document. Everything here outlives an individual
  * mount, and none of it knows which adapter will render what it loads, so every adapter's host
@@ -45,7 +45,7 @@ import { assembleRuntime, reportRejectedEntries } from './assemble-runtime.ts'
 
 /** Shared, shell-owned services, one instance per document. */
 export interface MfeRuntime {
-  readonly sharedState?: SharedStateScopeService
+  readonly userContext?: UserContextScopeService
   /** Version of the registry, mount protocol and services, independent of package versions. */
   readonly apiVersion: string
   readonly registry: Registry
@@ -70,7 +70,7 @@ export interface MfeRuntime {
 
 export interface CreateMfeRuntimeOptions {
   /** Raw registry entries, usually fetched by the shell at boot. */
-  readonly sharedState?: SharedStateOptions
+  readonly userContext?: UserContextOptions
   readonly registryEntries: readonly unknown[]
   /** In production this is the federation loader. */
   readonly loader: ContainerLoader
@@ -197,7 +197,7 @@ export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHa
 
   const assembled = assembleRuntime({
     registry,
-    sharedState: options.sharedState,
+    userContext: options.userContext,
     loader: options.loader,
     adapters: options.adapters,
     shellState,

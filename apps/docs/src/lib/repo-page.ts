@@ -15,7 +15,7 @@
 /**
  * The folder of the page tree the repository files are mapped into: they render at
  * `/docs/how-it-works/design`, `/docs/how-it-works/decisions` and
- * `/docs/how-it-works/shared-state`. `source.ts` passes it to
+ * `/docs/how-it-works/user-context`. `source.ts` passes it to
  * `toFumadocsSource({ baseDir })`, which prefixes the virtual file paths the loader derives slugs
  * from, and `content.ts` takes it off again to find the compiled body in the collection.
  */
@@ -24,11 +24,11 @@ export const REPO_DOCS_DIR = 'how-it-works'
 /**
  * Titles for files whose own `# ` heading is not the name the page tree should show, keyed by file
  * name: `fumadocs-mdx` hands the schema an absolute path. `design.md` opens with `# Design map`,
- * while `shared-state.md` needs a title distinguishing its protocol from the task guide.
+ * while `user-context.md` needs a title distinguishing its protocol from the task guide.
  */
 const TITLES: Record<string, string> = {
   'design.md': 'The design map',
-  'shared-state.md': 'Shared-state protocol',
+  'user-context.md': 'User-context protocol',
 }
 
 export interface RepoPageData {

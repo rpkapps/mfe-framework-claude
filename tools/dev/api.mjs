@@ -8,7 +8,7 @@
 
 import { createServer } from 'node:http'
 import { fileURLToPath } from 'node:url'
-import { createDemoBackend, readRequestBody } from '../../examples/shared-state/server.mjs'
+import { createDemoBackend, readRequestBody } from '../../examples/user-context/server.mjs'
 
 /** Exported so `pnpm dev` checks and waits on this port without a second copy of the number. */
 export const DEV_API_PORT = Number(process.env['MFE_DEV_API_PORT'] ?? 3010)
@@ -45,8 +45,8 @@ function json(response, status, body) {
   response.end(JSON.stringify(body))
 }
 
-const sharedState = createDemoBackend(
-  fileURLToPath(new URL('../../.mfe/shared-state-demo/records.json', import.meta.url)),
+const userContext = createDemoBackend(
+  fileURLToPath(new URL('../../.mfe/user-context-demo/records.json', import.meta.url)),
 )
 
 const server = createServer(async (request, response) => {
@@ -59,9 +59,9 @@ const server = createServer(async (request, response) => {
 
   const url = new URL(request.url ?? '/', `http://localhost:${String(DEV_API_PORT)}`)
 
-  if (url.pathname === '/api/shared-state/hydrate' || url.pathname === '/api/shared-state/write') {
+  if (url.pathname === '/api/user-context/hydrate' || url.pathname === '/api/user-context/write') {
     if (request.method !== 'POST') {
-      json(response, 405, { message: 'Use POST for shared state' })
+      json(response, 405, { message: 'Use POST for user context' })
       return
     }
     const controller = new AbortController()
@@ -70,11 +70,15 @@ const server = createServer(async (request, response) => {
     try {
       const body = await readRequestBody(request)
       const record = url.pathname.endsWith('/hydrate')
-        ? await sharedState.hydrate(body.scope, body.ids, controller.signal)
-        : await sharedState.write(body, controller.signal)
+        ? await userContext.hydrate(body.scope, body.ids, controller.signal)
+        : await userContext.write(body, controller.signal)
       json(response, 200, record)
     } catch (error) {
-      json(response, error.code === 'shared-state/conflict' ? 409 : 400, { message: error.message })
+      json(response, error.code === 'user-context/conflict' ? 409 : 400, {
+        code: error.code ?? 'user-context/persistence-failed',
+        id: error.id,
+        message: error.message,
+      })
     } finally {
       request.off('aborted', abort)
     }

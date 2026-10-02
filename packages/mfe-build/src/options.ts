@@ -7,8 +7,8 @@ import { createBuildError } from './diagnostics.ts'
 
 /** The options every integration takes; each adds its own framework's beside them. */
 export interface ContainerOptions {
-  /** Required for production builds declaring shared state; immutable support-window policy JSON. */
-  readonly sharedStatePolicy?: string
+  /** Optional immutable contract artifacts or release manifests, keyed by the owner definition ID. */
+  readonly userContextBaselines?: Readonly<Record<string, readonly string[]>>
   /** Defaults to the directory the integration runs in. */
   readonly containerRoot?: string
   /** Additive: the adapter's defaults are kept, and there is no way to remove one. */
@@ -34,7 +34,7 @@ interface ContainerManifest {
 }
 
 export interface ResolvedOptions {
-  readonly sharedStatePolicy?: string
+  readonly userContextBaselines?: Readonly<Record<string, readonly string[]>>
   readonly containerRoot: string
   readonly generatedDir: string
   readonly runtimeConfigFileName: string
@@ -66,9 +66,16 @@ export function resolveOptions(
   const packageName = options.name ?? manifest.name ?? 'mfe-container'
 
   return {
-    ...(options.sharedStatePolicy === undefined
+    ...(options.userContextBaselines === undefined
       ? {}
-      : { sharedStatePolicy: resolve(root, options.sharedStatePolicy) }),
+      : {
+          userContextBaselines: Object.fromEntries(
+            Object.entries(options.userContextBaselines).map(([ownerId, files]) => [
+              ownerId,
+              files.map(file => resolve(root, file)),
+            ]),
+          ),
+        }),
     containerRoot: root,
     generatedDir: generatedDirOf(root, options),
     runtimeConfigFileName: runtimeConfigFileNameOf(options),

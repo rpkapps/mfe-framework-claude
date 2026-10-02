@@ -1,7 +1,7 @@
 # `@company/docs` — the documentation site
 
 The author-facing documentation for the micro-frontend framework: getting started, Apps, Widgets,
-browser storage, shared state, telemetry, shell integration, development and deployment.
+browser storage, user context, telemetry, shell integration, development and deployment.
 Reference and architecture sections hold API contracts, the design map and decision history.
 It is a Vite + TanStack Start application, prerendered to static files.
 Its interface uses `@tecton/react`, the design system the shell and React containers use.
@@ -34,7 +34,7 @@ apps/docs/content/docs/
   index.mdx          /docs            "Overview"
   quickstart.mdx     /docs/quickstart … and one file per task guide
   remember-a-value.mdx /docs/remember-a-value   browser storage
-  shared-state.mdx   /docs/shared-state   consumer bindings and route callbacks
+  user-context.mdx   /docs/user-context   consumer bindings and route callbacks
   telemetry.mdx      /docs/telemetry   events, errors and traces
   how-it-works/
     meta.json        the How it works pages, in order
@@ -68,10 +68,10 @@ separator:
     "---Browser storage---",
     "remember-a-value",
     "change-the-shape-of-a-stored-value",
-    "---Shared state---",
-    "shared-state",
-    "configure-shared-state",
-    "evolve-shared-state",
+    "---User context---",
+    "user-context",
+    "configure-user-context",
+    "evolve-user-context",
     "---Telemetry---",
     "telemetry",
     "---Shell integration---",
@@ -124,7 +124,7 @@ API requests, API URL and TanStack Query. Consolidated guides have one current d
 | Topic                                                        | Canonical guide               |
 | ------------------------------------------------------------ | ----------------------------- |
 | Browser preferences, channel selection and imperative access | `/docs/remember-a-value`      |
-| Shared-state components, loaders and resolvers               | `/docs/shared-state`          |
+| User-context components, loaders and resolvers               | `/docs/user-context`          |
 | Events, caught errors, measurements and traces               | `/docs/telemetry`             |
 | Generated styles, inheritance and overlays                   | `/docs/use-the-design-system` |
 | React and Angular adapter architecture                       | `/docs/how-it-works/adapters` |
@@ -157,19 +157,19 @@ Three repository files are rendered directly into the architecture section:
 | ---------------------- | --------------------------------- | ---------------------------------------------- |
 | `docs/design.md`       | `/docs/how-it-works/design`       | Design map                                     |
 | `docs/decisions.md`    | `/docs/how-it-works/decisions`    | Decision history                               |
-| `docs/shared-state.md` | `/docs/how-it-works/shared-state` | Shared-state protocol and maintainer contracts |
+| `docs/user-context.md` | `/docs/how-it-works/user-context` | User-context protocol and maintainer contracts |
 
 These files are the single source and also render on GitHub. None is duplicated here.
-The author task guide remains at `/docs/shared-state`. It links to the protocol for deeper detail.
+The author task guide remains at `/docs/user-context`. It links to the protocol for deeper detail.
 
 A `fumadocs-mdx` collection takes one directory, so `src/lib/docs.ts` declares a second collection
 over `../../docs` limited to these three files. `src/lib/source.ts` concatenates the two collections' virtual
 file lists into one page tree and maps the repository files into the `how-it-works` folder.
-That lets `content/docs/how-it-works/meta.json` list `design`, `decisions` and `shared-state`
+That lets `content/docs/how-it-works/meta.json` list `design`, `decisions` and `user-context`
 beside the MDX pages written here.
 
 The repository files carry no frontmatter. `src/lib/repo-page.ts` derives their titles from the `# ` heading
-and descriptions from the paragraph under it. Title overrides distinguish the shared-state protocol
+and descriptions from the paragraph under it. Title overrides distinguish the user-context protocol
 from the author task guide.
 
 ## Writing MDX here

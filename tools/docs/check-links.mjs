@@ -103,7 +103,7 @@ for (const file of await filesIn(join(root, 'apps/docs/content/docs'))) {
   const path = `/docs/${slug}`.replace(/\/$/, '')
   if (!pages.has(path)) errors.add(`Source page was not built: ${path}`)
 }
-for (const name of ['design', 'decisions', 'shared-state']) {
+for (const name of ['design', 'decisions', 'user-context']) {
   if (!pages.has(`/docs/how-it-works/${name}`)) errors.add(`Repository page was not built: ${name}`)
 }
 for (const slug of Object.keys(redirects)) {

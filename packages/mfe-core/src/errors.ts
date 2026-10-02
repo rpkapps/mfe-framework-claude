@@ -1,9 +1,9 @@
-import type { SharedStateErrorCode } from './shared-state/index.ts'
+import type { UserContextErrorCode } from './user-context/index.ts'
 /** Structured framework errors: the code is the machine artifact, the message is for a reader. */
 
 /** Closed union, so adding a code is a contract change and two conditions use a near one (§7). */
 export type MfeErrorCode =
-  | `shared-state/${SharedStateErrorCode}`
+  | `user-context/${UserContextErrorCode}`
   | 'registry/invalid-entry'
   | 'registry/duplicate-id'
   | 'contract/runtime-incompatible'
@@ -46,6 +46,10 @@ export interface MfeError extends Error {
   readonly path?: readonly (string | number)[]
   readonly cause?: unknown
 }
+
+/** Canonical asynchronous operation and validation result used across framework boundaries. */
+export type MfeResult<T> =
+  { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: MfeError }
 
 /** `expected`, `observed` and `repair` are omitted only when there is nothing to say. */
 export interface MfeErrorDetails {

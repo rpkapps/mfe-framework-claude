@@ -29,19 +29,19 @@
       "types": "./dist/testing/index.d.ts",
       "default": "./dist/testing/index.js"
     },
-    "./shared-state-loader": {
-      "mfe-source": "./src/shared-state/loader.ts",
-      "default": "./dist/shared-state/loader.js"
+    "./user-context-loader": {
+      "mfe-source": "./src/user-context/loader.ts",
+      "default": "./dist/user-context/loader.js"
     },
-    "./shared-state": {
-      "mfe-source": "./src/shared-state/compiler.ts",
-      "types": "./dist/shared-state/compiler.d.ts",
-      "default": "./dist/shared-state/compiler.js"
+    "./user-context": {
+      "mfe-source": "./src/user-context/compiler.ts",
+      "types": "./dist/user-context/compiler.d.ts",
+      "default": "./dist/user-context/compiler.js"
     },
-    "./shared-state-lint": {
-      "mfe-source": "./src/shared-state/lint.ts",
-      "types": "./dist/shared-state/lint.d.ts",
-      "default": "./dist/shared-state/lint.js"
+    "./user-context-lint": {
+      "mfe-source": "./src/user-context/lint.ts",
+      "types": "./dist/user-context/lint.d.ts",
+      "default": "./dist/user-context/lint.js"
     }
   },
   "files": [

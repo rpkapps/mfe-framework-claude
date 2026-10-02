@@ -1,0 +1,55 @@
+# User-context protocol
+
+User context is a shell-owned service for the current authenticated scope. Each App or Widget owns one object slice under its definition ID. Owners declare `userContextSchema`; readers declare `userContextReads` keyed by owner ID. A definition can write only its own slice. An explicit-owner binding exposes a read-only store.
+
+## Authoring and generated bindings
+
+Declare a fixed Zod object directly on literal `createApp` or `createWidget` options. Local exported schemas and supported relative imports can be compiled. Independently published schemas are optional conveniences, not required infrastructure.
+
+The build compiles one contract for the owner's whole object slice, plus reader requirements for explicitly declared owners. The contract ID is the definition ID; its properties are local context keys. Generated `#mfe/user-context` bindings expose React `useUserContext` and `useUserContextStore`, or Angular `injectUserContext` and `injectUserContextStore`. A container with multiple definitions uses `#mfe/user-context/<definition-id>`.
+
+```ts
+const context = useUserContext()
+const selection = context.get('selection')
+const result = await context.set('selection', { wellId: 'well-42' })
+if (!result.ok) reportFailure(result.error)
+const stop = context.subscribe('selection', onSelectionChanged)
+```
+
+Calling `useUserContext<OperationsContext>('operations')` or `injectUserContext<OperationsContext>('operations')` uses the reader's declared cross-owner contract and returns an object without `set`. Supply a type matching the subset declared in `userContextReads`; it determines the readable keys and value types. The runtime independently checks the mounted definition identity and declared read requirements. Router callbacks use `context.mfe.userContext`; Angular guards and resolvers use the generated imperative injector.
+
+## Commit behavior
+
+`set` returns a structured `MfeResult`: `{ ok: true, value }` after durable acceptance or `{ ok: false, error }` for a failure. Invalid updates, write conflicts, storage failures and scope disposal leave the committed value intact. Pending writes are visible only through diagnostics, not through reads or value subscriptions.
+
+Successful commits update the owner snapshot before notifying subscribers. Subscriptions observe committed changes and unsubscribe on mount or scope disposal. Read snapshots remain stable while no committed data changes.
+
+Object updates merge recursively. Omitted fields are retained, including fields unknown to an older writer. Arrays are atomic replacements. `null` is an explicit value and requires a nullable field. The backend validates the complete merged owner slice, not just the incoming patch.
+
+## Structural transport
+
+`@company/mfe-core/user-context` exports JSON-only contracts, requirements, readers, stores, adapters and inspection types. It has no dependency on React, Angular, Zod or build tools.
+
+A compiled `StateContract` contains `formatVersion`, owner `id`, deterministic schema `revision` and a structural `node`. `UserContextManifest` contains contracts. `UserContextRequirements` carries protocol version, the mounted owner ID and required contract capability signatures. Contract revisions identify schema shape; monotonically increasing record revisions identify saved data. They are different revision domains.
+
+An adapter hydrates records by scope and owner ID, writes structural updates, and can subscribe to authoritative records. Each write contains an expected record revision and idempotency operation ID. The server must authenticate access, apply revision checks and merge/validation in a transaction, and acknowledge only after commit. Late or duplicate authoritative events cannot replace a newer record.
+
+`@company/mfe-runtime/user-context` provides `UserContextRuntime` and `createUserContextBackend`. A backend repository supplies reads and durable transactions. The required `resolveOwner` callback derives the writer identity from the trusted server request independently of submitted owner and scope fields. Authorization remains the server's responsibility: browser ownership checks provide capability isolation between cooperating definitions, not a security boundary against arbitrary script execution.
+
+## Shell and lifecycle
+
+The shell supplies `userContext: { scope, schema, adapter, onError }` to its runtime. `schema` accepts runtime manifests containing the current owner contracts from independently deployed owners. Build output's `user-context.manifest.json` is an artifact index; resolve its contract files and assemble `{ formatVersion: 1, contracts }` for the runtime, choosing each owner's contract rather than a reader's subset. Hydration and capability validation finish before a definition renders or runs route callbacks. A reader can consume a compatible subset of a newer owner contract.
+
+`runtime.userContext.setScope(nextOpaqueIdentity)` invalidates old bindings and pending work. The shell remounts affected definitions. Old hydration, storage acknowledgements and subscription callbacks cannot enter the new scope. `dispose` aborts work and removes subscriptions.
+
+Optional read-only inspection exposes owner contracts, committed values, status, record revisions and pending counts. Observing inspection never hydrates or writes. Inspection excludes authenticated scope values.
+
+## Build and release
+
+Supported schemas are finite JSON shapes: fixed objects, primitives, literals, enums, arrays, nullable/optional properties, deterministic defaults and supported bounds. Unsupported transforms, coercion, dynamic defaults, arbitrary refinements, recursion, unions and records fail closed.
+
+Build output contains owner contract artifacts and lightweight references. Production definitions and generated bindings exclude authoring Zod schemas, compiler code and historical compatibility payloads introduced solely by context declarations.
+
+Optional `userContextBaselines` maps owner IDs to previously published contract paths. Each baseline is a single-owner manifest or bare contract. Compatibility is evaluated per owner; there is no mandatory global policy or shared domain package. Trusted publishing CI chooses supported prior releases. The shell/backend consume current contracts while historical baselines stay in release tooling.
+
+See the React and Angular walkthrough in `examples/user-context/README.md` and the consumer guide at `/docs/user-context` for application examples.

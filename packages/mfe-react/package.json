@@ -39,10 +39,10 @@
       "types": "./dist/testing/generated/fetch.d.ts",
       "default": "./dist/testing/generated/fetch.js"
     },
-    "./shared-state": {
-      "mfe-source": "./src/hooks/shared-state.ts",
-      "types": "./dist/hooks/shared-state.d.ts",
-      "default": "./dist/hooks/shared-state.js"
+    "./user-context": {
+      "mfe-source": "./src/hooks/user-context.ts",
+      "types": "./dist/hooks/user-context.d.ts",
+      "default": "./dist/hooks/user-context.js"
     }
   },
   "files": [

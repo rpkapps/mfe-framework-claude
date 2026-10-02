@@ -2,8 +2,8 @@
  * independent routers from the one generated tree (§2). */
 
 import { createApp } from '@company/mfe-react'
-import { sharedStateSchema } from '@example/shared-state-contracts'
-import type { AppRouterOptions } from '#mfe/shared-state'
+import { userContextSchema } from './user-context.schema.ts'
+import type { AppRouterOptions } from '#mfe/user-context'
 import { createRouter } from '@tanstack/react-router'
 
 import packageJson from '../package.json'
@@ -36,5 +36,5 @@ export default createApp({
   id: 'lab',
   version: packageJson.version,
   router: makeRouter,
-  sharedStateSchema,
+  userContextSchema,
 })

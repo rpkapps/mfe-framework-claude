@@ -7,6 +7,7 @@ import {
   describeValue,
   formatPath,
   type MfeError,
+  type MfeResult,
   type MfeErrorDetails,
 } from './errors.ts'
 
@@ -260,8 +261,7 @@ export interface ContractValidationContext {
   readonly outputName?: string
 }
 
-export type ContractValidation<T> =
-  { readonly ok: true; readonly value: T } | { readonly ok: false; readonly error: MfeError }
+export type ContractValidation<T> = MfeResult<T>
 
 function failureBase(
   context: ContractValidationContext,

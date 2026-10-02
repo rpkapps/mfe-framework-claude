@@ -16,7 +16,7 @@
   "scripts": {
     "dev": "pnpm run build:framework && concurrently --kill-others --names framework,fieldwork \"pnpm run watch:framework\" \"nx serve fieldwork\"",
     "build": "pnpm run build:framework && nx build fieldwork --skip-nx-cache",
-    "generate": "pnpm run build:framework && nx run fieldwork:generate",
+    "generate": "pnpm run build:framework && nx run fieldwork:generate && node ../../tools/dev/generate-user-context.mjs .",
     "typecheck": "pnpm run build:framework && nx typecheck fieldwork",
     "test": "pnpm run build:framework && nx test fieldwork",
     "build:framework": "pnpm --filter \"@example/fieldwork^...\" run build:stale",
@@ -34,8 +34,7 @@
     "primeng": "catalog:",
     "rxjs": "catalog:",
     "zod": "catalog:",
-    "@example/shared-state-contracts": "workspace:*",
-    "@example/shared-state-demo": "workspace:*"
+    "@example/user-context-demo": "workspace:*"
   },
   "devDependencies": {
     "@analogjs/vite-plugin-angular": "catalog:",

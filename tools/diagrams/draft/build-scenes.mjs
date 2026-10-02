@@ -1419,7 +1419,7 @@ async function capabilityConnection(options) {
     storage: 'Browser storage',
     theme: 'Theme',
     breadcrumbs: 'Breadcrumbs',
-    'shared-state': 'Shared state',
+    'user-context': 'User context',
     navigation: 'Navigation',
   }
   scene.title(titles[options.id], options.caption)
@@ -1554,13 +1554,13 @@ const capabilityScenes = [
     shellFlow: 'current trail',
   },
   {
-    id: 'shared-state',
+    id: 'user-context',
     caption: 'Generated bindings share selections through the shell configured storage adapter.',
-    react: 'useSharedState()',
-    angular: 'injectSharedState()',
-    runtime: 'Shared state service',
+    react: 'useUserContext()',
+    angular: 'injectUserContext()',
+    runtime: 'User context service',
     runtimeSubtitle: 'mount binding, schema, scope',
-    shell: 'Shared state adapter',
+    shell: 'User context adapter',
     shellSubtitle: 'hydrate, write, optional subscribe',
     adapterFlow: 'read and set',
     shellFlow: 'load and save',

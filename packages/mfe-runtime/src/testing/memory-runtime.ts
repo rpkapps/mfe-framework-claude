@@ -1,4 +1,4 @@
-import type { SharedStateOptions } from '../shared-state/store.ts'
+import type { UserContextOptions } from '../user-context/store.ts'
 /**
  * A complete runtime with nothing behind it but memory: the stores a shell would build, a
  * recording telemetry provider, a memory navigation bridge and a loader resolving the definitions
@@ -33,7 +33,7 @@ import {
 } from './recording-provider.ts'
 
 export interface MemoryRuntimeOptions {
-  readonly sharedState?: SharedStateOptions
+  readonly userContext?: UserContextOptions
   /** Merged over a signed-in test user in the `testers` group, on the light theme. */
   readonly shellState?: ShellStatePatch
   /**
@@ -132,7 +132,7 @@ export function createMemoryRuntime(options: MemoryRuntimeOptions = {}): MemoryR
 
   const assembled = assembleRuntime({
     registry,
-    sharedState: options.sharedState,
+    userContext: options.userContext,
     loader: createInProcessLoader(loadable),
     adapters,
     shellState,
