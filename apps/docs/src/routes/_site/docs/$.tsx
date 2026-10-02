@@ -1,17 +1,27 @@
 import * as React from 'react'
-import { createFileRoute, notFound } from '@tanstack/react-router'
+import { createFileRoute, notFound, redirect } from '@tanstack/react-router'
 import { LinkButton } from '@tecton/react/tecton/link'
 import { ArrowLeftIcon, ArrowRightIcon } from 'lucide-react'
 
 import { DocsTableOfContents } from '../../../components/docs-toc.tsx'
 import { getMDXComponents } from '../../../components/mdx.tsx'
 import { getEntry } from '../../../lib/content.ts'
+import docRedirects from '../../../lib/doc-redirects.json'
 import { getDocsPage } from '../../../lib/page-tree.ts'
 import { siteConfig } from '../../../lib/site.ts'
 
 export const Route = createFileRoute('/_site/docs/$')({
-  loader: async ({ params }) => {
+  loader: async ({ params, location }) => {
     const slugs = params._splat?.split('/').filter(Boolean) ?? []
+    const destination = (docRedirects as Record<string, string>)[slugs.join('/')]
+    if (destination) {
+      const [path, section] = destination.split('#')
+      const hash = section ?? location.hash
+      throw redirect({
+        href: `${path}${location.searchStr}${hash ? `#${hash}` : ''}`,
+        statusCode: 301,
+      })
+    }
     const data = await getDocsPage({ data: slugs })
     if (!data) throw notFound()
     // Async collections code-split the compiled body; fetch it so it renders synchronously (SSR too).
@@ -75,8 +85,8 @@ function Content({
     >
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="h-(--top-spacing) shrink-0" />
-        <div className="mx-auto flex w-full max-w-160 min-w-0 flex-1 flex-col gap-6 px-4 py-6 text-foreground md:px-0 lg:py-8">
-          <div className="flex flex-col gap-2">
+        <div className="mx-auto flex w-full max-w-240 min-w-0 flex-1 flex-col gap-6 px-4 py-6 text-foreground md:px-6 lg:py-8">
+          <div className="mx-auto flex w-full max-w-160 flex-col gap-2">
             <div className="flex items-center justify-between md:items-start">
               <h1 className="scroll-m-24 text-3xl font-medium tracking-tight sm:text-3xl">
                 {title}
@@ -114,10 +124,10 @@ function Content({
               </p>
             )}
           </div>
-          <div className="typeset w-full flex-1 pb-16 *:data-[slot=alert]:first:mt-0 sm:pb-0">
+          <div className="docs-prose typeset w-full min-w-0 flex-1 pb-16 *:data-[slot=alert]:first:mt-0 sm:pb-0">
             <MDX components={getMDXComponents()} />
           </div>
-          <div className="hidden h-16 w-full items-center gap-2 px-4 sm:flex sm:px-0">
+          <div className="mx-auto hidden h-16 w-full max-w-160 items-center gap-2 px-4 sm:flex sm:px-0">
             {previous && (
               <LinkButton variant="secondary" size="sm" className="shadow-none" href={previous.url}>
                 <ArrowLeftIcon data-icon="inline-start" /> {previous.title}

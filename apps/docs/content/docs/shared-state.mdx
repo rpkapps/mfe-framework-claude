@@ -160,9 +160,48 @@ To clear this selection, write `null`. Sending an empty object preserves it. `un
 </Step>
 </Steps>
 
+## Read state in a loader or resolver
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```ts title="Illustrative React router"
+import { createRootRouteWithContext } from '@tanstack/react-router'
+import type { MfeRouterContext } from '#mfe/shared-state'
+
+const root = createRootRouteWithContext<MfeRouterContext>()({
+  loader: ({ context }) => context.mfe.sharedState.get('well:selection'),
+})
+```
+
+Forward the shell's router context when [creating your router](/docs/add-a-route).
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular resolver"
+import type { ResolveFn } from '@angular/router'
+import { injectSharedStateStore, type SharedStateValues } from '#mfe/shared-state'
+
+export const selectionResolver: ResolveFn<SharedStateValues['well:selection']> = () =>
+  injectSharedStateStore().get('well:selection')
+```
+
+Attach this resolver to the route's `resolve` options. Capture the store before any `await`.
+
+</Tab>
+</Tabs>
+
+`get()` returns the current selection or `null`. For handlers, capture `useSharedStateStore()` or
+`injectSharedStateStore()` and await `store.set(key, value)` before reporting success.
+Read again after other awaited work to avoid using an earlier selection.
+
+Changing state does not rerun a React loader. Call `router.invalidate()` when its data depends on
+that selection. If you call `store.subscribe(key, listener)`, clean up with the returned unsubscribe function.
+
 ## Check it works
 
-Open a units picker in an App and a Widget. Toggle either picker and confirm both update. Reload and check that persistence restores the preference.
+Open a units picker in an App and a Widget. Toggle either picker and confirm both update. Reload and check that persistence restores the preference. Open a selection-dependent route and confirm its loader or resolver reads the current selection.
 
 ## Errors
 
@@ -198,11 +237,21 @@ Another write changed the record before yours was accepted. **Fix.** Read the re
 
 </Callout>
 
+<Callout type="error" title="shared-state/scope-disposed">
+
+```text
+<scope>: This binding belongs to a disposed scope
+```
+
+**Fix.** Capture a new store from the remounted definition after the shell changes identity or workspace.
+Stop using the old store in late callbacks.
+
+</Callout>
+
 ## Related
 
-- [Run the React and Angular examples](https://github.com/rpkapps/mfe-framework-claude/tree/dev/examples/shared-state) — the shared package, pages and local backend
-
-- [Use shared state outside render](/docs/shared-state-outside-render) — loaders, actions and resolvers
+- [Run the React and Angular examples](https://github.com/rpkapps/mfe-framework-claude/tree/dev/examples/shared-state) — shared package and persistence adapter
 - [Configure shared state in the shell](/docs/configure-shared-state) — persistence and scopes
-- [Evolve a shared-state schema](/docs/evolve-shared-state) — keep deployed consumers compatible
-- [Remember a value across reloads](/docs/remember-a-value) — a definition's own browser storage
+- [Evolve a shared-state schema](/docs/evolve-shared-state) — compatible releases
+- [Browser storage](/docs/remember-a-value) — preferences within one definition
+- [Add a route](/docs/add-a-route) — router context and loaders

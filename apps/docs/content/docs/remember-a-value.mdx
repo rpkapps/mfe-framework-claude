@@ -1,9 +1,9 @@
 ---
-title: 'Remember a value across reloads'
-description: 'Store a value under your own definition id with useStoredState, validated by a schema.'
+title: 'Browser storage'
+description: 'Store local or session preferences, read them in handlers and routes, and keep Widget instances separate.'
 ---
 
-Keep a preference across reloads with React's `useStoredState` or Angular's `injectStoredState`.
+Keep a browser preference across reloads with React's `useStoredState` or Angular's `injectStoredState`.
 Apps and Widgets store it under their own definition id.
 
 <Diagram
@@ -16,11 +16,14 @@ Apps and Widgets store it under their own definition id.
   against your schema. The shell's own records have a separate scope.
 </Diagram>
 
-| Need                                                    | Use                                                                           |
-| ------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| A preference for one definition in this browser         | This guide's local storage                                                    |
-| A preference for this tab                               | `storage: 'session'`                                                          |
-| A selection shared with the shell or another definition | [Shared state](/docs/shared-state), with shell-configured backend persistence |
+## Choose where to store a value
+
+| Need                                                    | Use                                                          |
+| ------------------------------------------------------- | ------------------------------------------------------------ |
+| A preference for one definition in this browser         | This guide's local storage                                   |
+| A preference for this tab                               | `storage: 'session'`                                         |
+| A selection shared with the shell or another definition | [Shared state](/docs/shared-state), with backend persistence |
+| Data for one hosted Widget                              | [Widget inputs and outputs](/docs/define-inputs-and-outputs) |
 
 <Callout type="warning" title="Browser storage survives sign-out">
   The next user of this browser profile can read these records. Keep personal data out of browser
@@ -117,11 +120,52 @@ Angular accepts the same `storage` option.
 </Step>
 </Steps>
 
+## Read or write outside render
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="examples/lab/src/routes/storage.tsx"
+import { useMfeStorage } from '@company/mfe-react'
+
+// Capture inside your component. Use it in handlers or cleanups.
+const local = useMfeStorage()
+```
+
+React loaders read the same handle from `context.mfe.storage.local` or `context.mfe.storage.session`.
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular component field"
+import { injectMfeStorage } from '@company/mfe-angular'
+
+readonly local = injectMfeStorage()
+```
+
+Use `this.local` in methods. A resolver captures `injectMfeStorage()` before any `await`.
+
+</Tab>
+</Tabs>
+
+```ts title="Illustrative handler using the density schema above"
+const key = local.key('table-density', densitySchema)
+const density = key.get()
+key.set('compact')
+key.remove()
+```
+
+`get()` returns `null` for an absent record and does not subscribe. Writes update mounted consumers
+of that key. Reuse the same schema and options as the rendered binding.
+
+`local.clear()` removes definition-wide records for your definition. Pass `{ scope: 'instance' }`
+to `key`, `remove` or `clear` for the current Widget instance's records.
+The shell's `storage.clearDefinition(id)` clears that definition and its instances.
+
 ## Check it works
 
 Reload the page. The value is still on screen. Open the browser developer tools, then Application,
-then Local storage, and look for `operations:table-density`. Two mounts of one definition read that
-one record, so a second copy of your App on the page agrees with the first.
+then Local storage, and look for `operations:table-density`. Two mounts of one definition agree on the value. Write through the imperative handle and confirm the displayed value updates.
 
 <Details summary="Give each Widget tile its own preferences">
 
@@ -184,8 +228,8 @@ stored value is unchanged.
 
 ## Related
 
-- [Shared state](/docs/shared-state) — a reactive record shared by the shell, Apps and Widgets
-- [Change the shape of a stored value](/docs/change-the-shape-of-a-stored-value) — versions
-- [Read or write storage outside render](/docs/storage-outside-render) — handlers and loaders
-- [Hooks and components](/docs/reference/hooks-and-components#usestoredstate) — React storage options
-- [Test storage and the lifecycle](/docs/test-storage-and-lifecycle) — seed a record in a test
+- [Shared state](/docs/shared-state) — records shared across definitions
+- [Change the shape of a stored value](/docs/change-the-shape-of-a-stored-value) — versions and migrations
+- [React storage bindings](/docs/reference/hooks-and-components#usestoredstate) — exact options
+- [Angular storage bindings](/docs/reference/angular-adapter#read-the-shell-from-inside-a-mount) — signal and handle APIs
+- [Test storage and the lifecycle](/docs/test-storage-and-lifecycle) — seed and verify records

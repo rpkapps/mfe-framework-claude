@@ -61,6 +61,9 @@ for (const file of await filesIn(output)) {
   pages.set(path, { file, html, ids: new Set(attributes(html, 'id')) })
 }
 
+const redirects = JSON.parse(
+  await readFile(join(root, 'apps/docs/src/lib/doc-redirects.json'), 'utf8'),
+)
 const errors = new Set()
 let links = 0
 for (const [path, page] of pages) {
@@ -103,9 +106,14 @@ for (const file of await filesIn(join(root, 'apps/docs/content/docs'))) {
 for (const name of ['design', 'decisions', 'shared-state']) {
   if (!pages.has(`/docs/how-it-works/${name}`)) errors.add(`Repository page was not built: ${name}`)
 }
+for (const slug of Object.keys(redirects)) {
+  if (!pages.has(`/docs/${slug}`)) errors.add(`Redirect was not built: /docs/${slug}`)
+}
 
 if (errors.size > 0) {
   process.stderr.write(`${[...errors].sort().join('\n')}\n`)
   process.exit(1)
 }
-process.stdout.write(`Documentation links pass: ${pages.size} pages, ${links} internal links.\n`)
+process.stdout.write(
+  `Documentation links pass: ${pages.size - Object.keys(redirects).length} pages, ${Object.keys(redirects).length} redirects, ${links} internal links.\n`,
+)

@@ -83,6 +83,42 @@
 }
 
 @layer components {
+  /* Keep text at a comfortable measure while tables use the available article column. */
+  .docs-prose {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 40rem) minmax(0, 1fr);
+    align-content: start;
+  }
+  .docs-prose > * {
+    grid-column: 2;
+    min-width: 0;
+  }
+  .docs-prose > .docs-table-scroll {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+  .typeset .docs-table-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+  }
+  .typeset .docs-table-scroll table {
+    width: 100%;
+    min-width: 48rem;
+  }
+  .typeset .docs-table-scroll :is(th, td) {
+    min-width: 8rem;
+    overflow-wrap: normal;
+  }
+  .typeset .docs-table-scroll code {
+    white-space: nowrap;
+  }
+  .typeset .docs-table-scroll:focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 4px;
+  }
+
   /* Tecton typography: headings are weight 500 (Figtree Medium), not 600. */
   .typeset :where(h1, h2, h3, h4) {
     font-weight: 500;

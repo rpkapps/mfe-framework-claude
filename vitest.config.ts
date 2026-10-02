@@ -144,14 +144,6 @@ export default defineConfig({
       },
       {
         test: {
-          name: 'legacy-angular',
-          root: './packages/mfe-legacy-angular',
-          environment: 'jsdom',
-          include: ['src/**/*.test.ts'],
-        },
-      },
-      {
-        test: {
           name: 'eslint-plugin',
           root: './packages/eslint-plugin-mfe',
           environment: 'node',

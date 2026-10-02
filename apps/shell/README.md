@@ -269,13 +269,10 @@ chrome, a mounted App and the design system's `Toaster` all read that one value
 back through the framework's `useTheme()`. One effect in `chrome.tsx` applies
 it: the `dark` class on `<html>`, `colorScheme`, and `writeTheme`.
 
-It is deliberately **not** a framework record. The legacy Angular applications
-read `localStorage["theme"]` directly as the bare string `light` or `dark`, so
-the shell writes exactly that key with exactly that value — the store would
-write an envelope under `@host:theme`, which is neither. `preferences.ts` is the
-one file that reads and writes it (`readTheme`, `writeTheme`, `preferredTheme`),
-and the one raw-storage exemption that survives the host scope
-(`docs/decisions.md` §24). Nothing is migrated from `company:shell:theme`.
+The shell keeps its pre-paint preference as a bare `light` or `dark` string under `theme`.
+`preferences.ts` reads and writes that key through `readTheme`, `writeTheme` and `preferredTheme`.
+This lets the inline script choose the initial document theme before the framework runtime starts.
+Nothing is migrated from `company:shell:theme`.
 
 The inline script in `index.html` reads the same bare key before first paint, so
 a light-theme user never sees the document boot dark and flip. It takes only
@@ -359,8 +356,7 @@ Adding a Widget to this dashboard is a registry change, not a shell release.
 container's own `.mfe/mfe-registry.json`, and fetched at boot. It is handed to
 `createMfeRuntime` from `@company/mfe-react/host` raw: the runtime reads it
 through every adapter the shell lists — `reactAdapter`, `angularAdapter` from
-`src/angular/` (see [What Angular containers share](#what-angular-containers-share))
-and `legacyAngularAdapter`, none registered
+`src/angular/` (see [What Angular containers share](#what-angular-containers-share)), neither registered
 implicitly — applies developer overrides and rejects whatever fails validation. Each entry also carries the build its
 container was produced from, which is what the bug report lists a line of.
 `boot.tsx` supplies the runtime's diagnostics hub, built with

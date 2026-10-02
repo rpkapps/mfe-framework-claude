@@ -5,7 +5,7 @@
     "design",
     "the-mount-lifecycle",
     "the-isolation-boundaries",
-    "adapters-and-legacy-angular",
+    "adapters",
     "shared-state",
     "decisions"
   ]

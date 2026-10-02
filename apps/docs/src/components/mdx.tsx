@@ -165,7 +165,12 @@ export function getMDXComponents(components?: MDXComponents): MDXComponents {
     pre: Pre,
     // Typeset tables stay real tables; wide ones scroll horizontally.
     table: (props: React.ComponentProps<'table'>) => (
-      <div className="typeset-scroll no-scrollbar scroll-fade-x *:[table]:w-full">
+      <div
+        className="typeset-scroll docs-table-scroll"
+        tabIndex={0}
+        role="region"
+        aria-label="Scrollable table"
+      >
         <table {...props} />
       </div>
     ),

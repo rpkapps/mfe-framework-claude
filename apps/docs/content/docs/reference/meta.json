@@ -13,7 +13,6 @@
     "cli-and-scripts",
     "testing-api",
     "glossary",
-    "mfe-nx",
-    "legacy-angular"
+    "mfe-nx"
   ]
 }

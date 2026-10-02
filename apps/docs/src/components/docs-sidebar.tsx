@@ -55,18 +55,18 @@ function SidebarLink({
 
 /**
  * Whether a part of the menu is open, and the setter its trigger calls. It starts open when it
- * holds the page being read (or when `defaultOpen` says so), a manual toggle survives a client
- * navigation because the sidebar stays mounted, and a navigation landing inside it opens it again.
+ * holds the page being read (or when `defaultOpen` says so). Manual expansion stays on the current
+ * page; navigation opens the destination's group and collapses unrelated groups.
  * Opening on a navigation is derived from the pathname during render rather than from an effect,
  * which would render the whole sidebar twice on every route change.
  */
 function useMenuDisclosure(holdsActive: boolean, pathname: string, defaultOpen = false) {
   const [state, setState] = React.useState(() => ({ open: defaultOpen || holdsActive, pathname }))
 
-  if (state.pathname !== pathname) setState({ open: state.open || holdsActive, pathname })
+  if (state.pathname !== pathname) setState({ open: holdsActive, pathname })
 
   return {
-    isOpen: state.open || (state.pathname !== pathname && holdsActive),
+    isOpen: state.pathname !== pathname ? holdsActive : state.open,
     setOpen: (open: boolean) => setState({ open, pathname }),
   }
 }

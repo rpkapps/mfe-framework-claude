@@ -83,7 +83,7 @@ describe('isFederatedEntry', () => {
     const unnamed: RegistryEntry = {
       id: 'billing',
       definitionKind: 'app',
-      adapter: 'legacy-angular',
+      adapter: 'custom-adapter',
       manifestUrl: 'https://cdn.example.test/billing/manifest.json',
       requiresRuntime: '>=1.1.0 <2.0.0',
     }
@@ -240,7 +240,7 @@ describe('createFederationContainerLoader', () => {
         {
           id: 'billing',
           definitionKind: 'app',
-          adapter: 'legacy-angular',
+          adapter: 'custom-adapter',
           manifestUrl: 'https://cdn.example.test/billing/manifest.json',
           requiresRuntime: '>=1.1.0 <2.0.0',
         },
@@ -249,7 +249,7 @@ describe('createFederationContainerLoader', () => {
       .catch((error: unknown) => error)
 
     expect(thrown).toMatchObject({ code: 'registry/invalid-entry', id: 'billing' })
-    expect((thrown as Error).message).toContain('legacy-angular')
+    expect((thrown as Error).message).toContain('custom-adapter')
     expect(registerRemotes).not.toHaveBeenCalled()
     expect(loadRemote).not.toHaveBeenCalled()
   })

@@ -1,37 +1,35 @@
 ---
-title: 'Adapters and legacy Angular'
-description: 'The neutral runtime, the adapters a shell lists, how each registry entry reaches exactly one of them, and what the removable legacy Angular adapter does.'
+title: 'Framework adapters'
+description: 'The neutral runtime, the adapters a shell lists, how each registry entry reaches exactly one of them, and how React and Angular mount their definitions.'
 ---
 
 For framework maintainers and shell builders. If you are writing an App or a Widget, the recipes
 tell you what you need.
 
-One shell page can hold applications built with React, with Angular, and as legacy single-spa
-Angular. This page answers four questions. What stays neutral, how an entry reaches an adapter, what
-each adapter adds, and what the legacy adapter does today. The reference pages hold the fields and
-the APIs.
+One shell page can hold React and Angular applications. This page explains what stays neutral,
+how an entry reaches an adapter, and what each framework adapter adds.
+The reference pages hold fields and API signatures.
 
 <Diagram
   src="/diagrams/adapters.svg"
-  alt="The shell's registry entering the neutral runtime, the three adapters the shell lists, and the container each one reaches."
+  alt="The shell's registry entering the neutral runtime, the two adapters the shell lists, and the container each one reaches."
   caption="One neutral runtime, and the adapters the shell lists."
 >
-Ten boxes, read top to bottom.
+Read top to bottom.
 
 - **The shell** sits at the top. Its subtitle is the list it passes the runtime:
-  `adapters: [reactAdapter, angularAdapter, legacyAngularAdapter]`.
+  `adapters: [reactAdapter, angularAdapter]`.
 - An arrow **registry.json** enters **The neutral runtime**, `@company/mfe-runtime`, which imports
   no framework and no federation. It holds **Shared services** (storage, actions, navigation,
   diagnostics), **Federation loader** (`createFederationContainerLoader`) and **One mount path**
   (`mountDefinition`).
 - An arrow **detect, parse** drops into **The adapters**, where exactly one recognises each entry,
   in any order: **The React adapter** (`mfe.framework 'react'`), **The Angular adapter**
-  (`mfe.framework 'angular'`) and **The legacy Angular adapter** (no `mfe` key, removable).
+  (`mfe.framework 'angular'`).
 - An arrow **defines, mounts** drops from the React adapter to `operations`, a React App with its
   own root, and from the Angular adapter to an Nx container, an Angular App or Widgets.
-- A dashed arrow **entries only** drops from the legacy adapter to `asset-tracker`, a legacy
-  application not mounted yet. The legend names the shell, a neutral package, an adapter package
-  and a container.
+
+The legend names the shell, a neutral package, an adapter package and a container.
 
 </Diagram>
 
@@ -59,11 +57,10 @@ them must recognise it. If none does, the entry is set aside as unrecognised. If
 is set aside as ambiguous, and the reason names them. Order therefore means nothing. No adapter is
 registered implicitly: `createMfeRuntime({ adapters })` names every one the shell serves.
 
-| Adapter                       | Recognises an entry when                                     | Mounts it with                   | Removable |
-| ----------------------------- | ------------------------------------------------------------ | -------------------------------- | --------- |
-| `@company/mfe-react`          | its `mfe` marker names `react`                               | a React root per mount           | no        |
-| `@company/mfe-angular`        | its `mfe` marker names `angular`                             | an Angular application per mount | no        |
-| `@company/mfe-legacy-angular` | it has no `mfe` key, and has a `name` and an `mfManifestUrl` | nothing yet                      | yes       |
+| Adapter                | Recognises an entry when         | Mounts it with                   |
+| ---------------------- | -------------------------------- | -------------------------------- |
+| `@company/mfe-react`   | its `mfe` marker names `react`   | a React root per mount           |
+| `@company/mfe-angular` | its `mfe` marker names `angular` | an Angular application per mount |
 
 Nothing falls back on its own. `detect` asks only what the `mfe` marker names, never how well the
 rest of the entry is formed. An entry that names a framework therefore belongs to that framework's
@@ -95,44 +92,13 @@ The definition brand is an open string, and the shell lists its adapters. So a t
 more package and one more entry in that list. It needs no change to the core, the runtime or the
 adapters already there.
 
-## The legacy Angular adapter
-
-The legacy adapter reads a legacy entry into the same common shape. Identity, manifest URL and
-presentation go on the common fields, and the legacy-specific fields are typed on
-`LegacyRegistryEntry`. A caller reaches them through `legacyAngularAdapter.is(entry)`, so no shell
-screen has to know the legacy vocabulary.
-
-No host mounts a legacy application yet. The shell reads legacy entries and lists them, and that is
-all. The package still carries the pieces a mount will need, each tested on its own.
-
-A single-spa <Term>parcel</Term> is a piece of an application exposing `bootstrap`, `mount` and
-`unmount`, for another application to mount into an element. The package's loader loads the module exposed at
-`./single-spa-app`, and its parcel mount drives that lifecycle. It also resolves the base href each
-application expects, and names the routes left to the shell.
-
-Two rules hold for the parcel mount. A second mount without an unmount is refused, because two
-parcels rendering into one element leave orphaned DOM behind. Disposal is terminal and idempotent,
-so every caller awaits one teardown and a disposed mount cannot be revived.
-
-`single-spa` is not a dependency of the package, not even an optional peer. The parcel, its
-configuration and `mountRootParcel` are typed structurally, which is what lets the lifecycle be
-tested without single-spa, Angular or a bundler.
-
 ## What every adapter shares
 
 Shared services come from the runtime and are the same for every adapter. One storage store, one
 action registry, one breadcrumb store, one navigation bridge and one diagnostics hub are built per
 runtime.
 
-Removal is the point of the legacy adapter. When the last legacy application is migrated, delete the
-package, one entry from the shell's `adapters` list and one import from its composition root. No
-other package changes.
-
-## What is proven, and what is not
-
-The legacy adapter is built and tested against production-equivalent fixtures and doubles. The real
-Asset Tracker and Rigstream applications have never been run against it, and decision 9 records
-that.
+## What is proven
 
 The Angular adapter's suites run in jsdom with components compiled just in time. An Angular
 container's own build and tests are the Nx generator's, and run in a separate Nx workspace.
@@ -140,7 +106,6 @@ container's own build and tests are the Nx generator's, and run in a separate Nx
 ## Related
 
 - [The Angular adapter](/docs/reference/angular-adapter) — Angular Apps and Widgets, and hosting from Angular.
-- [Legacy Angular applications](/docs/reference/legacy-angular) — the fields, the lifecycle and the migration edit.
 - [The mount lifecycle](/docs/how-it-works/the-mount-lifecycle) — what the runtime does after an entry is read.
 - [The isolation boundaries](/docs/how-it-works/the-isolation-boundaries) — the services the runtime shares.
-- [Decision log](/docs/how-it-works/decisions) — decisions 6, 9, 31 and 33 in full.
+- [Decision log](/docs/how-it-works/decisions) — decisions 6, 31 and 33 in full.

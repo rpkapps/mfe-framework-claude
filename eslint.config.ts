@@ -90,8 +90,7 @@ const config: Linter.Config[] = [
       // The other end of the same bootstrap: the override key and the panel's own flag are
       // the page's, not any definition's, and are read before a store exists to read them.
       'packages/mfe-devtools/src/browser-storage.ts',
-      // The theme only: the legacy Angular applications read `localStorage["theme"]` as a bare
-      // string, so its name and shape are fixed by code that is not ours (docs/decisions.md §24).
+      // The theme is read before first paint, before a framework store exists.
       'apps/shell/src/shell/preferences.ts',
       // The OIDC session and the sign-in request's state and PKCE verifier, in sessionStorage
       // under `shell.oidc.`, and the tab's own id under `shell.tab`: they must survive a reload

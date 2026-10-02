@@ -1,85 +1,72 @@
 ---
 title: 'Use the design system'
-description: 'Import Tecton components by subpath, use their prop names, and colour with tokens.'
+description: 'Connect React or Angular styling to the shell-owned theme, scoped stylesheet and overlay roots.'
 ---
 
-The design system is a dependency your container and the shell both take. Its components read the
-shell's theme with nothing wired up by you. Apps and Widgets.
+Apps and Widgets. The shell owns document styles and theme variables. Your container renders inside
+its mount and overlay roots. This guide covers framework styling constraints.
 
 ## Steps
 
 <Steps>
 <Step>
-### 1. Keep the dependency
+### 1. Keep the framework's build integration
 
-```json title="examples/alert-panel/package.json"
-{
-  "dependencies": {
-    "@tecton/react": "*",
-    "lucide-react": "^1.45.0"
-  }
-}
-```
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
 
-Your build needs `@tecton/react` whether or not you render a component from it. The `*` is not a
-registry range: an override in the workspace's `pnpm-workspace.yaml` links every package to the one
-design-system checkout, so where that checkout lives is written only there. General icons come from
-`lucide-react`.
+Keep `@tecton/react` in your container's dependencies. `pluginMfe()` needs its stylesheet scope plugin,
+even when your component renders no Tecton control. Use the workspace override to select the built design-system checkout.
 
-</Step>
-<Step>
-### 2. Import components by subpath
+The build scans your source classes and generates one scoped stylesheet under `.mfe/`.
+Do not add a second stylesheet entry or `postcss.config`. Those bypass the generated scope.
 
-```tsx title="examples/alert-panel/src/alert-panel.tsx"
-import { Alert, AlertAction, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
-import { Button } from '@tecton/react/components/button'
-import { CheckIcon, InfoIcon } from 'lucide-react'
-```
+</Tab>
+<Tab value="Angular">
 
-There is no barrel import. Tecton's own compositions sit under `@tecton/react/tecton/`, such as
-`@tecton/react/tecton/page-header`.
+Keep the generated Nx build integration and `src/primeng.ts` providers.
+The Angular adapter itself supports any UI library. The scaffold uses PrimeNG with no preset;
+the shell supplies its design tokens before the first Angular container mounts.
+
+PrimeNG writes unscoped styles. Every Angular container on the page must use the same PrimeNG version.
+Each container bundles its own copy. See [Angular styling constraints](/docs/reference/angular-adapter#use-primeng).
+
+</Tab>
+</Tabs>
 
 </Step>
 <Step>
-### 3. Use the design system's prop names
+### 2. Let shell styles inherit into the mount
 
-```tsx title="examples/operations/src/routes/index.tsx"
-<Button onClick={() => setDensity('compact')}>Compact density</Button>
-```
+Use the shell's theme variables. The shell owns the reset, fonts and document-level registrations.
+Your generated stylesheet scopes container rules to its mount and overlay roots.
 
-A control takes `onClick` and `disabled`, a checkbox or switch `checked` and `onCheckedChange`, a
-select or tabs `value` and `onValueChange`, and an overlay `open` and `onOpenChange`. An overlay is
-a root, a trigger and a content part: pass your button to the trigger as
-`render={<Button … />}` rather than nesting one inside it. `pnpm exec tecton docs <component>`
-prints each component's props.
+Do not declare another theme root, add a document-level dark class, or restyle `html` or `body`.
+The build's scope root is a container element. A descendant selector such as `.card :root` cannot
+select the document root inside it.
+
+Use [the theme bindings](/docs/follow-the-shell-theme) when a rendered value depends on light or dark.
 
 </Step>
 <Step>
-### 4. Colour with a token or a palette step
+### 3. Keep overlays inside their supplied root
 
-```tsx title="examples/operations/src/routes/index.tsx"
-<p className="text-xs text-muted-foreground">from another container</p>
-```
+A menu or dialog must portal into the mount's overlay root so it retains the mount's styling context.
+Tecton reads that root from the framework integration. In Angular, the generated providers route
+supported PrimeNG overlays there. Dialog, ConfirmDialog and Drawer require explicit
+`[appendTo]="mount.overlayRoot"`, with `mount = injectMfeMount()`.
 
-| Instead of                            | Write                                                       |
-| ------------------------------------- | ----------------------------------------------------------- |
-| `bg-red-500`, `bg-white`              | `bg-destructive`, `bg-background`, `border-border-subtle`   |
-| `text-zinc-400`, `dark:text-zinc-200` | `text-muted-foreground`, or a palette step: `text-gray-830` |
-
-A stock Tailwind colour class produces no CSS. The design system unsets every stock colour before
-it declares its own. A palette step is a contrast level rather than a lightness, so there is no
-`dark:` pair to write.
+Follow [Render dialogs, menus and tooltips](/docs/render-dialogs-and-tooltips) for the overlay integration.
 
 </Step>
 </Steps>
 
 ## Check it works
 
-Render the component and switch the theme in the shell with <Kbd>⌘J</Kbd>. The colours follow, and
-you changed nothing. A wrong colour class fails quietly. It produces no CSS and no error, so check
-the element in the browser. No lint rule catches it. The rule that did belonged to
-`@tecton/eslint-config`, which the design system has removed, so nothing checks a class against the
-token set.
+Switch the theme in the shell and confirm the container and its overlays follow it.
+Inspect the generated stylesheet and verify container rules stay inside the mount roots.
+Run `pnpm verify:page` for the repository's browser checks.
+For PrimeNG, inspect the shell-supplied tokens and confirm every Angular container uses the same version.
 
 ## Errors
 
@@ -91,15 +78,25 @@ resolve '@tecton/react/postcss/scope' from the container or from the build plugi
 @tecton/react beside either.
 ```
 
-**Fix.** Add `@tecton/react` to the container's dependencies. Its plugin is what keeps your
-stylesheet inside your own mount, whether or not you render its components.
+**Fix.** Keep `@tecton/react` in the React container's dependencies and build the linked checkout.
+
+</Callout>
+
+<Callout type="error" title="A root selector in a container stylesheet">
+
+```text
+`.card :root` matches nothing inside `@scope`: the scope root is not the document root, so `:root`,
+`:host`, `html` and `body` only mean anything as the leading compound.
+```
+
+**Fix.** Target an element your container renders. Check dependencies' stylesheets too.
 
 </Callout>
 
 ## Related
 
-- [Follow the shell theme](/docs/follow-the-shell-theme) — reading light or dark
-- [Render dialogs, menus and tooltips](/docs/render-dialogs-and-tooltips) — overlays
-- [Add styles beyond utilities](/docs/add-custom-styles) — when a utility is not enough
-- [Show an icon](/docs/show-an-icon) — the icon the shell draws for you
-- [Read a failure message](/docs/read-a-failure-message) — how a build message is put together
+- [Follow the shell theme](/docs/follow-the-shell-theme) — framework theme bindings.
+- [Render dialogs, menus and tooltips](/docs/render-dialogs-and-tooltips) — portal integration.
+- [Angular adapter](/docs/reference/angular-adapter#use-primeng) — PrimeNG constraints.
+- [Isolation boundaries](/docs/how-it-works/the-isolation-boundaries) — scope ownership and implementation.
+- [What you must not do](/docs/what-you-must-not-do) — shared-page restrictions.

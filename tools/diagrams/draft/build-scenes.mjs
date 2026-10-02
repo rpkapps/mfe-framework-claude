@@ -432,11 +432,10 @@ async function layers() {
     fill: FILL.container,
   })
   const adapterRow = [
-    ['@company/mfe-react', 12],
-    ['@company/mfe-angular', 220],
-    ['@company/mfe-legacy-angular', 428],
+    ['@company/mfe-react', 90],
+    ['@company/mfe-angular', 350],
   ].map(([name, x]) => file(scene, { x, y: 280, w: 200, h: 44, size: 11.5, name, fill: FILL.none }))
-  const [react, angular, legacy] = adapterRow
+  const [react, angular] = adapterRow
   const host = file(scene, {
     x: 195,
     y: 380,
@@ -467,9 +466,8 @@ async function layers() {
     to: { shape: react, side: 'top', at: 0.9 },
   })
   for (const [adapter, at] of [
-    [react, 0.2],
-    [angular, 0.5],
-    [legacy, 0.8],
+    [react, 0.25],
+    [angular, 0.75],
   ]) {
     scene.arrow({
       from: { shape: adapter, side: 'bottom', at: 0.5 },
@@ -1306,7 +1304,7 @@ async function adapters() {
     h: 64,
     fill: FILL.shell,
     name: 'The shell',
-    subtitle: 'adapters: [reactAdapter, angularAdapter, legacyAngularAdapter]',
+    subtitle: 'adapters: [reactAdapter, angularAdapter]',
     subtitleMono: true,
   })
 
@@ -1347,10 +1345,9 @@ async function adapters() {
   const adapterTiles = [
     ['The React adapter', "mfe.framework 'react'", true],
     ['The Angular adapter', "mfe.framework 'angular'", true],
-    ['The legacy Angular adapter', 'no mfe key; removable', false],
   ].map(([name, subtitle, subtitleMono], position) =>
     tile(scene, {
-      x: 104 + position * 418,
+      x: 216 + position * 624,
       y: 516,
       w: 394,
       h: 60,
@@ -1363,10 +1360,9 @@ async function adapters() {
   const containers = [
     ['operations', 'a React App, with its own root'],
     ['an Nx container', 'an Angular App or Widgets'],
-    ['asset-tracker', 'a legacy application, not mounted yet'],
   ].map(([name, subtitle], position) =>
     tile(scene, {
-      x: 104 + position * 418,
+      x: 216 + position * 624,
       y: 680,
       w: 394,
       h: 64,
@@ -1398,14 +1394,6 @@ async function adapters() {
       labelDx: 92,
     })
   }
-  scene.arrow({
-    from: { shape: adapterTiles[2], side: 'bottom', at: 0.5 },
-    to: { shape: containers[2], side: 'top', at: 0.5 },
-    dashed: true,
-    label: 'entries only',
-    labelDx: 88,
-  })
-
   scene.legend({
     x: 80,
     y: 800,

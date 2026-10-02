@@ -88,8 +88,8 @@ describe('the facts an entry states about itself', () => {
     expect(factsOf(entry({ adapter: 'angular' }))).toEqual([
       { label: 'adapter', values: ['angular'] },
     ])
-    expect(factsOf(entry({ adapter: 'legacy-angular' }))).toEqual([
-      { label: 'adapter', values: ['legacy-angular'] },
+    expect(factsOf(entry({ adapter: 'custom-adapter' }))).toEqual([
+      { label: 'adapter', values: ['custom-adapter'] },
     ])
   })
 

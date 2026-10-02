@@ -16,12 +16,12 @@ on first lines and first words).
 
 One page, one job. A how-to that also teaches theory serves neither reader (Diátaxis).
 
-| Page                                                   | Diátaxis type     | Job                                          |
-| ------------------------------------------------------ | ----------------- | -------------------------------------------- |
-| `index.mdx`, `capabilities.mdx`, `troubleshooting.mdx` | orientation (map) | Find a task, capability or symptom           |
-| the recipes at the root of `content/docs/`             | how-to            | Get the reader's one task done               |
-| `reference/*.mdx`                                      | reference         | Look one fact up mid-work                    |
-| `how-it-works/*.mdx`, `design.md`, `decisions.md`      | explanation       | Understand the system away from the keyboard |
+| Page                                              | Diátaxis type     | Job                                          |
+| ------------------------------------------------- | ----------------- | -------------------------------------------- |
+| `index.mdx`                                       | orientation (map) | Choose a role and starting guide             |
+| the recipes at the root of `content/docs/`        | how-to            | Get the reader's one task done               |
+| `reference/*.mdx`                                 | reference         | Look one fact up mid-work                    |
+| `how-it-works/*.mdx`, `design.md`, `decisions.md` | explanation       | Understand the system away from the keyboard |
 
 **The consumer rule.** Every sentence on a recipe page answers "what do I do" or "what happens". A
 sentence answering "how does the framework do it" moves to a How it works page. Explain a mechanism
@@ -89,7 +89,18 @@ Link to that home from other pages with a reason to follow it.
 Repeat a short prerequisite or warning where it prevents a mistake, such as storage surviving sign-out.
 Keep unique host contracts and framework limitations when consolidating duplicate examples.
 Distinguish shipped behavior from proposals. A decision entry records history and links to current guidance.
-Preserve existing page URLs when reorganizing navigation, so tickets and saved links keep working.
+Group navigation by feature: getting started, Apps, Widgets, browser storage, shared state, telemetry,
+shell integration, and development and deployment. Keep reference and architecture accessible.
+Use short sidebar labels through `NAV_LABELS` in `src/lib/source.ts`. Keep descriptive task titles
+in frontmatter for page headers and search.
+
+Use one canonical guide for each consolidated topic. Browser storage includes imperative access.
+Shared state includes loaders and resolvers. Telemetry includes events, errors and traces.
+The design-system guide covers framework styling constraints. Generic styling lessons belong outside these docs.
+
+Preserve old guide URLs through `src/lib/doc-redirects.json` when consolidating pages.
+The route and static redirect writer read the same map. Link current content to the canonical destination.
+Verify page and section destinations with `pnpm docs:check`.
 
 ## Sentence rules
 
@@ -244,6 +255,11 @@ there and moves on (NN/g F-pattern: first words of each line get the most fixati
 - **Every section is skimmable by its first sentence.** Reading only the first sentence of each
   section must give a correct, if shallow, picture of the page.
 - **Tables for parallel facts** — options, failures, comparisons. Prose for causes.
+- **Keep prose readable and tables usable.** Ordinary content uses the site's centered `40rem` column.
+  Top-level tables use the article width and scroll horizontally at smaller sizes. Use real Markdown
+  tables. Keep API names intact and avoid page-specific width overrides.
+- **Consolidate related API tasks.** Prefer a section in the canonical feature guide when the setup
+  and contract are shared. Add a page only for an independently useful reader task.
 - **Callouts only for warnings and one-line notes**, plus the error-and-fix pattern. A callout longer
   than four lines is a section.
 - **Every page is page one** (Write the Docs / Mark Baker). Define the terms the page uses, link the

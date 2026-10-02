@@ -114,11 +114,19 @@ const ENTITIES: Record<string, string> = {
 }
 
 function decodeEntities(text: string) {
-  return text.replace(/&(?:amp|lt|gt|quot|#39);/g, entity => ENTITIES[entity] ?? entity)
+  return text.replace(/&(?:amp|lt|gt|quot|#\d+|#x[\da-f]+);/gi, entity => {
+    const named = ENTITIES[entity.toLowerCase()]
+    if (named !== undefined) return named
+    const hex = entity.slice(0, 3).toLowerCase() === '&#x'
+    const code = Number.parseInt(entity.slice(hex ? 3 : 2, -1), hex ? 16 : 10)
+    return code > 0 && code <= 0x10ffff && !(code >= 0xd800 && code <= 0xdfff)
+      ? String.fromCodePoint(code)
+      : entity
+  })
 }
 
 function nodeText(node: React.ReactNode): string {
-  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (typeof node === 'string' || typeof node === 'number') return decodeEntities(String(node))
   if (
     React.isValidElement<{
       children?: React.ReactNode

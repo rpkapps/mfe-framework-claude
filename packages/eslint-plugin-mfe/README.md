@@ -141,7 +141,7 @@ plugin outside that scope.
 
 For the packages that implement the framework, such as `@company/mfe-core`,
 `@company/mfe-runtime`, `@company/mfe-react`, `@company/mfe-angular`,
-`@company/mfe-legacy-angular`, `@company/mfe-build`, `@company/mfe-rspack`,
+`@company/mfe-build`, `@company/mfe-rspack`,
 `@company/mfe-devtools`.
 
 It layers:
@@ -168,13 +168,12 @@ It layers:
 - **The package import DAG**, as `@typescript-eslint/no-restricted-imports`
   zones, one per package, mirroring `tools/boundaries/check-boundaries.mjs`:
 
-  | Zone                          | May not import                                                                                                                                              |
-  | ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | `@company/mfe-core`           | `react`, `react-dom`, `@tanstack/react-router`, `@tanstack/react-query`, `single-spa`, `@module-federation/*`, `@company/mfe-runtime`, `@company/mfe-react` |
-  | `@company/mfe-runtime`        | the same, minus itself                                                                                                                                      |
-  | `@company/mfe-react`          | `single-spa`                                                                                                                                                |
-  | `@company/mfe-legacy-angular` | `react`, `react-dom`, `@tanstack/react-router`, `@company/mfe-react`                                                                                        |
-  | `@company/mfe-devtools`       | `@company/mfe-rspack` (the developer tools read the runtime, never the build integration), `single-spa`                                                     |
+  | Zone                    | May not import                                                                                                                                              |
+  | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `@company/mfe-core`     | `react`, `react-dom`, `@tanstack/react-router`, `@tanstack/react-query`, `single-spa`, `@module-federation/*`, `@company/mfe-runtime`, `@company/mfe-react` |
+  | `@company/mfe-runtime`  | the same, minus itself                                                                                                                                      |
+  | `@company/mfe-react`    | `single-spa`                                                                                                                                                |
+  | `@company/mfe-devtools` | `@company/mfe-rspack` (the developer tools read the runtime, never the build integration), `single-spa`                                                     |
 
   Every zone also inherits `STATE_PATHS` and `TELEMETRY_PATTERNS`, so the
   restrictions below apply inside each one on top of the row above.

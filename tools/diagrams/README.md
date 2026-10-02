@@ -257,11 +257,11 @@ reachable, and one boundary is the whole cost of the failure.
 
 ### layers
 
-Subtitle: "The packages, which way the imports point, and who sees them." Twelve boxes in two
+Subtitle: "The packages, which way the imports point, and who sees them." Eleven boxes in two
 dashed regions. The left one, **In the browser** ("an arrow points at what a package depends
 on"), holds the dependency graph: `apps/shell` (yellow) and `examples/operations` (blue) on the
-top row; the three adapters below them, `@company/mfe-react`, `@company/mfe-angular` and
-`@company/mfe-legacy-angular`; `@company/mfe-runtime` under those three; and `@company/mfe-core`
+top row; the two adapters below them, `@company/mfe-react` and `@company/mfe-angular`;
+`@company/mfe-runtime` under those two; and `@company/mfe-core`
 at the bottom. Arrows run shell → mfe-react, operations → mfe-react, each adapter →
 mfe-runtime, and mfe-runtime → mfe-core. The right region, **At build time** ("one integration
 per framework, one neutral layer"), holds `@company/mfe-rspack` (`pluginMfe(), for React`) and
@@ -274,8 +274,7 @@ DAG rather than in it: `@company/create-mfe`, `@company/eslint-plugin-mfe`,
 `@company/mfe-devtools`. The legend names the four colours and the dot.
 
 Not on the figure: the shell also depends on `@company/mfe-angular` (for
-`@company/mfe-angular/registry`, which imports no Angular), `@company/mfe-legacy-angular` and
-`@company/mfe-devtools`, and every adapter also names `@company/mfe-core`; only the edges that
+`@company/mfe-angular/registry`, which imports no Angular) and `@company/mfe-devtools`, and every adapter also names `@company/mfe-core`; only the edges that
 carry the picture are drawn. An application imports its adapter alone — the root, `/host`,
 `/testing` and `/registry` — and lint rejects the core and the runtime in it. `pnpm boundaries`
 reads the imports and the manifests, so no arrow can be reversed by editing a `package.json`;
@@ -291,48 +290,25 @@ and imports no framework package, `@company/eslint-plugin-mfe` carries the prese
 
 ### adapters
 
-Subtitle: "One neutral runtime; the adapters the shell lists." Ten boxes, read top to bottom. At
-the top, a yellow **The shell** (`adapters: [reactAdapter, angularAdapter, legacyAngularAdapter]`),
-with an arrow labelled **registry.json** into a panel **The neutral runtime**
-("@company/mfe-runtime — no framework, no federation import"). That panel holds three grey boxes:
-**Shared services** ("storage, actions, navigation, diagnostics"), **Federation loader**
-(`createFederationContainerLoader`) and **One mount path** (`mountDefinition`). An arrow
-labelled **detect, parse** drops into a dashed panel **The adapters** ("exactly one recognises
-each entry; any order"), holding **The React adapter** (`mfe.framework 'react'`),
-**The Angular adapter** (`mfe.framework 'angular'`) and **The legacy Angular adapter** ("no mfe
-key; removable"). An arrow labelled **defines, mounts** drops from each of the first two to a
-blue container: `operations` ("a React App, with its own root") and **an Nx container** ("an
-Angular App or Widgets"). A dashed arrow labelled **entries only** drops from the legacy adapter
-to `asset-tracker` ("a legacy application, not mounted yet"). The legend says which colour is
-which: yellow the shell, grey neutral, transparent an adapter package, blue a container.
+Subtitle: "One neutral runtime; the adapters the shell lists." Eight boxes, read top to bottom.
+The yellow **The shell** declares `adapters: [reactAdapter, angularAdapter]`. Its **registry.json**
+arrow enters **The neutral runtime**. The runtime panel holds three grey boxes: **Shared services**,
+**Federation loader** and **One mount path**. The **detect, parse** arrow enters **The adapters**.
+That panel holds **The React adapter** and **The Angular adapter**. Each adapter has a **defines,
+mounts** arrow to its blue container. React connects to `operations`. Angular connects to **an Nx
+container**. The legend identifies the shell, neutral services, adapter packages and containers.
 
-Not on the figure. The runtime is framework-agnostic by construction: `@company/mfe-core` and
-`@company/mfe-runtime` define the contracts and do the loading and mounting, and both are
-forbidden — by the lint presets and by `pnpm boundaries` — from importing React, Angular, a
-router, single-spa or Module Federation. The federation loader is handed the federation runtime
-by the shell, the one file that imports it. `readRegistry` offers each raw entry to every
-adapter's `detect`. Exactly one must recognise it: none and the entry is rejected as
-unrecognised, more than one and it is rejected as ambiguous with both named, so there is no
-order to register adapters in, and none is registered implicitly — the shell lists each one.
-`reactAdapter` recognises an entry whose `mfe` marker names `react`, however
-malformed the rest is; `angularAdapter` one whose marker names `angular`; so a typo in
-framework metadata is rejected rather than quietly read by another adapter (§9).
-`legacyAngularAdapter` recognises only entries with no `mfe` key that carry a legacy `name` and
-`mfManifestUrl`. Each adapter's `parse` produces a `RegistryEntry` with the same common fields,
-the two framework adapters through the runtime's one `parseFederatedEntry`, and its own fields
-are typed on its own entry type and reached through its `is()` guard. An adapter plugs load
-behaviour in through `aroundLoad`, which the runtime runs around its containers' loads only; the
-React adapter's hides TanStack Router's development global while a container evaluates. No host
-asks which framework built a definition: `AppHost`, `DynamicWidget`, `lazyWidget`,
-`<mfe-app-host>` and `<mfe-widget>` all call `mountDefinition`, and the definition mounts itself
-— a React one in a React root of its own, an Angular one as an Angular application of its own.
-The definition brand is an open string, so a third adapter needs no change to the core, the
-runtime or the adapters already here (§6). The legacy adapter translates the legacy `AppConfig`
-into the common entry, resolves each app's base href and keeps a tested parcel lifecycle, but no
-host mounts a legacy application yet: the shell reads legacy entries and lists them. It depends
-on neither Angular nor single-spa, and when the last legacy application is migrated its
-directory is deleted, the shell drops one entry from its `adapters` list and one import from its
-composition root, and no other package changes.
+Not on the figure. The core and runtime define contracts and coordinate loading and mounting.
+Neither imports a framework, router or Module Federation. The shell supplies the federation
+runtime to the loader. Registry parsing offers each entry to every adapter. Exactly one adapter
+must recognise it. No match rejects an entry as unrecognised. Multiple matches reject it as
+ambiguous. Adapter order does not decide which one handles an entry.
+
+`reactAdapter` recognises a `mfe.framework` marker of `react`. `angularAdapter` recognises `angular`.
+Both parse their metadata into common registry entries. The runtime calls an adapter's
+`aroundLoad` around that adapter's container loads. The React adapter hides TanStack Router's
+development global during evaluation. Every host calls `mountDefinition`, and the definition
+mounts its own framework root. Adding another adapter requires no changes to existing adapters (§6).
 
 ### isolation-boundaries
 

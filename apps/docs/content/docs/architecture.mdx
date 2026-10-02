@@ -80,11 +80,11 @@ reachable, and the person sees your failure message and a Retry button.
   alt="The framework packages, which way their imports point, and what the build plugin generates."
   caption="The packages, which way the imports point, and who sees them."
 >
-Twelve boxes in two regions.
+Two regions separate browser and build dependencies.
 
 - **In the browser**, where an arrow points at what a package depends on. `apps/shell` and
-  `examples/operations` both point at `@company/mfe-react`. The three adapters,
-  `@company/mfe-react`, `@company/mfe-angular` and `@company/mfe-legacy-angular`, each point at
+  `examples/operations` both point at `@company/mfe-react`. The two adapters,
+  `@company/mfe-react` and `@company/mfe-angular`, each point at
   `@company/mfe-runtime`, which points at `@company/mfe-core`.
 - A line under that graph names what sits beside it: `@company/create-mfe`,
   `@company/eslint-plugin-mfe` and `@company/mfe-devtools`.
@@ -112,23 +112,22 @@ overwrites it.
 
 <Diagram
   src="/diagrams/adapters.svg"
-  alt="The shell's registry entering the neutral runtime, the three adapters the shell lists, and the container each one reaches."
+  alt="The shell's registry entering the neutral runtime, the two adapters the shell lists, and the container each one reaches."
   caption="One neutral runtime, and the adapters the shell lists."
 >
-Ten boxes, read top to bottom.
+Read top to bottom.
 
 - **The shell** sits at the top and lists
-  `adapters: [reactAdapter, angularAdapter, legacyAngularAdapter]`. An arrow **registry.json**
+  `adapters: [reactAdapter, angularAdapter]`. An arrow **registry.json**
   enters **The neutral runtime**, `@company/mfe-runtime`, which imports no framework and no
   federation.
 - The runtime holds **Shared services** (storage, actions, navigation, diagnostics), **Federation
   loader** and **One mount path**, `mountDefinition`.
 - An arrow **detect, parse** drops into **The adapters**, where exactly one recognises each entry:
-  the React adapter, the Angular adapter and the removable legacy Angular adapter.
+  the React adapter and the Angular adapter.
 - An arrow **defines, mounts** drops from the React adapter to `operations` and from the Angular
-  adapter to an Nx container. A dashed arrow **entries only** drops from the legacy adapter to
-  `asset-tracker`, which is not mounted yet. The legend names the shell, a neutral package, an
-  adapter package and a container.
+  adapter to an Nx container. The legend names the shell, a neutral package, an adapter package
+  and a container.
 
 </Diagram>
 
@@ -137,8 +136,7 @@ one adapter must recognise it. Your entry names the framework your container was
 React adapter reads it. The runtime then loads your container and calls your definition's own
 `mount`, which renders it in a React root of its own. An Angular container is read by the Angular
 adapter and mounted the same way, so a React page and an Angular container meet only in the
-runtime. An existing single-spa Angular application names no framework, and a removable legacy
-adapter reads it. Nothing falls back on its own. An entry that names a framework stays with that
+runtime. Nothing falls back on its own. An entry that names a framework stays with that
 framework's adapter, even when a field in it is wrong, and it is set aside with a reason. Storage,
 actions, navigation and diagnostics come from the runtime, so every kind behaves alike.
 
@@ -148,4 +146,4 @@ actions, navigation and diagnostics come from the runtime, so every kind behaves
 - [Tutorial: build the operations App](/docs/tutorial) — this architecture, end to end.
 - [The mount lifecycle](/docs/how-it-works/the-mount-lifecycle) — the stages behind the second diagram.
 - [The isolation boundaries](/docs/how-it-works/the-isolation-boundaries) — what a mount is separated from.
-- [Adapters and legacy Angular](/docs/how-it-works/adapters-and-legacy-angular) — the adapters in full.
+- [Framework adapters](/docs/how-it-works/adapters) — the adapters in full.

@@ -125,7 +125,7 @@ Returns the imperative storage handle for this definition. `area` defaults to `'
 const local = useMfeStorage()
 ```
 
-Recipe: [Read or write storage outside render](/docs/storage-outside-render).
+Recipe: [Read or write storage outside render](/docs/remember-a-value#read-or-write-outside-render).
 
 ### useTelemetry
 
@@ -141,7 +141,7 @@ const telemetry = useTelemetry()
 
 `SpanKind` and `SpanStatusCode` are exported beside it, for the spans `tracer` starts.
 
-Recipe: [Log an event](/docs/log-an-event).
+Recipe: [Log an event](/docs/telemetry#record-events-measurements-and-caught-errors).
 
 ## Shell features
 
@@ -542,7 +542,7 @@ Called in the wrong place, a hook throws `mount/failure` and names itself.
 ## Related
 
 - [Share state across Apps and Widgets](/docs/shared-state) — typed shared keys and reactive bindings
-- [Use shared state outside render](/docs/shared-state-outside-render) — route callbacks
+- [Use shared state outside render](/docs/shared-state#read-state-in-a-loader-or-resolver) — route callbacks
 
 - [createApp and createWidget options](/docs/reference/create-app-and-create-widget) — the two factories.
 - [Route staticData fields](/docs/reference/static-data) — what a route declares.

@@ -179,7 +179,8 @@ dependency may run an install script.
 
 ## 9. Legacy Angular compatibility is proven against fixtures, not the real applications
 
-**Status:** scope limit, stated plainly.
+**Status:** superseded. The legacy Angular applications and `@company/mfe-legacy-angular` package
+were removed. The text below records the earlier scope and tests, not current integration guidance.
 
 The legacy Angular repositories are not available here and the first slice may
 not require them, so the adapter is tested against production-equivalent contract
@@ -576,6 +577,10 @@ not a local exception.
 
 **Amendment (2026-09-26):** the session generation this entry placed in the host scope is gone with
 retention (§56); the host scope keeps the tab's session identity record in its place.
+
+**Amendment (2026-10-01):** the legacy Angular applications and adapter were removed.
+The theme key remains a pre-paint shell preference, read before the runtime starts.
+The legacy interoperation rationale above is historical.
 
 ---
 

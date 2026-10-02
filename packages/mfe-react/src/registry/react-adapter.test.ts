@@ -114,10 +114,10 @@ describe('is', () => {
 
   it('refuses an entry another adapter parsed', () => {
     const foreign: RegistryEntry = {
-      id: 'asset-tracker',
+      id: 'fieldwork',
       definitionKind: 'app',
-      adapter: 'legacy-angular',
-      manifestUrl: 'https://cdn.example.test/asset-tracker/mf-manifest.json',
+      adapter: 'angular',
+      manifestUrl: 'https://cdn.example.test/fieldwork/mf-manifest.json',
       requiresRuntime: '>=1.1.0 <2.0.0',
     }
 

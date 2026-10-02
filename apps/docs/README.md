@@ -1,10 +1,10 @@
 # `@company/docs` — the documentation site
 
-The author-facing documentation for the micro-frontend framework: an overview, a capability index, symptom-based troubleshooting, a quickstart, a
-tutorial, task guides for React and Angular, the How it works pages with the design map and the decision log, and
-a reference section with a glossary. It is a Vite + TanStack Start application,
-prerendered to static files, and every piece of its interface is a component from `@tecton/react`,
-the design system the shell and the example containers use.
+The author-facing documentation for the micro-frontend framework: getting started, Apps, Widgets,
+browser storage, shared state, telemetry, shell integration, development and deployment.
+Reference and architecture sections hold API contracts, the design map and decision history.
+It is a Vite + TanStack Start application, prerendered to static files.
+Its interface uses `@tecton/react`, the design system the shell and React containers use.
 
 ## Running it
 
@@ -13,7 +13,7 @@ From the repository root:
 | Command             | What it does                                                                                                                                    |
 | ------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
 | `pnpm docs:dev`     | Dev server on <http://localhost:3020> (3000–3008, 3010 and 3011 are the shell, the example containers, the stand-in API and the agent backend). |
-| `pnpm docs:build`   | Production build, then prerenders every page into `apps/docs/dist/client`.                                                                      |
+| `pnpm docs:build`   | Production build, prerenders pages into `apps/docs/dist/client`, then writes redirects for consolidated guide URLs.                             |
 | `pnpm docs:check`   | Builds the docs, then checks every built page for broken internal page links, heading links and diagram assets.                                 |
 | `pnpm docs:preview` | Serves the build output, which is what a static host sees.                                                                                      |
 
@@ -32,9 +32,10 @@ it.
 apps/docs/content/docs/
   meta.json          the sidebar: its sections, in order
   index.mdx          /docs            "Overview"
-  capabilities.mdx  /docs/capabilities   shell services and framework APIs
-  troubleshooting.mdx /docs/troubleshooting   symptoms and repair paths
   quickstart.mdx     /docs/quickstart … and one file per task guide
+  remember-a-value.mdx /docs/remember-a-value   browser storage
+  shared-state.mdx   /docs/shared-state   consumer bindings and route callbacks
+  telemetry.mdx      /docs/telemetry   events, errors and traces
   how-it-works/
     meta.json        the How it works pages, in order
     the-mount-lifecycle.mdx   /docs/how-it-works/the-mount-lifecycle   … and two more
@@ -53,27 +54,34 @@ separator:
 {
   "root": true,
   "pages": [
+    "---Getting started---",
     "index",
-    "capabilities",
-    "troubleshooting",
-    "reference",
-    "how-it-works",
-    "---Get started---",
     "quickstart",
     "tutorial",
     "architecture",
-    "---Build Apps and Widgets---",
+    "---Apps---",
     "create-an-app",
     "…",
-    "---Integrate with the shell---",
-    "add-a-settings-page",
+    "---Widgets---",
+    "create-a-widget",
     "…",
-    "---Data and state---",
+    "---Browser storage---",
     "remember-a-value",
+    "change-the-shape-of-a-stored-value",
+    "---Shared state---",
+    "shared-state",
+    "configure-shared-state",
+    "evolve-shared-state",
+    "---Telemetry---",
+    "telemetry",
+    "---Shell integration---",
+    "add-an-action",
     "…",
-    "---Run, test and deploy---",
+    "---Development & deployment---",
     "run-the-shell-locally",
-    "…"
+    "…",
+    "reference",
+    "how-it-works"
   ]
 }
 ```
@@ -85,9 +93,11 @@ group's title and the order of its pages, which keep their `/docs/how-it-works/<
 ### Content conventions
 
 Read [STYLE.md](STYLE.md) before adding or reorganizing content.
-The overview routes readers by goal. The capability index maps a shell service to its React API,
-Angular API and task guide. Troubleshooting routes symptoms to checks and fixes.
-Reference and How it works remain directly accessible from the sidebar.
+The sidebar groups guides by framework feature. The overview gives starting points for React, Angular,
+shell builders and framework maintainers. Reference and architecture remain accessible in the sidebar.
+`NAV_LABELS` in `src/lib/source.ts` provides short sidebar labels through a page-tree transformer.
+The full frontmatter title remains in the page header and search index. Add a label when a task title
+would wrap awkwardly in the sidebar.
 
 Task guides explain shared behavior once and put framework-specific examples in React / Angular tabs.
 Use `items={['React', 'Angular']}` and matching tab values, with React first.
@@ -97,7 +107,35 @@ For framework-specific pages, state applicability in the opener.
 Give each complete procedure and API contract one canonical home. Package READMEs link to those
 pages and retain setup, package boundaries and unique maintainer details.
 Short prerequisites and warnings can repeat beside the example where readers need them.
-Existing page URLs stay stable when sidebar sections change.
+Consolidated guides have one current destination:
+
+| Topic                                                        | Canonical guide               |
+| ------------------------------------------------------------ | ----------------------------- |
+| Browser preferences, channel selection and imperative access | `/docs/remember-a-value`      |
+| Shared-state components, loaders and resolvers               | `/docs/shared-state`          |
+| Events, caught errors, measurements and traces               | `/docs/telemetry`             |
+| Generated styles, inheritance and overlays                   | `/docs/use-the-design-system` |
+| React and Angular adapter architecture                       | `/docs/how-it-works/adapters` |
+
+Link to the canonical page or section when editing content.
+
+### Redirects for consolidated guides
+
+`src/lib/doc-redirects.json` maps removed guide slugs to their canonical page or section.
+The docs route reads the map before looking up a page. `tools/docs/write-redirects.mjs` uses that same
+map to write redirect HTML after the root `pnpm docs:build`, so static hosts keep old links working.
+The static redirect keeps query strings and chooses the destination anchor when one is supplied.
+
+When consolidating a page, add its old slug to the map and update current links to the new destination.
+Run `pnpm docs:check` to verify the built destinations and heading anchors.
+
+### Paragraph and table widths
+
+`src/styles/app.css` keeps ordinary article content in a centered column up to `40rem` wide.
+Top-level tables span the available article width. `src/components/mdx.tsx` wraps each table in a
+focusable horizontal scroll region. Tables keep a minimum width of `48rem`, cells retain useful width,
+and inline code stays unbroken. Put reference facts in real Markdown tables and let the wrapper scroll.
+Do not add page-level width overrides or force API names to wrap.
 
 ### Repository Markdown is rendered, not copied
 

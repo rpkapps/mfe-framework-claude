@@ -159,20 +159,7 @@ const RULES = [
       '@company/mfe-devtools',
     ],
     reason:
-      'The legacy adapter is the only package that knows the legacy single-spa contract, vendor telemetry stays shell-owned, and the agent is reached through actions, never an agent library.',
-  },
-  {
-    package: '@company/mfe-legacy-angular',
-    forbidden: [
-      ...AGENT_LIBRARIES,
-      'react',
-      'react-dom',
-      '@tanstack/react-router',
-      '@company/mfe-react',
-      '@company/mfe-devtools',
-    ],
-    reason:
-      'The legacy adapter is a sibling of the React adapter, not a consumer of it, and imports no agent library.',
+      'Containers use the App and Widget lifecycle, vendor telemetry stays shell-owned, and the agent is reached through actions, never an agent library.',
   },
   {
     package: '@company/mfe-agent',
@@ -183,7 +170,6 @@ const RULES = [
       '@grafana/faro',
       '@company/mfe-react',
       '@company/mfe-angular',
-      '@company/mfe-legacy-angular',
       '@company/mfe-devtools',
       '@company/mfe-build',
       '@company/mfe-rspack',
@@ -274,7 +260,6 @@ const SHARED_CORE_CONSUMERS = [
   '@company/mfe-runtime',
   '@company/mfe-react',
   '@company/mfe-angular',
-  '@company/mfe-legacy-angular',
   '@company/mfe-devtools',
   '@company/mfe-agent',
 ]

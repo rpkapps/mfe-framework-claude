@@ -1,51 +1,37 @@
 ---
 title: 'Overview'
-description: 'Choose your framework, find a task, or look up an API.'
+description: 'Build an App or Widget, connect it to the shell, and find the API you need.'
 ---
 
-Build an App or Widget that loads into a shell. Start with your role below, then use the capability index for your next task.
+Build an **App** for a URL and its routes, or a **Widget** placed inside another page.
+Your **container** is the deployable package holding those definitions. The **shell** owns the page, session, theme, and navigation around them.
 
-## Choose App or Widget
+## Get started
 
-An **App** owns a URL boundary and its routes. A **Widget** takes inputs and emits declared outputs wherever another page places it.
-A **container** is the deployable package holding your definitions. The **shell** owns the page, session, theme, and navigation above your App.
+- **React:** [Quickstart](/docs/quickstart), then [build a complete App](/docs/tutorial).
+- **Angular:** [Generate an Nx container](/docs/reference/mfe-nx#generate-a-container), then [declare an App or Widget](/docs/reference/angular-adapter).
+- **Shell builders:** [Architecture](/docs/architecture), then [run the shell locally](/docs/run-the-shell-locally).
 
-## Start with your role
+## Find a feature
 
-<Cards>
-  <Card href="/docs/quickstart" title="Build with React">
-    Scaffold a container, run it locally, and open it in the shell.
-  </Card>
-  <Card href="/docs/reference/mfe-nx#generate-a-container" title="Build with Angular">
-    Generate an Nx container, then declare your App or Widget with the Angular adapter.
-  </Card>
-  <Card href="/docs/run-the-shell-locally" title="Build or integrate a shell">
-    Run the example shell, connect containers, and configure shared services.
-  </Card>
-  <Card href="/docs/how-it-works/design" title="Maintain the framework">
-    Read the design map, lifecycle, isolation boundaries, and architectural decisions.
-  </Card>
-</Cards>
+| Feature                     | Start here                                                                                                  |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| Apps and routes             | [Create an App](/docs/create-an-app)                                                                        |
+| Widgets and their contracts | [Create a Widget](/docs/create-a-widget)                                                                    |
+| Browser storage             | [Save preferences and choose local or session storage](/docs/remember-a-value)                              |
+| Shared state                | [Synchronize values between React and Angular](/docs/shared-state)                                          |
+| Telemetry                   | [Record events, errors and traces](/docs/telemetry)                                                         |
+| Shell integration           | [Actions](/docs/add-an-action), [breadcrumbs](/docs/set-breadcrumbs), [theme](/docs/follow-the-shell-theme) |
+| Development and deployment  | [Local development](/docs/run-the-shell-locally), [build and publish](/docs/build-and-publish)              |
 
-For Angular, follow the [adapter reference](/docs/reference/angular-adapter) after scaffolding.
-For shell integration, start with the [architecture diagrams](/docs/architecture) and [shared-state configuration](/docs/configure-shared-state).
+## Look up an API or failure
 
-## Find the answer you need
-
-| Your goal                           | Start here                                                   |
-| ----------------------------------- | ------------------------------------------------------------ |
-| Build your first complete React App | [Operations tutorial](/docs/tutorial)                        |
-| Connect your container to the shell | [Capability index](/docs/capabilities)                       |
-| Look up a React API                 | [Hooks and components](/docs/reference/hooks-and-components) |
-| Look up an Angular API              | [Angular adapter](/docs/reference/angular-adapter)           |
-| Diagnose a failure                  | [Troubleshooting](/docs/troubleshooting)                     |
-| Understand a design choice          | [Architecture and decisions](/docs/how-it-works/design)      |
-
-Task guides show implementation steps. Reference pages define APIs and rules. Architecture pages explain ownership and design choices.
-Use the sidebar for guides on building, integration, data, testing, and deployment.
+Use the [React reference](/docs/reference/hooks-and-components) or [Angular reference](/docs/reference/angular-adapter) for exact APIs.
+For failures, [read the message](/docs/read-a-failure-message) and [look up its error code](/docs/reference/error-codes).
+The [devtools panel](/docs/open-the-devtools) shows rejected registry entries and mount failures.
 
 ## Related
 
-- [Capability index](/docs/capabilities) — match tasks to React and Angular APIs.
-- [Troubleshooting](/docs/troubleshooting) — start with the symptom you see.
-- [Glossary](/docs/reference/glossary) — look up framework terms.
+- [Architecture](/docs/architecture) — shell and container responsibilities.
+- [Design and decisions](/docs/how-it-works/design) — mechanisms and their rationale.
+- [Glossary](/docs/reference/glossary) — framework terms.
