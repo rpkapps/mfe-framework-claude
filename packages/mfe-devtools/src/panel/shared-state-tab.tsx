@@ -118,8 +118,8 @@ export function SharedStateTab(): ReactNode {
           description="Search by state ID or clear the search to see all contracts."
         />
       ) : (
-        <div className="grid min-h-0 flex-1 gap-3 @3xl:grid-cols-[minmax(14rem,0.8fr)_minmax(0,2fr)]">
-          <div className="min-h-0 overflow-y-auto">
+        <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(16rem,1fr)] gap-3 @3xl:grid-cols-[minmax(14rem,0.8fr)_minmax(0,2fr)] @3xl:grid-rows-1">
+          <div className="max-h-56 min-h-0 overflow-y-auto @3xl:max-h-none">
             <ItemGroup aria-label="Shared-state contracts" className="gap-1">
               {entries.map(entry => (
                 <Item
