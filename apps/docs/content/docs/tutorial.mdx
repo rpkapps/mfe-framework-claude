@@ -28,6 +28,7 @@ Add Angular route objects to the same `routes` array as you progress.
 <Tab value="React">
 
 ```ts title="src/mfe.ts"
+import packageJson from '../package.json'
 import { createApp, type AppRouterOptions } from '@company/mfe-react'
 import { HardHatIcon } from 'lucide-react'
 import { createRouter } from '@tanstack/react-router'
@@ -46,7 +47,7 @@ function makeRouter({ basePath, history, context }: AppRouterOptions) {
 
 export default createApp({
   id: 'operations',
-  version: '2.1.0',
+  version: packageJson.version,
   description: 'Day-to-day field operations: wells, alerts and daily reports.',
   icon: HardHatIcon,
   router: makeRouter,
@@ -57,10 +58,11 @@ export default createApp({
 <Tab value="Angular">
 
 ```ts title="src/mfe.ts"
+import packageJson from '../package.json'
 import { createApp } from '@company/mfe-angular'
 import { routes } from './app.routes'
 
-export default createApp({ id: 'operations', version: '2.1.0', routes })
+export default createApp({ id: 'operations', version: packageJson.version, routes })
 ```
 
 </Tab>

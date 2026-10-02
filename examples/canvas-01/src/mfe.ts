@@ -8,6 +8,7 @@ import { createRouter } from '@tanstack/react-router'
 import { BoxIcon, MapIcon } from 'lucide-react'
 import { z } from 'zod'
 
+import packageJson from '../package.json'
 import { SubsurfaceWell3dWidget } from './components/well-3d-widget.tsx'
 import { routeTree } from './routeTree.gen'
 
@@ -40,7 +41,7 @@ declare module '@tanstack/react-router' {
 
 export const subsurfaceCanvas = createApp({
   id: 'subsurface-canvas',
-  version: '0.1.0',
+  version: packageJson.version,
   title: 'Subsurface Canvas',
   description: 'An interactive subsurface interpretation canvas.',
   tags: ['canvas', 'geoscience'],
@@ -55,7 +56,7 @@ export const subsurfaceWell3dContract = {
 
 export const subsurfaceWell3d = createWidget({
   id: 'subsurface-well-3d',
-  version: '0.1.0',
+  version: packageJson.version,
   title: '3D well and surfaces',
   description: 'Explore a native WebGL well trajectory through interpreted subsurface horizons.',
   tags: ['subsurface', 'well', 'geoscience', '3d'],

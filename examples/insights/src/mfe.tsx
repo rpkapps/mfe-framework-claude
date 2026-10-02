@@ -5,6 +5,7 @@ import { createWidget } from '@company/mfe-react'
 import { ChartScatterIcon, ClipboardListIcon, RouteIcon } from 'lucide-react'
 import { z } from 'zod'
 
+import packageJson from '../package.json'
 import { CostVsRiskWidget, FdaSummaryWidget, WellDesignWidget } from './widgets.tsx'
 
 /** The build reads these schemas statically into the registry, so `z.enum([...])` is what makes the
@@ -22,7 +23,7 @@ export const fdaSummaryContract = {
 
 export const fdaSummary = createWidget({
   id: 'fda-summary',
-  version: '1.0.0',
+  version: packageJson.version,
   title: 'FDA summary',
   description: 'Headline figures for a field development area, with drill-down actions.',
   tags: ['insights', 'planning', 'summary'],
@@ -43,7 +44,7 @@ export const wellDesignContract = {
 
 export const wellDesign = createWidget({
   id: 'well-design',
-  version: '1.0.0',
+  version: packageJson.version,
   title: 'Well design',
   description: 'Trajectory and casing for one candidate design.',
   tags: ['insights', 'planning', 'drilling'],
@@ -61,7 +62,7 @@ export const costVsRiskContract = {
 
 export const costVsRisk = createWidget({
   id: 'cost-vs-risk',
-  version: '1.0.0',
+  version: packageJson.version,
   title: 'Cost vs risk',
   description: 'Compares candidate designs on cost against assessed risk.',
   tags: ['insights', 'analysis', 'drilling'],

@@ -484,14 +484,20 @@ export const stray = createApp({ id: 'stray', routes: [] })
 
 describe('MfeWebpackPlugin across compiles', () => {
   it(
-    'regenerates the container before every compile',
+    'regenerates the package version before every compile',
     async () => {
-      const root = reportsContainer()
+      const root = reportsContainer({
+        'src/mfe.ts': `import pkg from '../package.json'\n${APP_ENTRY.replace("'1.2.0'", 'pkg.version')}`,
+      })
       const compiler = webpack(angularLikeConfig(root, 'production'))
 
       try {
         await run(compiler)
-        writeFile(root, 'src/mfe.ts', APP_ENTRY.replace("version: '1.2.0'", "version: '1.3.0'"))
+        const manifest = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8')) as Record<
+          string,
+          unknown
+        >
+        writeFile(root, 'package.json', JSON.stringify({ ...manifest, version: '1.3.0' }))
         await run(compiler)
       } finally {
         await close(compiler)

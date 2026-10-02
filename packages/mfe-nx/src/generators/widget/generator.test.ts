@@ -40,6 +40,13 @@ describe('the widget generator', () => {
     )
   })
 
+  it('keeps the package import distinct from a Widget named package-json', async () => {
+    await widgetGenerator(tree, { name: 'package-json', skipFormat: true })
+    const entry = readTreeFile(tree, 'apps/package-json/src/mfe.ts')
+    expect(entry).toContain("import packageJson from '../package.json'")
+    expect(entry).toContain('export const packageJsonWidget = createWidget(')
+  })
+
   it('declares no routes, no configuration and no public directory', async () => {
     await widgetGenerator(tree, { name: 'alert-panel', skipFormat: true })
 
@@ -65,6 +72,8 @@ describe('the widget generator', () => {
     const entry = readTreeFile(tree, 'apps/alert-panel/src/mfe.ts')
     expect(entry).toContain("import { createWidget } from '@company/mfe-angular'")
     expect(entry).toContain('export const alertPanelContract')
+    expect(entry).toContain("import packageJson from '../package.json'")
+    expect(entry).toContain('version: packageJson.version')
     expect(entry).toContain("id: 'alert-panel'")
     expect(entry).toContain('...alertPanelContract')
     expect(entry).toContain('component: AlertPanelComponent')

@@ -4,6 +4,7 @@
 import { createApp, type AppRouterOptions } from '@company/mfe-react'
 import { createRouter } from '@tanstack/react-router'
 
+import packageJson from '../package.json'
 import { routeTree } from './routeTree.gen'
 import { RouteError, RouteNotFound, RoutePending } from './route-states.tsx'
 
@@ -29,6 +30,6 @@ declare module '@tanstack/react-router' {
 
 export default createApp({
   id: 'reports',
-  version: '1.0.0',
+  version: packageJson.version,
   router: makeRouter,
 })

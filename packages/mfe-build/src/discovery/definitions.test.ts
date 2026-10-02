@@ -52,6 +52,62 @@ describe('discoverDefinitions', () => {
     expect(result.widgets[0]?.contractSource?.inputSchema.kind).toBe('inline')
   })
 
+  it.each([
+    ["import packageJson from '../package.json'", 'version: packageJson.version'],
+    ["import * as packageJson from '../package.json'", 'version: packageJson.version'],
+    ["import { version as packageVersion } from '../package.json'", 'version: packageVersion'],
+    ["import { version } from '../package.json'", 'version'],
+  ])('reads the package version through %s', (importStatement, option) => {
+    const root = createContainer(
+      {
+        'src/mfe.ts': `${importStatement}\n${APP.replace("version: '2.1.0'", option)}`,
+      },
+      { manifest: { version: '3.2.1-beta.2+build.7' } },
+    )
+
+    const result = discoverDefinitions(entryOf(root), SYNTAX)
+    expect(result.app?.version).toBe('3.2.1-beta.2+build.7')
+  })
+
+  it.each([undefined, null, 42, '', '   '])('rejects an invalid package version %s', version => {
+    const root = createContainer(
+      {
+        'src/mfe.ts': `import pkg from '../package.json'\n${APP.replace("'2.1.0'", 'pkg.version')}`,
+      },
+      { manifest: { version } },
+    )
+
+    expect(() => discoverDefinitions(entryOf(root), SYNTAX)).toThrow(
+      /package.json.*read the definition version.*non-empty version string/s,
+    )
+  })
+
+  it.each(['{', null])('reports unreadable package JSON %s', contents => {
+    const root = createContainer({
+      'src/mfe.ts': `import pkg from './package.json'\n${APP.replace("'2.1.0'", 'pkg.version')}`,
+      ...(contents === null ? {} : { 'src/package.json': contents }),
+    })
+
+    expect(() => discoverDefinitions(entryOf(root), SYNTAX)).toThrow(
+      /readable package.json containing valid JSON/,
+    )
+  })
+
+  it.each([
+    ['const pkg = { version: "2.1.0" }', 'pkg.version'],
+    ["import pkg from './release.json'", 'pkg.version'],
+    ["import pkg from '../package.json'", 'pkg.version + "-dev"'],
+    ["import { name } from '../package.json'", 'name'],
+  ])('rejects an unsupported version expression %s', (declaration, expression) => {
+    const root = createContainer({
+      'src/mfe.ts': `${declaration}\n${APP.replace("'2.1.0'", expression)}`,
+    })
+
+    expect(() => discoverDefinitions(entryOf(root), SYNTAX)).toThrow(
+      /version imported directly from package.json/,
+    )
+  })
+
   it('reads several named Widgets', () => {
     const root = createContainer({
       'src/mfe.ts': `

@@ -3,6 +3,7 @@ import { createApp, createWidget } from '@company/mfe-angular'
 import { sharedStateSchema } from '@example/shared-state-contracts'
 import { z } from 'zod'
 
+import packageJson from '../package.json'
 import { AppComponent } from './app.component'
 import { routes } from './app.routes'
 import { providePrimeNgForMfe } from './primeng'
@@ -10,7 +11,7 @@ import { WellInspectionComponent } from './well-inspection.component'
 
 export const wellInspection = createWidget({
   id: 'well-inspection',
-  version: '0.1.0',
+  version: packageJson.version,
   title: 'Well inspection',
   description: 'Plan an inspection for the well selected in the React survey App.',
   inputSchema: z.object({}),
@@ -22,7 +23,7 @@ export const wellInspection = createWidget({
 
 export const fieldwork = createApp({
   id: 'fieldwork',
-  version: '0.1.0',
+  version: packageJson.version,
   title: 'Fieldwork',
   description: 'Well-pad inspections, in Angular and PrimeNG, built by Nx.',
   routes,

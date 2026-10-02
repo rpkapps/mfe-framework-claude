@@ -228,6 +228,8 @@ export default [
   "extends": ${JSON.stringify(options.tsconfigBase)},
   "compilerOptions": {
     "rootDir": ".",
+    "resolveJsonModule": true,
+    "esModuleInterop": true,
     "types": ["node"],
     "paths": {
       "#mfe/config": ["./.mfe/config.ts"],

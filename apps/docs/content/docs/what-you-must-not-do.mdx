@@ -292,17 +292,17 @@ resolve against your container's own deployed location.
 Declare the contract and every presentation field as literals in `src/mfe.ts`. The build reads your
 definition without running it, and only a literal can be read that way.
 
-| Rule                                                                                      | Caught by              | Fix                                                                                      |
-| ----------------------------------------------------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------- |
-| A definition id holds lower-case letters, digits and single hyphens, as in `alert-panel`. | Build, Mount, Registry | Rename the definition. The id is also your storage prefix and your CSS scope value.      |
-| Two definitions may not share an id.                                                      | Build, Registry        | Give each definition its own id. The registry sets both entries aside.                   |
-| An output name is lower camel case, as in `selectionChanged`.                             | Build, Mount           | Rename the output. Consumers subscribe to it as `onSelectionChanged`.                    |
-| An input may not be called `key`, `ref`, `fallback`, `pending` or `onSomething`.          | Build, Mount           | Rename the input. Those names belong to the host.                                        |
-| Inputs and output payloads carry only what JSON can carry.                                | Mount                  | Send data. A consumer that needs a callback subscribes to an output instead.             |
-| A Widget declares both `inputSchema` and `outputSchema`.                                  | Build                  | Write `z.object({})` for the one the Widget does not need.                               |
-| Declare the schema where the build can read it without running the module.                | Build                  | Declare it inline in `src/mfe.ts`, or export it from another module of this container.   |
-| `title`, `description`, `version`, `tags` and `id` are inline literals.                   | Build                  | Write the value inline. Pass `icon` as an imported identifier, which the build resolves. |
-| A container exports at most one App, and exports every definition from its entry.         | Build                  | Split the Apps into separate containers, and add `export` to every definition.           |
+| Rule                                                                                                                 | Caught by              | Fix                                                                                      |
+| -------------------------------------------------------------------------------------------------------------------- | ---------------------- | ---------------------------------------------------------------------------------------- |
+| A definition id holds lower-case letters, digits and single hyphens, as in `alert-panel`.                            | Build, Mount, Registry | Rename the definition. The id is also your storage prefix and your CSS scope value.      |
+| Two definitions may not share an id.                                                                                 | Build, Registry        | Give each definition its own id. The registry sets both entries aside.                   |
+| An output name is lower camel case, as in `selectionChanged`.                                                        | Build, Mount           | Rename the output. Consumers subscribe to it as `onSelectionChanged`.                    |
+| An input may not be called `key`, `ref`, `fallback`, `pending` or `onSomething`.                                     | Build, Mount           | Rename the input. Those names belong to the host.                                        |
+| Inputs and output payloads carry only what JSON can carry.                                                           | Mount                  | Send data. A consumer that needs a callback subscribes to an output instead.             |
+| A Widget declares both `inputSchema` and `outputSchema`.                                                             | Build                  | Write `z.object({})` for the one the Widget does not need.                               |
+| Declare the schema where the build can read it without running the module.                                           | Build                  | Declare it inline in `src/mfe.ts`, or export it from another module of this container.   |
+| `title`, `description`, `tags` and `id` are inline literals. `version` may come from a direct `package.json` import. | Build                  | Write the value inline. Pass `icon` as an imported identifier, which the build resolves. |
+| A container exports at most one App, and exports every definition from its entry.                                    | Build                  | Split the Apps into separate containers, and add `export` to every definition.           |
 
 ## Call `lazyWidget`, `createApp` and `createWidget` at module scope
 

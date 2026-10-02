@@ -7,6 +7,7 @@ import { createWidget } from '@company/mfe-react'
 import { BellIcon } from 'lucide-react'
 import { z } from 'zod'
 
+import packageJson from '../package.json'
 import { AlertPanel } from './alert-panel.tsx'
 
 export const alertPanelContract = {
@@ -22,7 +23,7 @@ export const alertPanelContract = {
 
 export const alertPanel = createWidget({
   id: 'alert-panel',
-  version: '1.4.0',
+  version: packageJson.version,
   title: 'Alert panel',
   description: 'Open alerts for one asset, acknowledged or dismissed in place.',
   tags: ['alerts', 'operations', 'safety'],
