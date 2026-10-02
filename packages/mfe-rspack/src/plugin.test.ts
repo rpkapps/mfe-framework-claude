@@ -3,6 +3,7 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 
 import { buildFederationOptions, withFrameworkMetadata } from '@company/mfe-build'
+import { RUNTIME_API_REQUIREMENT } from '@company/mfe-core/runtime-compatibility'
 
 import { planContainer } from './plan.ts'
 import { pluginMfe } from './rsbuild.ts'
@@ -156,7 +157,7 @@ describe('Module Federation options', () => {
     expect(manifest.metaData['mfe']).toMatchObject({
       kind: 'mfe',
       framework: 'react',
-      requiresRuntime: '>=1.1.0 <2.0.0',
+      requiresRuntime: RUNTIME_API_REQUIREMENT,
       buildTime: '2026-01-02T03:04:05.000Z',
       registryDescriptor: 'mfe-registry.json',
       entries: { operations: './app', 'order-row': './widgets/order-row' },
