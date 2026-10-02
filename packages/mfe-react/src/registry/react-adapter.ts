@@ -19,23 +19,66 @@ export interface ReactRegistryEntry extends FederatedRegistryEntry {
   readonly adapter: typeof REACT_ADAPTER_KIND
 }
 
+interface RouterGlobalGuard {
+  pending: number
+  readonly restore: () => void
+}
+
+const routerGlobalGuards = new WeakMap<object, RouterGlobalGuard>()
+
 /**
- * Hides `window.__TSR_ROUTER__` while a React container's modules evaluate: the router plugin's
- * development HMR shim reads it back and, finding the shell's `__root__` registered under the
- * same id, copies the shell's component onto the App that just mounted. It is restored only if
- * nothing published a newer router meanwhile, which would resurrect a stale reference.
+ * The router plugin's HMR shim looks up `__root__` even on a route's first evaluation. It must
+ * not see another router there, or it copies that router's component onto the new App. An
+ * accessor hides reads throughout every overlapping load while remembering routers published
+ * by mounts that finish meanwhile. Deleting once cannot hide those writes, and restoring after
+ * the first load exposes the shell to containers that are still evaluating.
  */
-async function withoutCurrentRouterGlobal<T>(load: () => Promise<T>): Promise<T> {
+function hideCurrentRouterGlobal(): RouterGlobalGuard {
   const owner = globalThis as { __TSR_ROUTER__?: unknown }
-  if (!('__TSR_ROUTER__' in owner)) return await load()
+  const descriptor = Object.getOwnPropertyDescriptor(owner, '__TSR_ROUTER__')
+  let latest = owner.__TSR_ROUTER__
+  let published = false
 
-  const previous = owner.__TSR_ROUTER__
-  delete owner.__TSR_ROUTER__
+  Object.defineProperty(owner, '__TSR_ROUTER__', {
+    configurable: true,
+    enumerable: descriptor?.enumerable ?? true,
+    get: () => undefined,
+    set: (router: unknown) => {
+      latest = router
+      published = true
+    },
+  })
 
+  return {
+    pending: 0,
+    restore: () => {
+      delete owner.__TSR_ROUTER__
+      if (descriptor !== undefined) {
+        Object.defineProperty(
+          owner,
+          '__TSR_ROUTER__',
+          'value' in descriptor ? { ...descriptor, value: latest } : descriptor,
+        )
+        if (published && descriptor.set !== undefined) descriptor.set.call(owner, latest)
+      } else if (published) {
+        owner.__TSR_ROUTER__ = latest
+      }
+    },
+  }
+}
+
+async function withoutCurrentRouterGlobal<T>(load: () => Promise<T>): Promise<T> {
+  const guard = routerGlobalGuards.get(globalThis) ?? hideCurrentRouterGlobal()
+  routerGlobalGuards.set(globalThis, guard)
+  guard.pending += 1
   try {
     return await load()
   } finally {
-    if (!('__TSR_ROUTER__' in owner)) owner.__TSR_ROUTER__ = previous
+    guard.pending -= 1
+    if (guard.pending === 0) {
+      guard.restore()
+      routerGlobalGuards.delete(globalThis)
+    }
   }
 }
 
