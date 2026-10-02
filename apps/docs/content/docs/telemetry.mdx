@@ -188,28 +188,23 @@ ended by its author, received 1 span(s) still open: lab.compute.
 
 ## Runtime snapshots for a shell bug report
 
-The shell can call `runtime.getSnapshot()` to attach a point-in-time runtime
-inventory to a report. The API and `RuntimeSnapshot` type are available through
-`@company/mfe-react/host` and `@company/mfe-angular/host`.
+Call `runtime.getSnapshot()` when your shell collects a bug report.
 
-```ts shared
-const snapshot = runtime.getSnapshot()
-const attachment = JSON.stringify(snapshot)
+```ts shared title="src/shell/diagnostics.ts (adapted)"
+const runtimeSnapshot = runtime.getSnapshot()
+const attachment = JSON.stringify(runtimeSnapshot, null, 2)
 ```
 
-The snapshot contains the runtime API version, capture timestamp, current App
-and Widget placements (including pending and failed placements), and accepted
-and rejected registry entries. Duplicate placements have different opaque IDs;
-retries keep the placement ID and advance the attempt. Disposed placements are
-absent. Loaded definition versions and published registry builds are included
-when available.
+Append `attachment` as a JSON code block in your report, or send it through your shell's issue tracker integration.
+The example shell includes it in the bug dialog's copied Markdown report and both **Copy diagnostics** actions.
+The dialog captures when it opens. The copy actions capture when they run.
 
-This API needs no telemetry collector and retains no diagnostic history. Each
-call returns detached records, so it is not a reactive snapshot for a UI hook.
-It omits inputs, outputs, storage, identity, URLs, DOM nodes and raw errors or
-rejected sources. Failed placements carry an error code. Registry rejection
-reasons are developer-facing text; the shell reviews and redacts these before
-sharing, and owns the report form, deployment context and submission.
+Use `runtimeSnapshot.mounts` to describe current placements, including Widgets and failed mounts.
+An empty list means no placements. A URL names a page, but cannot tell you which definitions actually mounted.
+
+Review rejection reasons and redact sensitive text before sharing.
+Your shell adds deployment context and decides where reports go. Snapshots need no telemetry collector.
+See [Runtime snapshots](/docs/reference/hooks-and-components#runtime-snapshots) for fields, lifecycle states and framework exports.
 
 ## Related
 
