@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { Alert, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
@@ -11,12 +11,15 @@ import {
 } from '@tecton/react/components/empty'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@tecton/react/components/input-group'
 import {
-  Item,
-  ItemContent,
-  ItemDescription,
-  ItemGroup,
-  ItemTitle,
-} from '@tecton/react/components/item'
+  Combobox,
+  ComboboxContent,
+  ComboboxEmpty,
+  ComboboxInput,
+  ComboboxItem,
+  ComboboxList,
+  ComboboxTrigger,
+  ComboboxValue,
+} from '@tecton/react/components/combobox'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@tecton/react/components/tabs'
 import { CopyButton } from '@tecton/react/tecton/copy-button'
 import {
@@ -52,13 +55,18 @@ export function SharedStateTab(): ReactNode {
   const snapshot = useSharedStateInspection(sharedState?.inspection)
   const [query, setQuery] = useState('')
   const [selection, setSelection] = useState<string>()
+  const navigation = useRef<HTMLElement>(null)
+  const allEntries = useMemo(
+    () => [...snapshot.entries].sort((a, b) => a.contract.id.localeCompare(b.contract.id)),
+    [snapshot.entries],
+  )
   const entries = useMemo(() => {
     const term = query.trim().toLowerCase()
-    return snapshot.entries
-      .filter(entry => entry.contract.id.toLowerCase().includes(term))
-      .sort((a, b) => a.contract.id.localeCompare(b.contract.id))
-  }, [snapshot.entries, query])
-  const selected = entries.find(entry => entry.contract.id === selection) ?? entries[0]
+    return allEntries.filter(entry => entry.contract.id.toLowerCase().includes(term))
+  }, [allEntries, query])
+  const keys = useMemo(() => allEntries.map(entry => entry.contract.id), [allEntries])
+  const selected = allEntries.find(entry => entry.contract.id === selection) ?? allEntries[0]
+  const tabStop = entries.find(entry => entry === selected) ?? entries[0]
 
   if (!sharedState)
     return (
@@ -90,72 +98,118 @@ export function SharedStateTab(): ReactNode {
     )
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Badge variant="success" appearance="outline">
-            Live
-          </Badge>
-          <span className="text-xs text-muted-foreground">
-            {snapshot.entries.length} contracts · Read only
-          </span>
-        </div>
-        <InputGroup className="w-full @md:w-64">
-          <InputGroupInput
-            aria-label="Search shared-state contracts"
-            placeholder="Search contracts…"
-            value={query}
-            onChange={event => setQuery(event.target.value)}
-          />
-          <InputGroupAddon align="inline-start">
-            <SearchIcon data-icon="inline-start" />
-          </InputGroupAddon>
-        </InputGroup>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex shrink-0 items-center gap-2 border-b border-border px-3 py-2">
+        <Badge variant="success" appearance="outline">
+          Live
+        </Badge>
+        <span className="text-xs text-muted-foreground">
+          {snapshot.entries.length} keys · Read only
+        </span>
       </div>
-      {selected === undefined ? (
-        <StateEmpty
-          title="No contracts match your search"
-          description="Search by state ID or clear the search to see all contracts."
-        />
-      ) : (
-        <div className="grid min-h-0 flex-1 grid-rows-[auto_minmax(16rem,1fr)] gap-3 @3xl:grid-cols-[minmax(14rem,0.8fr)_minmax(0,2fr)] @3xl:grid-rows-1">
-          <div className="max-h-56 min-h-0 overflow-y-auto @3xl:max-h-none">
-            <ItemGroup aria-label="Shared-state contracts" className="gap-1">
-              {entries.map(entry => (
-                <Item
-                  key={entry.contract.id}
-                  variant={entry === selected ? 'muted' : 'outline'}
-                  size="xs"
-                >
-                  <ItemContent>
-                    <ItemTitle className="w-full">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="min-w-0 flex-1 justify-start"
-                        aria-pressed={entry === selected}
-                        aria-label={`Inspect ${entry.contract.id}`}
-                        onClick={() => setSelection(entry.contract.id)}
-                      >
-                        <DatabaseIcon data-icon="inline-start" />
-                        <span className="truncate" title={entry.contract.id}>
-                          {entry.contract.id}
-                        </span>
-                      </Button>
-                      <StateStatus entry={entry} />
-                    </ItemTitle>
-                    <ItemDescription>
-                      Record revision {entry.recordRevision}
-                      {entry.pendingWrites > 0 ? ` · ${entry.pendingWrites} pending` : ''}
-                    </ItemDescription>
-                  </ItemContent>
-                </Item>
-              ))}
-            </ItemGroup>
-          </div>
-          <StateDetail key={`${snapshot.generation}:${selected.contract.id}`} entry={selected} />
+      {selected === undefined ? null : (
+        <div className="shrink-0 border-b border-border p-2 @3xl:hidden">
+          <Combobox
+            items={keys}
+            value={selected.contract.id}
+            onValueChange={value => {
+              if (value !== null) setSelection(value)
+            }}
+          >
+            <ComboboxTrigger
+              render={<Button variant="outline" className="w-full min-w-0 justify-between" />}
+              aria-label="Choose shared-state key"
+            >
+              <span className="min-w-0 truncate">
+                <ComboboxValue />
+              </span>
+            </ComboboxTrigger>
+            <ComboboxContent className="min-w-0">
+              <ComboboxInput
+                aria-label="Find a shared-state key"
+                placeholder="Search keys…"
+                showTrigger={false}
+              />
+              <ComboboxEmpty>No keys match your search.</ComboboxEmpty>
+              <ComboboxList>
+                {(key: string) => (
+                  <ComboboxItem key={key} value={key}>
+                    <span className="min-w-0 truncate" title={key}>
+                      {key}
+                    </span>
+                  </ComboboxItem>
+                )}
+              </ComboboxList>
+            </ComboboxContent>
+          </Combobox>
         </div>
       )}
+      <div className="grid min-h-0 flex-1 grid-cols-1 @3xl:grid-cols-[15rem_minmax(0,1fr)]">
+        <aside className="hidden min-h-0 flex-col border-r border-border @3xl:flex">
+          <div className="shrink-0 p-2">
+            <InputGroup>
+              <InputGroupInput
+                aria-label="Search shared-state contracts"
+                placeholder="Filter keys…"
+                value={query}
+                onChange={event => setQuery(event.target.value)}
+              />
+              <InputGroupAddon align="inline-start">
+                <SearchIcon data-icon="inline-start" />
+              </InputGroupAddon>
+            </InputGroup>
+          </div>
+          {entries.length === 0 ? (
+            <StateEmpty
+              title="No contracts match your search"
+              description="Search by state ID or clear the search to see all contracts."
+            />
+          ) : (
+            <nav
+              ref={navigation}
+              aria-label="Shared-state contracts"
+              className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain p-1"
+            >
+              {entries.map((entry, index) => (
+                <Button
+                  key={entry.contract.id}
+                  variant={entry === selected ? 'secondary' : 'ghost'}
+                  size="sm"
+                  className="w-full min-w-0 justify-between"
+                  aria-pressed={entry === selected}
+                  aria-label={`Inspect ${entry.contract.id}`}
+                  title={entry.contract.id}
+                  tabIndex={entry === tabStop ? 0 : -1}
+                  onClick={() => setSelection(entry.contract.id)}
+                  onKeyDown={event => {
+                    const target =
+                      event.key === 'ArrowDown'
+                        ? Math.min(index + 1, entries.length - 1)
+                        : event.key === 'ArrowUp'
+                          ? Math.max(index - 1, 0)
+                          : event.key === 'Home'
+                            ? 0
+                            : event.key === 'End'
+                              ? entries.length - 1
+                              : undefined
+                    const next = target === undefined ? undefined : entries[target]
+                    if (next === undefined) return
+                    event.preventDefault()
+                    setSelection(next.contract.id)
+                    navigation.current?.querySelectorAll('button')[target ?? 0]?.focus()
+                  }}
+                >
+                  <span className="min-w-0 truncate">{entry.contract.id}</span>
+                  <StateStatus entry={entry} />
+                </Button>
+              ))}
+            </nav>
+          )}
+        </aside>
+        {selected === undefined ? null : (
+          <StateDetail key={`${snapshot.generation}:${selected.contract.id}`} entry={selected} />
+        )}
+      </div>
     </div>
   )
 }
@@ -174,10 +228,10 @@ function StateStatus({ entry }: { readonly entry: SharedStateInspectionEntry }):
 
 function StateDetail({ entry }: { readonly entry: SharedStateInspectionEntry }): ReactNode {
   return (
-    <Panel variant="outline" size="sm" className="min-h-64">
+    <Panel variant="flat" size="sm" className="min-w-0">
       <PanelHeader>
         <div className="min-w-0 flex-1">
-          <PanelTitle className="break-all">{entry.contract.id}</PanelTitle>
+          <PanelTitle title={entry.contract.id}>{entry.contract.id}</PanelTitle>
           <PanelDescription>
             Record revision {entry.recordRevision} · {entry.pendingWrites} pending writes
           </PanelDescription>

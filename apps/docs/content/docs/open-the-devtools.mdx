@@ -48,7 +48,12 @@ next page load needs no parameter.
 
 Both registry views carry a count, so a missing container is one glance.
 
-In **Shared State**, search by state ID and select a contract to inspect it. **Current value**
+In **Shared State**, filter the compact key list and click anywhere on a row to inspect it. The
+list scrolls independently of the value pane; arrow keys, Home and End navigate its rows. In a
+narrow dock, use the searchable key picker instead: the value pane retains the full width and
+height below it. Filtering the list does not change the selected key.
+
+**Current value**
 includes optimistic updates, while **Confirmed** shows the last authoritative value accepted by
 the runtime. **Contract** shows the schema and its fingerprint, which is independent of the
 record revision. Copy controls copy the complete JSON even when a large preview is shortened.

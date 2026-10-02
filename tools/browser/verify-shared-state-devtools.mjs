@@ -10,10 +10,20 @@ export async function verifySharedStateDevtools(browser) {
   await mkdir(shots, { recursive: true })
   const screenshot = name => page.screenshot({ path: `${shots}${name}.png` })
   const panel = page.locator('[data-mfe-devtools-panel]')
+  const selectWell = async () => {
+    const picker = page.getByLabel('Choose shared-state key', { exact: true })
+    if (await picker.isVisible()) {
+      await picker.click()
+      await page.getByLabel('Find a shared-state key', { exact: true }).fill('well:selection')
+      await page.getByRole('option', { name: 'well:selection', exact: true }).click()
+    } else {
+      await page.getByRole('button', { name: 'Inspect well:selection', exact: true }).click()
+    }
+  }
   const open = async () => {
     await page.getByRole('button', { name: 'Open the developer tools', exact: true }).click()
     await page.getByRole('tab', { name: 'Shared State', exact: true }).click()
-    await page.getByRole('button', { name: 'Inspect well:selection', exact: true }).click()
+    await selectWell()
   }
   const close = () => page.getByRole('button', { name: 'Close the developer tools' }).click()
   let heldWrite
@@ -65,7 +75,7 @@ export async function verifySharedStateDevtools(browser) {
     await page.getByLabel('Search shared-state contracts', { exact: true }).fill('no-such-contract')
     await expect(page.getByText('No contracts match your search')).toBeVisible()
     await page.getByLabel('Search shared-state contracts', { exact: true }).fill('')
-    await page.getByRole('button', { name: 'Inspect well:selection', exact: true }).click()
+    await selectWell()
 
     // Responsive layout and tab persistence, using the panel's own controls.
     await page.getByRole('button', { name: 'Dock to the right', exact: true }).click()
@@ -77,7 +87,7 @@ export async function verifySharedStateDevtools(browser) {
       'true',
     )
     await page.setViewportSize({ width: 390, height: 844 })
-    await page.getByRole('button', { name: 'Inspect well:selection', exact: true }).click()
+    await selectWell()
     await expect(page.getByRole('tab', { name: 'Current value', exact: true })).toBeVisible()
     await screenshot('shared-state-mobile')
     expect(await panel.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)

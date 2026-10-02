@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react'
+import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
@@ -43,11 +43,12 @@ afterEach(() => {
 
 function setup(
   write: () => Promise<StateRecord> = async () => ({ id: 'units', revision: 1, value: 'imperial' }),
+  contracts: readonly StateContract[] = [contract],
 ) {
-  const hydrate = vi.fn(async () => [{ id: 'units', revision: 0 }])
+  const hydrate = vi.fn(async () => contracts.map(item => ({ id: item.id, revision: 0 })))
   const runtime = new SharedStateRuntime({
     scope: 'private-scope',
-    schema: { formatVersion: 1, contracts: [contract] },
+    schema: { formatVersion: 1, contracts },
     adapter: { hydrate, write },
   })
   context.sharedState = runtime
@@ -132,5 +133,62 @@ describe('Shared State tab', () => {
     expect(screen.getByText('Value has not been loaded')).toBeTruthy()
     expect(view.container.textContent).not.toContain('imperial')
     view.unmount()
+  })
+  it('makes the entire row clickable and supports arrow, Home and End navigation across 30 keys', async () => {
+    setup(
+      undefined,
+      Array.from({ length: 30 }, (_, index) => ({
+        ...contract,
+        id: `key:${String(index + 1).padStart(2, '0')}`,
+      })),
+    )
+    const user = userEvent.setup()
+    render(<SharedStateTab />)
+    const first = screen.getByRole('button', { name: 'Inspect key:01' })
+    const last = screen.getByRole('button', { name: 'Inspect key:30' })
+    // The badge and whitespace are inside the same button as the key label.
+    await user.click(last.querySelector('[data-slot="badge"]')!)
+    expect(last.getAttribute('aria-pressed')).toBe('true')
+    expect(last.getAttribute('tabindex')).toBe('0')
+    expect(first.getAttribute('tabindex')).toBe('-1')
+    await user.keyboard('{Home}{ArrowDown}')
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Inspect key:02' }))
+    await user.keyboard('{End}{ArrowUp}')
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Inspect key:29' }))
+    expect(
+      screen.getByRole('button', { name: 'Inspect key:29' }).getAttribute('aria-pressed'),
+    ).toBe('true')
+    await user.type(screen.getByLabelText('Search shared-state contracts'), 'key:03')
+    expect(screen.getByRole('button', { name: 'Inspect key:03' }).getAttribute('tabindex')).toBe(
+      '0',
+    )
+    // Filtering does not silently change the inspected key.
+    expect(screen.getByText('key:29', { selector: 'h2' })).toBeTruthy()
+  })
+  it('selects a key from the searchable narrow-dock picker without displaying a stacked list', async () => {
+    setup(
+      undefined,
+      Array.from({ length: 30 }, (_, index) => ({
+        ...contract,
+        id: `key:${String(index + 1).padStart(2, '0')}`,
+      })),
+    )
+    const user = userEvent.setup()
+    render(<SharedStateTab />)
+    await user.click(screen.getByRole('combobox', { name: 'Choose shared-state key' }))
+    const input = await screen.findByLabelText('Find a shared-state key')
+    await user.type(input, 'key:30')
+    await user.click(await screen.findByRole('option', { name: 'key:30' }))
+    expect(screen.getByText('key:30', { selector: 'h2' })).toBeTruthy()
+    await waitFor(() => expect(screen.queryByLabelText('Find a shared-state key')).toBeNull())
+    await user.click(screen.getByLabelText('Choose shared-state key'))
+    const reopenedInput = await screen.findByLabelText('Find a shared-state key')
+    await user.clear(reopenedInput)
+    await user.type(reopenedInput, 'missing')
+    expect(screen.getByText('No keys match your search.')).toBeTruthy()
+    await user.keyboard('{Escape}')
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByLabelText('Choose shared-state key')),
+    )
   })
 })
