@@ -1,4 +1,4 @@
-import { useId, useState, type ReactNode } from 'react'
+import { memo, useId, useState, type ReactNode } from 'react'
 import { useLoaderData } from '@tanstack/react-router'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
 import { Button } from '@tecton/react/components/button'
@@ -30,18 +30,13 @@ export function SharedStatePage(): ReactNode {
   const loadedSelection = useLoaderData({ from: '/shared-state' })
   const well = wells.find(candidate => candidate.id === selection?.wellId)
   const [error, setError] = useState('')
-  const [pending, setPending] = useState(false)
-  const [showInspection, setShowInspection] = useState(true)
 
   async function save(write: () => Promise<void>): Promise<void> {
-    setPending(true)
     try {
       await write()
       setError('')
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause))
-    } finally {
-      setPending(false)
     }
   }
 
@@ -66,7 +61,6 @@ export function SharedStatePage(): ReactNode {
               <NativeSelect
                 id={`${id}-well`}
                 value={well?.id ?? ''}
-                disabled={pending}
                 onChange={event => {
                   const next = wells.find(candidate => candidate.id === event.target.value)
                   if (next)
@@ -92,7 +86,7 @@ export function SharedStatePage(): ReactNode {
               <NativeSelect
                 id={`${id}-run`}
                 value={selection?.runId ?? ''}
-                disabled={pending || !well}
+                disabled={!well}
                 onChange={event => {
                   const runId = event.target.value
                   if (well?.runs.some(run => run.id === runId))
@@ -112,7 +106,6 @@ export function SharedStatePage(): ReactNode {
               <NativeSelect
                 id={`${id}-units`}
                 value={units}
-                disabled={pending}
                 onChange={event => {
                   const nextUnits = event.target.value
                   if (nextUnits === 'metric' || nextUnits === 'imperial')
@@ -123,11 +116,11 @@ export function SharedStatePage(): ReactNode {
                 <NativeSelectOption value="imperial">Feet</NativeSelectOption>
               </NativeSelect>
             </Field>
-            <Field orientation="horizontal" data-disabled={pending || !well}>
+            <Field orientation="horizontal" data-disabled={!well}>
               <Switch
                 id={`${id}-comparison`}
                 checked={selection?.comparisonMode === 'overlay'}
-                disabled={pending || !well}
+                disabled={!well}
                 onCheckedChange={checked =>
                   void save(() =>
                     setSelection({ comparisonMode: checked ? 'overlay' : 'baseline' }),
@@ -139,49 +132,14 @@ export function SharedStatePage(): ReactNode {
             <SurveyResults />
             <Button
               variant="ghost"
-              disabled={pending || selection === null}
+              disabled={selection === null}
               onClick={() => void save(() => setSelection(null))}
             >
               Clear selected well
             </Button>
           </LabSection>
         </section>
-        <section aria-label="Angular inspection app">
-          <LabSection title="Inspection planner" note="Angular Widget · Fieldwork">
-            <p>
-              The planner below is loaded from the Fieldwork container. It receives no well, run or
-              units as props.
-            </p>
-            {showInspection ? (
-              <WellInspection
-                pending={<WidgetSkeleton />}
-                fallback={({ error: failure, retry }) => (
-                  <Alert variant="destructive">
-                    <AlertTitle>Inspection planner could not load</AlertTitle>
-                    <AlertDescription>{failure.message}</AlertDescription>
-                    <AlertAction>
-                      <Button variant="outline" onClick={retry}>
-                        Retry inspection planner
-                      </Button>
-                    </AlertAction>
-                  </Alert>
-                )}
-              />
-            ) : (
-              <Empty>
-                <EmptyHeader>
-                  <EmptyTitle>Inspection panel closed</EmptyTitle>
-                  <EmptyDescription>
-                    Reopen it to read the current shared selection.
-                  </EmptyDescription>
-                </EmptyHeader>
-              </Empty>
-            )}
-            <Button variant="outline" onClick={() => setShowInspection(current => !current)}>
-              {showInspection ? 'Close inspection panel' : 'Reopen inspection panel'}
-            </Button>
-          </LabSection>
-        </section>
+        <InspectionPlanner />
       </div>
       <details>
         <summary>How the two MFEs share this selection</summary>
@@ -200,6 +158,47 @@ export function SharedStatePage(): ReactNode {
     </LabPage>
   )
 }
+
+// Shared-state updates reach Angular through its store subscription, independently of this form.
+const InspectionPlanner = memo(function InspectionPanel(): ReactNode {
+  const [showInspection, setShowInspection] = useState(true)
+  return (
+    <section aria-label="Angular inspection app">
+      <LabSection title="Inspection planner" note="Angular Widget · Fieldwork">
+        <p>
+          The planner below is loaded from the Fieldwork container. It receives no well, run or
+          units as props.
+        </p>
+        {showInspection ? (
+          <WellInspection
+            pending={<WidgetSkeleton />}
+            fallback={({ error: failure, retry }) => (
+              <Alert variant="destructive">
+                <AlertTitle>Inspection planner could not load</AlertTitle>
+                <AlertDescription>{failure.message}</AlertDescription>
+                <AlertAction>
+                  <Button variant="outline" onClick={retry}>
+                    Retry inspection planner
+                  </Button>
+                </AlertAction>
+              </Alert>
+            )}
+          />
+        ) : (
+          <Empty>
+            <EmptyHeader>
+              <EmptyTitle>Inspection panel closed</EmptyTitle>
+              <EmptyDescription>Reopen it to read the current shared selection.</EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        )}
+        <Button variant="outline" onClick={() => setShowInspection(current => !current)}>
+          {showInspection ? 'Close inspection panel' : 'Reopen inspection panel'}
+        </Button>
+      </LabSection>
+    </section>
+  )
+})
 
 function SurveyResults(): ReactNode {
   const [units] = useSharedState('display:units')
