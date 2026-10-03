@@ -2,7 +2,7 @@
   "capabilities": "/docs",
   "troubleshooting": "/docs",
   "storage-outside-render": "/docs/remember-a-value#read-or-write-outside-render",
-  "user-context-outside-render": "/docs/user-context#read-state-in-a-loader-or-resolver",
+  "shared-state-outside-render": "/docs/user-context#read-state-in-a-loader-or-resolver",
   "share-a-value-with-the-shell": "/docs/remember-a-value#choose-where-to-store-a-value",
   "log-an-event": "/docs/telemetry#record-events-measurements-and-caught-errors",
   "report-an-error": "/docs/telemetry#record-events-measurements-and-caught-errors",
@@ -12,6 +12,5 @@
   "shared-state": "/docs/user-context",
   "configure-shared-state": "/docs/configure-user-context",
   "evolve-shared-state": "/docs/evolve-user-context",
-  "shared-state-outside-render": "/docs/user-context#read-state-in-a-loader-or-resolver",
   "how-it-works/shared-state": "/docs/how-it-works/user-context"
 }

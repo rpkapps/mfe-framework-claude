@@ -69,8 +69,7 @@ const config: Linter.Config[] = [
       // The documentation site is not an MFE, but it is first-party React in this workspace and
       // the framework preset is the one that holds first-party code to the repository's rules.
       'apps/docs/src/**/*.{ts,tsx}',
-      // Schema ownership and the host adapter are supporting packages, not MFE author code.
-      'examples/user-context-contracts/src/**/*.ts',
+      // The user-context example's sample data and API are supporting code, not MFE author code.
       'examples/user-context/src/**/*.ts',
     ],
     // `rules-of-hooks` reads any call to something named `use` as a hook call, so a bundler
@@ -112,11 +111,7 @@ const config: Linter.Config[] = [
       })
       .map(object => ({
         ...object,
-        ignores: [
-          ...(object.ignores ?? []),
-          'examples/user-context-contracts/**',
-          'examples/user-context/**',
-        ],
+        ignores: [...(object.ignores ?? []), 'examples/user-context/**'],
       })),
   ),
 

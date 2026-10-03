@@ -157,7 +157,7 @@ export function SelectedWell() {
 
 Mount these components within a Suspense boundary and an error boundary, as their initial reads wait for hydration. The foreign Lab binding returns a one-element tuple with no setter. Each selector subscribes to the fields it accesses and cleans up automatically. Other shell surfaces can keep reading the effective theme while that preference loads. Only accepted writes update the stored preference.
 
-The framework maintains a theme cache partitioned by authenticated tenant, account and user. The shell's prepaint bootstrap must use the same cache key and known identity. Before identity is available, use the system theme; do not apply another user's cached preference. A theme correction may be necessary after sign-in when the identity was unknown at first paint.
+The framework maintains a theme cache partitioned by authenticated tenant, account and user. The shell's prepaint bootstrap must use the same cache key and known identity: `themeCacheKey(cacheKey, user)` from the `/host` entry builds that key, and `readCachedTheme(cacheKey, user)` reads it safely. Before identity is available, use the system theme; do not apply another user's cached preference. A theme correction may be necessary after sign-in when the identity was unknown at first paint.
 
 ## Inspect context
 

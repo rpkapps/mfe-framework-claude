@@ -84,7 +84,6 @@ const RECIPES = [
   'run-the-checks',
   'run-the-shell-locally',
   'set-breadcrumbs',
-  'user-context',
   'show-an-icon',
   'supply-values-per-deployment',
   'telemetry',
@@ -95,6 +94,7 @@ const RECIPES = [
   'test-with-env-and-a-fake-api',
   'undeploy-or-roll-back',
   'use-the-design-system',
+  'user-context',
   'version-your-container',
   'what-you-must-not-do',
 ]

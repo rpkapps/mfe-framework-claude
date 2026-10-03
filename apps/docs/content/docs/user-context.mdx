@@ -6,6 +6,20 @@ description: 'Own a typed context slice, await saved changes, and subscribe to a
 User context remembers selections, filters and preferences for the current user scope. Each App or Widget owns one slice under its definition ID. Only that definition can update its slice; other definitions can declare a typed, read-only view.
 
 The shell must [configure user context](/docs/configure-user-context) before mounting your definition.
+For a preference belonging to one definition in this browser, use [browser storage](/docs/remember-a-value).
+
+<Diagram
+  src="/diagrams/capability-user-context.svg"
+  alt="React and Angular bindings connect to the runtime user context service and the shell-configured adapter."
+  caption="Both framework adapters connect to the same shell-owned service."
+>
+  The generated React hook and Angular injector read and set context through the runtime user
+  context service, which knows each owner, its read contracts and the current scope. The service
+  loads and saves records through the shell's adapter. A setter's promise resolves after persistence
+  accepts the write.
+</Diagram>
+
+Try the [running React and Angular example](https://github.com/rpkapps/mfe-framework-claude/tree/dev/examples/user-context).
 
 ## Steps
 
