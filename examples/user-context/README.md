@@ -3,8 +3,8 @@
 Each definition can own a context schema. React Lab owns the selected well, survey, comparison setting,
 and units in its `lab` slice. Angular Fieldwork reads that slice through a read-only binding. Its inspection Widget owns and persists its own `brief`.
 This folder supplies the example shell's browser adapter and the local API's file repository.
-The runtime registers owner contracts embedded in the generated registry; the backend loads the generated
-Lab, inspection Widget and shell contracts for validation. There is no global authoring contract package.
+The runtime registers generated owner contracts privately. The adapter and backend know only
+opaque per-user owner documents; they import no Lab, Widget or shell schemas.
 
 Definitions group authoring under `userContext: { schema?, reads? }`: `schema` belongs to that
 definition, and `reads` declares the required subset of a foreign owner. Lab declares only its
@@ -39,19 +39,23 @@ and provides the setter for the brief. Lab’s `units` and `well-selection` keys
 | ------------------------------------- | ----------------------------------------------------- |
 | Lab-owned schema                      | `examples/lab/src/user-context.schema.ts`             |
 | Inspection-owned schema and Lab reads | `examples/fieldwork/src/user-context.schema.ts`       |
-| Per-container published artifacts     | Each container's `user-context.schema.json`           |
 | React owner hooks and partial writes  | `examples/lab/src/user-context-page.tsx`              |
 | Angular foreign reader                | `examples/fieldwork/src/well-inspection.component.ts` |
 | Browser transport                     | `examples/user-context/src/browser.ts`                |
-| Backend contract aggregation          | `examples/user-context/src/schema.js`                 |
 | Local API                             | `tools/dev/api.mjs`                                   |
 | Durable file repository               | `examples/user-context/server.mjs`                    |
 
 ## Local persistence and authorization boundary
 
-The local API writes `.mfe/user-context-demo/records.json`. Stop the API before deleting that file
+The local API writes `.mfe/user-context-demo/records.json` with separate `documents` and `metadata`
+objects. Each `documents[scope]` is an opaque owner map such as
+`{ lab: { units: "imperial" }, shell: { preferences: { theme: "dark" } } }`.
+The companion `metadata[scope][owner]` holds record revisions and retry receipts. Updating one owner
+never rewrites another owner's value. No schema file or list of domain fields reaches the API. Stop the API before deleting that file
 to restore defaults. Accepted writes flush the file, atomically rename it, and flush its directory.
 The single-process repository serializes writes, checks revisions, and preserves retry receipts.
+Earlier opaque demo records are converted without schemas, preserving values and retry metadata.
+Hydration remains read-only; the next accepted save commits the new document layout.
 
 This development API has no sign-in service. It accepts only the local shell demo identity,
 `u-2841`, with no tenant or account ID. The runtime derives that user's scope automatically.

@@ -2,11 +2,22 @@ import {
   mountApp,
   createTestUserContextRepository,
   createUserContextBackend,
+  type MemoryRuntimeOptions,
 } from '@company/mfe-angular/testing'
-import { schema } from '@example/user-context-demo/schema'
+import labRegistry from '../../lab/.mfe/mfe-registry.json'
+import fieldworkRegistry from '../../fieldwork/.mfe/mfe-registry.json'
 import { expect, it } from 'vitest'
 
 import { fieldwork as app } from './mfe'
+
+// Canonical contracts come from the same generated registry artifacts deployed by each owner.
+const generatedSchema = {
+  formatVersion: 1,
+  contracts: [...labRegistry.definitions, ...fieldworkRegistry.definitions].flatMap(definition =>
+    'userContextContract' in definition ? [definition.userContextContract] : [],
+  ),
+}
+const schema = generatedSchema as NonNullable<MemoryRuntimeOptions['userContext']>['schema']
 
 function state() {
   const repository = createTestUserContextRepository().repository
@@ -14,7 +25,6 @@ function state() {
     schema,
     scope: 'test',
     adapter: createUserContextBackend({
-      schema,
       repository,
       resolveOwner: async () => 'fieldwork',
       authorize: async () => undefined,

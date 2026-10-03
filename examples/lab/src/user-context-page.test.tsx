@@ -1,21 +1,31 @@
 import '@angular/compiler'
 import {
   createUserContextBackend,
+  type MemoryRuntimeOptions,
   createTestUserContextRepository,
   mountApp,
 } from '@company/mfe-react/testing'
-import { schema } from '@example/user-context-demo/schema'
+import labRegistry from '../../lab/.mfe/mfe-registry.json'
+import fieldworkRegistry from '../../fieldwork/.mfe/mfe-registry.json'
 import { fireEvent, waitFor, within } from '@testing-library/react'
 import { expect, it } from 'vitest'
 
 import app from './mfe.ts'
 import { wellInspection } from '../../fieldwork/src/mfe.ts'
 
+// Canonical contracts come from the same generated registry artifacts deployed by each owner.
+const generatedSchema = {
+  formatVersion: 1,
+  contracts: [...labRegistry.definitions, ...fieldworkRegistry.definitions].flatMap(definition =>
+    'userContextContract' in definition ? [definition.userContextContract] : [],
+  ),
+}
+const schema = generatedSchema as NonNullable<MemoryRuntimeOptions['userContext']>['schema']
+
 it('reads Lab context in Angular and restores the durable selection after remount', async () => {
   const { repository } = createTestUserContextRepository()
   const backend = (owner: string) =>
     createUserContextBackend({
-      schema,
       repository,
       resolveOwner: async () => owner,
       authorize: async () => undefined,
@@ -85,7 +95,6 @@ it('reads Lab context in Angular and restores the durable selection after remoun
 it('keeps the committed selection visible while saving and reports a rejected write', async () => {
   const { repository } = createTestUserContextRepository()
   const backend = createUserContextBackend({
-    schema,
     repository,
     resolveOwner: async () => 'lab',
     authorize: async () => undefined,

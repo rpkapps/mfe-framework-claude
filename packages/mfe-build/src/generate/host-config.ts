@@ -264,15 +264,6 @@ function hostUserContextFiles(context: HostConfigContext): GeneratedFile[] {
   const values = own ? stateType(own.node) : 'Record<string, never>'
   const readTypes = `{ ${foreign.map(contract => `${JSON.stringify(contract.id)}: ${stateType(contract.node)}`).join('; ')} }`
   return [
-    ...(own
-      ? [
-          {
-            path: generatedPath(context.options.generatedDir, 'user-context.contract.json'),
-            contents: JSON.stringify(own, null, 2) + '\n',
-            asset: 'user-context.contract.json',
-          },
-        ]
-      : []),
     {
       path: generatedPath(context.options.generatedDir, 'user-context.ts'),
       contents: [

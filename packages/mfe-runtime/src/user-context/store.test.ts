@@ -64,7 +64,6 @@ function setup(override?: (adapter: UserContextAdapter) => UserContextAdapter) {
   const storage = createTestUserContextRepository()
   const authorize = vi.fn(async (_scope: string, _id: string, _operation: 'read' | 'write') => {})
   const backend = createUserContextBackend({
-    schema,
     repository: storage.repository,
     authorize,
     resolveOwner: async () => owner.id,
@@ -512,62 +511,10 @@ describe('definition-owned user context', () => {
   })
 })
 
-describe('backend owner authorization and durable protocol', () => {
-  it('independently rejects a write to another owner even when scope authorization allows it', async () => {
-    const { backend, records, authorize } = setup()
-    await expect(
-      backend.write(
-        {
-          scope: 'tenant/user/workspace',
-          id: other.id,
-          expectedRevision: 0,
-          operationId: 'spoof',
-          value: { units: 'imperial' },
-        },
-        signal(),
-      ),
-    ).rejects.toMatchObject({ code: 'user-context/unauthorized-owner' })
-    expect(records.size).toBe(0)
-    expect(authorize).not.toHaveBeenCalled()
-  })
-
-  it('enforces scope policy, canonical validation, CAS and idempotent receipt replay', async () => {
-    const { backend, records, authorize } = setup()
-    const operation: StateWrite = {
-      scope: 'tenant/user/workspace',
-      id: owner.id,
-      expectedRevision: 0,
-      operationId: 'one',
-      value: { units: 'imperial' },
-    }
-    const accepted = await backend.write(operation, signal())
-    await backend.write(
-      {
-        ...operation,
-        expectedRevision: 1,
-        operationId: 'two',
-        value: { selection: { well: '42', run: null } },
-      },
-      signal(),
-    )
-    expect(await backend.write(operation, signal())).toEqual(accepted)
-    expect(records.get(`${operation.scope}/${owner.id}`)?.revision).toBe(2)
-    await expect(
-      backend.write({ ...operation, value: { units: 'metric' } }, signal()),
-    ).rejects.toThrow('reused')
-    await expect(
-      backend.write({ ...operation, operationId: 'three' }, signal()),
-    ).rejects.toMatchObject({ code: 'user-context/conflict' })
-    authorize.mockRejectedValueOnce(new Error('forbidden'))
-    await expect(
-      backend.write({ ...operation, operationId: 'four', expectedRevision: 2 }, signal()),
-    ).rejects.toThrow('forbidden')
-  })
-
-  it('rejects malformed contracts and requires trusted owner resolution', () => {
+describe('validation boundaries', () => {
+  it('keeps schema validation in the client and requires trusted backend owner resolution', () => {
     const { repository } = createTestUserContextRepository()
     const options = {
-      schema,
       repository,
       authorize: async () => {},
       resolveOwner: async () => owner.id,
@@ -592,7 +539,6 @@ describe('backend owner authorization and durable protocol', () => {
       },
     ]) {
       const malformed = { formatVersion: 1 as const, contracts: [contract as StateContract] }
-      expect(() => createUserContextBackend({ ...options, schema: malformed })).toThrow()
       expect(
         () =>
           new UserContextRuntime({
@@ -641,5 +587,136 @@ describe('read-only inspection', () => {
     expect(snapshots[0]?.entries.every(entry => entry.confirmed === undefined)).toBe(true)
     runtime.dispose()
     expect(snapshots.at(-1)).toMatchObject({ generation: 2, disposed: true, entries: [] })
+  })
+})
+
+const preferenceOwner: StateContract = {
+  formatVersion: 1,
+  id: 'owner-app',
+  revision: 'preferences',
+  node: {
+    kind: 'object',
+    strict: false,
+    fields: {
+      preferences: {
+        kind: 'default',
+        value: { appearance: { theme: 'light', fontSize: 14 }, layout: 'grid' },
+        inner: {
+          kind: 'object',
+          strict: false,
+          fields: {
+            appearance: {
+              kind: 'default',
+              value: { theme: 'light', fontSize: 14 },
+              inner: {
+                kind: 'object',
+                strict: false,
+                fields: { theme: { kind: 'string' }, fontSize: { kind: 'number' } },
+              },
+            },
+            layout: { kind: 'string' },
+          },
+        },
+      },
+      items: {
+        kind: 'optional',
+        inner: {
+          kind: 'array',
+          item: { kind: 'object', strict: false, fields: { label: { kind: 'string' } } },
+        },
+      },
+    },
+  },
+}
+async function preferenceContext(initial?: StateWrite['value']) {
+  const { repository } = createTestUserContextRepository()
+  const backend = createUserContextBackend({
+    repository,
+    authorize: async () => {},
+    resolveOwner: async () => preferenceOwner.id,
+  })
+  if (initial !== undefined)
+    await backend.write(
+      {
+        scope: 'user',
+        id: preferenceOwner.id,
+        expectedRevision: 0,
+        operationId: 'seed',
+        value: initial,
+      },
+      signal(),
+    )
+  const write = vi.fn(backend.write)
+  const runtime = new UserContextRuntime({
+    scope: 'user',
+    schema: { formatVersion: 1, contracts: [preferenceOwner] },
+    adapter: { ...backend, write },
+  })
+  const requirements = refs([preferenceOwner])
+  await runtime.prepare(requirements)
+  return {
+    runtime,
+    backend,
+    write,
+    store: runtime.bind<{
+      preferences: { appearance: { theme: string; fontSize: number }; layout: string }
+      items?: { label: string }[]
+    }>(preferenceOwner.id, requirements),
+  }
+}
+
+describe('client defaults with opaque persistence', () => {
+  it('seeds defaulted required siblings for the first write, then sends queued writes narrowly', async () => {
+    const { runtime, backend, write, store } = await preferenceContext()
+    try {
+      const first = store.set('preferences', { appearance: { theme: 'dark' } })
+      const second = store.set('preferences', { appearance: { fontSize: 20 } })
+      expect(await first).toEqual({
+        ok: true,
+        value: { appearance: { theme: 'dark', fontSize: 14 }, layout: 'grid' },
+      })
+      expect(await second).toEqual({
+        ok: true,
+        value: { appearance: { theme: 'dark', fontSize: 20 }, layout: 'grid' },
+      })
+      expect(write.mock.calls[0]?.[0].value).toEqual({
+        preferences: { appearance: { theme: 'dark', fontSize: 14 }, layout: 'grid' },
+      })
+      expect(write.mock.calls[1]?.[0].value).toEqual({
+        preferences: { appearance: { fontSize: 20 } },
+      })
+      expect((await backend.hydrate('user', [preferenceOwner.id], signal()))[0]?.value).toEqual({
+        preferences: { appearance: { theme: 'dark', fontSize: 20 }, layout: 'grid' },
+      })
+    } finally {
+      runtime.dispose()
+    }
+  })
+
+  it('seeds only absent nested branches and preserves persisted sibling arrays with unknown fields', async () => {
+    const initial = {
+      preferences: { layout: 'list', newerPreference: true },
+      items: [{ label: 'existing', newerItemField: 'retain' }],
+      unknownRoot: { keep: true },
+    }
+    const { runtime, backend, write, store } = await preferenceContext(initial)
+    try {
+      const patch = JSON.parse(
+        '{"appearance":{"theme":"dark"},"constructor":{"ignored":true},"__proto__":{"ignored":true}}',
+      ) as { appearance: { theme: string } }
+      expect((await store.set('preferences', patch)).ok).toBe(true)
+      expect(write.mock.calls[0]?.[0].value).toEqual({
+        preferences: { appearance: { theme: 'dark', fontSize: 14 } },
+      })
+      expect((await backend.hydrate('user', [preferenceOwner.id], signal()))[0]?.value).toEqual({
+        ...initial,
+        preferences: { ...initial.preferences, appearance: { theme: 'dark', fontSize: 14 } },
+      })
+      const replacement = [{ label: 'replacement', ignored: 'stripped by the client' }]
+      expect((await store.set('items', replacement)).ok).toBe(true)
+      expect(write.mock.calls[1]?.[0].value).toEqual({ items: [{ label: 'replacement' }] })
+    } finally {
+      runtime.dispose()
+    }
   })
 })

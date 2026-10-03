@@ -175,14 +175,10 @@ function startStandIn(script, label, colour) {
  */
 function generateContainers(services) {
   const containers = services.filter(service => !service.isShell)
+  if (!containers.length) return Promise.resolve()
 
   return new Promise((resolve, reject) => {
-    // The example API needs the shell's compiled preference contract even in --only-mfes mode.
-    const filters = [
-      '--filter',
-      '@company/shell',
-      ...containers.flatMap(service => ['--filter', service.packageName]),
-    ]
+    const filters = containers.flatMap(service => ['--filter', service.packageName])
     const child = spawnPnpm([...filters, 'run', 'generate'], {
       cwd: repoRoot,
       stdio: 'inherit',

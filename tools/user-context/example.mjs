@@ -40,7 +40,6 @@ const repository = {
   },
 }
 const backend = createUserContextBackend({
-  schema: v2,
   repository,
   resolveOwner: async () => 'well-selection',
   authorize: async scope => {

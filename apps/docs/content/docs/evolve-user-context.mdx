@@ -13,26 +13,26 @@ Object updates merge recursively. An older owner deployment updating a known fie
 
 Supported declarations include fixed Zod objects, finite JSON primitives, literals, string enums, arrays, nullable and optional properties, deterministic defaults and supported numeric/string/array bounds. Transforms, coercion, arbitrary refinements, dynamic defaults, unions, records and recursion fail compilation.
 
-## Check against previous owner releases
+## Optional owner release checks
 
-When a deployment maintains a support window, pass optional per-owner baselines to build tooling:
+Normal generation and deployment need no baseline map or central version configuration. An owner that promises compatibility with a previous release can compare its own contracts in a standalone release check:
 
-```ts shared title="Build options (compatibility baselines)"
-userContextBaselines: {
-  operations: ['./deployment/operations-v1.json'],
-  reports: ['./deployment/reports-v2.json'],
+```ts shared title="Optional owner release check"
+import { compareContracts } from '@company/mfe-build/user-context'
+
+const diagnostics = compareContracts(previousOwnerContract, candidateOwnerContract)
+if (diagnostics.length > 0) {
+  throw new Error(diagnostics.map(item => `${item.path}: ${item.message}`).join('\n'))
 }
 ```
 
-Each path contains the owner's previously published compiled contract, either as a single-owner manifest or a bare contract. Release CI should source baselines from trusted published artifacts. The checks compare that owner's new schema against its baselines; no global schema package or mandatory global policy file is required.
+The owner supplies those two contracts from its release artifacts. This check is separate from the shell, adapters and persistence service; none needs a list of domain contracts, schema revisions or baseline paths. A comparison is optional and does not coordinate other teams' deployments.
 
-A first release can build without baselines. Omitting baselines does not establish compatibility with earlier releases; supply the releases your deployment promises to support.
+## Coordinate readers with owners
 
-## Coordinate deployments
+Publish the owner's definition and generated registry metadata together. Existing readers can continue using a compatible subset. A new reader requiring unavailable capabilities fails before mounting instead of silently losing data.
 
-Publish the owner's new compiled contract with its deployment artifacts. Publish a compatible current contract through the owner's registry entry and update the backend's trusted contracts before deploying a reader that requires newly added fields. Existing readers can continue using their older subset. A new reader requiring an unavailable capability fails before mount rather than silently dropping data.
-
-The runtime discovers current owner contracts from the registry; the backend loads its trusted current owner contracts. Historical baselines remain in build and release tooling, outside consumer runtime payloads.
+The persisted document remains opaque JSON. Adding a field does not require a backend schema change or a new adapter release; defaulting and validation happen in the owning MFE's runtime. Writes from older deployments preserve fields they do not understand. Historical contracts, if retained for optional comparison, stay in the owner's release tooling.
 
 ## Related
 

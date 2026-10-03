@@ -1,6 +1,6 @@
 ---
 title: 'Configure user context in the shell'
-description: 'Connect owner contracts to authenticated persistence and scope changes.'
+description: 'Persist opaque user documents through an authenticated adapter.'
 ---
 
 The shell supplies the storage adapter and its authenticated user through the normal shell state. Definitions independently declare their own schemas and cross-owner reads. The runtime registers compiled owner contracts embedded in the generated registry; application code does not aggregate owner schemas or construct a storage scope.
@@ -20,11 +20,21 @@ const { runtime } = createMfeRuntime({
 })
 ```
 
-`hostOptions` contains the host's usual registry entries, framework adapters and container loader. The generated registry embeds each definition's current owner contract. Before mounting a definition, the runtime checks the consumer's declared requirements against those contracts and hydrates the required slices. An unsupported read contract fails before render, loaders or resolvers run. Publish the generated registry with the container; standalone contract artifacts are also emitted for backend deployment and compatibility checks.
+`hostOptions` contains the host's usual registry entries, framework adapters and container loader. The generated registry embeds each definition's current owner contract. Before mounting a definition, the runtime checks the consumer's declared requirements against those contracts and hydrates the required slices. An unsupported read contract fails before render, loaders or resolvers run. Publish the generated registry with the container; owner contracts remain framework metadata; neither the shell integration nor the persistence adapter imports a schema list.
 
 Each authenticated scope comes from the user's tenant ID, account ID and user ID. No storage calls run while `shellState.user` is `null`. Owners and readers use the same authenticated scope without receiving or assembling an identity key themselves.
 
-The persistence backend still needs current compiled owner contracts for authoritative validation. Load those from trusted deployment artifacts, including the shell's own contract if it owns context. A reader's subset is a consumer requirement, not the owner's full schema. Historical release baselines stay in build tooling.
+The adapter and backend store an opaque document for each authenticated user, keyed by owner ID:
+
+```json shared title="One user's persisted document"
+{
+  "lab": { "units": "imperial", "well-selection": { "wellId": "well-42", "runId": "run-8" } },
+  "well-inspection": { "brief": null },
+  "shell": { "preferences": { "theme": "dark" } }
+}
+```
+
+Changing Lab updates only the `lab` entry. Other owners and fields unknown to an older deployment remain intact. The backend has no domain schemas, field lists or defaults to keep in sync. Revision and retry metadata can be stored alongside this document without becoming application values. The MFE runtime owns schema validation and default materialization.
 
 ## Implement persistence
 
@@ -46,21 +56,18 @@ The API client returns authoritative `StateRecord` values, forwards abort signal
 
 An owner write includes `scope`, `id`, `expectedRevision`, `operationId` and a structural object update. Preserve unknown fields when applying an older writer's update. Deduplicate operation IDs and compare revisions transactionally. Never trust an owner ID or opaque scope as authorization; authorize using the authenticated server session.
 
-For a backend implementation, use `createUserContextBackend` from `@company/mfe-runtime/user-context`. Supply current owner contracts, authenticated authorization, a `resolveOwner` callback derived from the trusted request identity, and a `UserContextRepository` whose `transact` resolves after durable commit. Its transaction applies recursive object merges, validates the resulting slice and stores the idempotency receipt together.
+For a backend implementation, use `createUserContextBackend` from `@company/mfe-runtime/user-context`. Supply a `UserContextRepository`, authenticated authorization and a `resolveOwner` callback derived from the trusted request identity. There is no schema option. Its transaction checks the record revision, merges opaque JSON objects recursively and saves the result and idempotency receipt together. The repository resolves only after durable commit.
 
 A request-scoped backend binds the authenticated writer independently of the submitted record:
 
 ```ts shared title="server/user-context.ts"
 import { createUserContextBackend } from '@company/mfe-runtime/user-context'
-import operations from './deployment/operations-contract.json' with { type: 'json' }
-import shell from './deployment/shell-contract.json' with { type: 'json' }
 import { repository } from './context-repository'
 import { authenticate, authorizeContext } from './authentication'
 
 export async function contextForRequest(request: Request) {
   const session = await authenticate(request)
   return createUserContextBackend({
-    schema: { formatVersion: 1, contracts: [operations, shell] },
     repository,
     resolveOwner: async () => session.authorizedDefinitionId,
     authorize: (scope, ownerId, operation) =>
@@ -69,7 +76,7 @@ export async function contextForRequest(request: Request) {
 }
 ```
 
-`authenticate`, `authorizeContext`, and the durable repository belong to your application. The authenticated definition ID must come from a trusted server policy or credential, not an arbitrary owner header. The JSON files are current contracts copied from generated deployment artifacts. A write route obtains its backend with `contextForRequest(request)`, then forwards the parsed operation and request abort signal to `backend.write`; a hydration route calls `backend.hydrate` after the same authorization setup.
+`authenticate`, `authorizeContext`, and the durable repository belong to your application. The authenticated definition ID must come from a trusted server policy or credential, not an arbitrary owner header. A write route obtains its backend with `contextForRequest(request)`, then forwards the parsed operation and request abort signal to `backend.write`; a hydration route calls `backend.hydrate` after the same authorization setup.
 
 The runtime keeps pending writes invisible. Once storage accepts a write, it publishes the accepted value to subscribers and resolves the caller's success result. Rejected writes return a structured failure without replacing the previous committed value.
 

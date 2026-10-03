@@ -4,6 +4,7 @@ import {
   applyStateWrite,
   assertStateContract,
   assertJson,
+  isObject,
   immutable,
   normalize,
   UserContextError,
@@ -43,6 +44,8 @@ interface Entry {
   status: 'absent' | 'hydrating' | 'ready' | 'invalid' | 'persistence-failed'
   recordRevision: number
   confirmed: Json | undefined
+  /** Raw accepted data distinguishes absent default branches from persisted unknown fields. */
+  persisted: Json | undefined
   effective: Json | undefined
   error?: unknown
   readonly views: Map<
@@ -390,6 +393,7 @@ export class UserContextRuntime implements UserContextService {
         status: 'absent',
         recordRevision: 0,
         confirmed: undefined,
+        persisted: undefined,
         effective: undefined,
         views: new Map(),
         listeners: new Set(),
@@ -545,6 +549,7 @@ export class UserContextRuntime implements UserContextService {
       )
     if (record.revision < entry.recordRevision) return
     entry.confirmed = immutable(value)
+    entry.persisted = immutable(structuredClone(record.value))
     entry.recordRevision = record.revision
     entry.status = 'ready'
     delete entry.error
@@ -587,7 +592,11 @@ export class UserContextRuntime implements UserContextService {
                 id: entry.canonical.id,
                 expectedRevision,
                 operationId: pending.operationId,
-                value: pending.value,
+                value: persistencePatch(
+                  entry.persisted,
+                  applyStateWrite(entry.canonical, entry.confirmed, pending.value),
+                  pending.value,
+                ),
               },
               this.#controller.signal,
             ),
@@ -741,4 +750,32 @@ function objectNode(
 ): Extract<StateContract['node'], { kind: 'object' }> | undefined {
   if (node.kind === 'default') return objectNode(node.inner)
   return node.kind === 'object' ? node : undefined
+}
+
+/**
+ * A schema-free backend cannot materialize defaults. Seed only missing branches that the client
+ * validated from defaults; keep existing branches narrow so newer, unknown fields stay intact.
+ * Called at send time, after earlier queued writes have established their accepted raw records.
+ */
+function persistencePatch(persisted: unknown, validated: Json, supplied: Json): Json {
+  if (!isObject(supplied)) return structuredClone(validated)
+  if (!isObject(persisted)) return structuredClone(validated)
+  const next = validated as Record<string, Json>
+  const patch: Record<string, Json> = {}
+  for (const [key, value] of Object.entries(supplied)) {
+    const selected = Object.hasOwn(next, key) ? next[key] : undefined
+    // Domain validation may strip an undeclared key. It is never a persisted client intention.
+    if (selected === undefined) continue
+    Object.defineProperty(patch, key, {
+      value: persistencePatch(
+        Object.hasOwn(persisted, key) ? persisted[key] : undefined,
+        selected,
+        value,
+      ),
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    })
+  }
+  return patch
 }

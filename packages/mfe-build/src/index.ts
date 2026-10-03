@@ -112,4 +112,4 @@ export type {
 } from './css/scope.ts'
 export { scopeFallbackPlugin } from './css/scope-fallback.ts'
 
-export { userContextTransformRule, checkUserContextBuild } from './user-context/integration.ts'
+export { userContextTransformRule } from './user-context/integration.ts'

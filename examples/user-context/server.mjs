@@ -1,35 +1,88 @@
 import { mkdir, open, readFile, rename } from 'node:fs/promises'
 import { dirname } from 'node:path'
 import { createUserContextBackend } from '@company/mfe-runtime/user-context'
-import { schema } from './src/schema.js'
 
 // Matches the shell's local demo identity; production derives this from its authenticated session.
 export const DEMO_SCOPE = JSON.stringify([null, null, 'u-2841'])
+
+function isMap(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
 
 /** Single-process local example; production supplies an authenticated database repository. */
 export function createDemoBackend(file) {
   let writes = Promise.resolve()
   async function readAll() {
     try {
-      return JSON.parse(await readFile(file, 'utf8'))
+      const persisted = JSON.parse(await readFile(file, 'utf8'))
+      if (!isMap(persisted)) throw new Error('Invalid demo storage document')
+      if (Object.hasOwn(persisted, 'documents') || Object.hasOwn(persisted, 'metadata')) {
+        if (!isMap(persisted.documents) || !isMap(persisted.metadata))
+          throw new Error('Incomplete demo storage document')
+        return persisted
+      }
+      // Previous demo versions keyed opaque records by [scope, owner]. Convert their shape
+      // without loading domain schemas; the next successful save commits the new layout.
+      const documents = Object.create(null)
+      const metadata = Object.create(null)
+      for (const [key, record] of Object.entries(persisted)) {
+        const pair = JSON.parse(key)
+        if (
+          !Array.isArray(pair) ||
+          pair.length !== 2 ||
+          pair.some(value => typeof value !== 'string') ||
+          !isMap(record) ||
+          !Object.hasOwn(record, 'value') ||
+          !isMap(record.receipts) ||
+          !Number.isSafeInteger(record.revision) ||
+          record.revision < 1
+        )
+          throw new Error('Invalid legacy demo storage record')
+        const [scope, id] = pair
+        documents[scope] = { ...documents[scope], [id]: record.value }
+        metadata[scope] = {
+          ...metadata[scope],
+          [id]: { revision: record.revision, receipts: record.receipts },
+        }
+      }
+      return { documents, metadata }
     } catch (error) {
-      if (error.code === 'ENOENT') return {}
+      if (error.code === 'ENOENT') return { documents: {}, metadata: {} }
       throw error
     }
+  }
+  function stored(records, scope, id) {
+    const document = Object.hasOwn(records.documents, scope) ? records.documents[scope] : undefined
+    const ownerMetadata = Object.hasOwn(records.metadata, scope)
+      ? records.metadata[scope]
+      : undefined
+    const metadata =
+      ownerMetadata !== undefined && Object.hasOwn(ownerMetadata, id)
+        ? ownerMetadata[id]
+        : undefined
+    if (metadata === undefined && (document === undefined || !Object.hasOwn(document, id)))
+      return undefined
+    if (metadata === undefined || document === undefined || !Object.hasOwn(document, id))
+      throw new Error('Incomplete persisted user-context record')
+    return { ...metadata, value: document[id] }
   }
   const repository = {
     async read(scope, id, signal) {
       await writes
       signal.throwIfAborted()
-      return (await readAll())[JSON.stringify([scope, id])]
+      return stored(await readAll(), scope, id)
     },
     transact(scope, id, update, signal) {
       const operation = writes.then(async () => {
         signal.throwIfAborted()
         const records = await readAll()
-        const key = JSON.stringify([scope, id])
-        const next = update(records[key])
-        records[key] = next
+        const next = update(stored(records, scope, id))
+        // Values form an opaque document per user. CAS and retry metadata stay separate.
+        records.documents[scope] = { ...records.documents[scope], [id]: next.value }
+        records.metadata[scope] = {
+          ...records.metadata[scope],
+          [id]: { revision: next.revision, receipts: next.receipts },
+        }
         await mkdir(dirname(file), { recursive: true })
         const temporary = `${file}.tmp`
         const handle = await open(temporary, 'w')
@@ -65,7 +118,6 @@ export function createDemoBackend(file) {
       backends.set(
         owner,
         createUserContextBackend({
-          schema,
           repository,
           // Each dev API route selects a fixed owner; submitted record IDs cannot change it.
           // These endpoints are public local-demo capabilities, not production authentication.

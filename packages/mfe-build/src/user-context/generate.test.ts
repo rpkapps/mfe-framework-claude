@@ -6,8 +6,8 @@ import { ts } from '../discovery/ts-ast.ts'
 import { planContainer } from '../plan.ts'
 import { createContainer, cleanupContainers } from '../testing/fixtures.ts'
 import { TEST_PROFILE } from '../testing/profile.ts'
-import { checkUserContextBuild, userContextTransformRule } from './integration.ts'
-import { compileUserContext } from './compiler.ts'
+import { userContextTransformRule } from './integration.ts'
+import { compileUserContext, checkUserContextRelease } from './compiler.ts'
 
 const temporary: string[] = []
 afterEach(() => {
@@ -64,39 +64,6 @@ describe('user-context generated bindings and production pipeline', () => {
     const rule = userContextTransformRule(plan)!
     expect(rule.enforce).toBe('pre')
     expect(rule.include).toEqual([plan.entryFile])
-    expect(() => checkUserContextBuild(plan, false)).not.toThrow()
-    expect(() => checkUserContextBuild(plan, true)).not.toThrow()
-    const policyFile = join(root, 'state-policy.json')
-    writeFileSync(policyFile, JSON.stringify(manifest()))
-    expect(() =>
-      checkUserContextBuild(
-        planContainer(profile, {
-          containerRoot: root,
-          userContextBaselines: { reader: ['state-policy.json'] },
-        }),
-        true,
-      ),
-    ).not.toThrow()
-    writeFileSync(policyFile, JSON.stringify(manifest().contracts[0]))
-    expect(() =>
-      checkUserContextBuild(
-        planContainer(profile, {
-          containerRoot: root,
-          userContextBaselines: { reader: ['state-policy.json'] },
-        }),
-        true,
-      ),
-    ).not.toThrow()
-    rmSync(policyFile)
-    expect(() =>
-      checkUserContextBuild(
-        planContainer(profile, {
-          containerRoot: root,
-          userContextBaselines: { reader: ['state-policy.json'] },
-        }),
-        true,
-      ),
-    ).toThrow()
   })
   it('gives multiple definitions separate bindings without an ambiguous container-wide alias', () => {
     const root = createContainer({
@@ -132,38 +99,22 @@ describe('user-context generated bindings and production pipeline', () => {
     )
     expect(binding).not.toContain('useUserContextStore')
   })
-  it('fails closed on incompatible and wrong-owner explicit baselines', () => {
+  it('keeps optional owner release compatibility separate from normal generation', () => {
     const root = createContainer({ 'src/mfe.ts': entry })
-    const baseline = manifest()
-    const path = join(root, 'baseline.json')
-    const options = { containerRoot: root, userContextBaselines: { reader: ['baseline.json'] } }
-    writeFileSync(
-      path,
-      JSON.stringify({
-        ...baseline,
-        contracts: [{ ...baseline.contracts[0], id: 'someone-else' }],
-      }),
+    const current = manifest()
+    const previous = manifest(schema.replace("z.enum(['metric','imperial'])", 'z.string()'))
+    // Generating a container neither loads release history nor requires a baseline option.
+    const generated = planContainer(profile, { containerRoot: root })
+    expect(generated.generated.descriptor.definitions[0]!.userContextContract).toEqual(
+      current.contracts[0],
     )
-    expect(() => checkUserContextBuild(planContainer(profile, options), true)).toThrow(
-      'Baseline must contain one contract for reader',
-    )
-    writeFileSync(
-      path,
-      JSON.stringify({
-        ...baseline,
-        contracts: [{ ...baseline.contracts[0], revision: 'tampered' }],
-      }),
-    )
-    expect(() => checkUserContextBuild(planContainer(profile, options), false)).toThrow(
-      'fingerprint',
-    )
-    writeFileSync(
-      path,
-      JSON.stringify(manifest(schema.replace("z.enum(['metric','imperial'])", 'z.string()'))),
-    )
-    expect(() => checkUserContextBuild(planContainer(profile, options), true)).toThrow(
-      'incompatible-change',
-    )
+    // An owner can explicitly run this check in its own release tooling.
+    expect(() =>
+      checkUserContextRelease([current], { schema: current, baselines: [] }),
+    ).not.toThrow()
+    expect(() =>
+      checkUserContextRelease([current], { schema: current, baselines: [previous] }),
+    ).toThrow('incompatible-change')
   })
   it('generates Angular bindings consistent with its injection/signal API', () => {
     const root = createContainer({ 'src/mfe.ts': entry })

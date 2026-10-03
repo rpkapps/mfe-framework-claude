@@ -16,7 +16,7 @@
   "scripts": {
     "dev": "pnpm run build:framework && concurrently --kill-others --names framework,fieldwork \"pnpm run watch:framework\" \"nx serve fieldwork\"",
     "build": "pnpm run build:framework && nx build fieldwork --skip-nx-cache",
-    "generate": "pnpm run build:framework && nx run fieldwork:generate && node ../../tools/dev/generate-user-context.mjs .",
+    "generate": "pnpm run build:framework && nx run fieldwork:generate",
     "typecheck": "pnpm run build:framework && nx typecheck fieldwork",
     "test": "pnpm run build:framework && nx test fieldwork",
     "build:framework": "pnpm --filter \"@example/fieldwork^...\" run build:stale",

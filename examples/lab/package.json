@@ -12,7 +12,7 @@
   "scripts": {
     "dev": "pnpm run generate && rsbuild dev",
     "build": "pnpm run generate && rsbuild build",
-    "generate": "mfe-generate && node ../../tools/dev/generate-user-context.mjs .",
+    "generate": "mfe-generate",
     "typecheck": "pnpm run generate && node ../../tools/tecton/typecheck.mjs examples/lab",
     "test": "pnpm run generate && vitest run --passWithNoTests"
   },

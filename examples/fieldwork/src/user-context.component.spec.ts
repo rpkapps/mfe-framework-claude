@@ -2,20 +2,30 @@ import { runInInjectionContext } from '@angular/core'
 import { Router } from '@angular/router'
 import {
   createUserContextBackend,
+  type MemoryRuntimeOptions,
   createTestUserContextRepository,
   mountApp,
   mountWidget,
 } from '@company/mfe-angular/testing'
-import { schema } from '@example/user-context-demo/schema'
+import labRegistry from '../../lab/.mfe/mfe-registry.json'
+import fieldworkRegistry from '../../fieldwork/.mfe/mfe-registry.json'
 import { expect, it } from 'vitest'
 import { injectUserContext } from '#mfe/user-context/well-inspection'
 import { fieldwork as app, wellInspection } from './mfe'
+
+// Canonical contracts come from the same generated registry artifacts deployed by each owner.
+const generatedSchema = {
+  formatVersion: 1,
+  contracts: [...labRegistry.definitions, ...fieldworkRegistry.definitions].flatMap(definition =>
+    'userContextContract' in definition ? [definition.userContextContract] : [],
+  ),
+}
+const schema = generatedSchema as NonNullable<MemoryRuntimeOptions['userContext']>['schema']
 
 async function state() {
   const { repository } = createTestUserContextRepository()
   const backend = (owner: string) =>
     createUserContextBackend({
-      schema,
       repository,
       resolveOwner: async () => owner,
       authorize: async () => undefined,

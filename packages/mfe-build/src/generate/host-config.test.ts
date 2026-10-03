@@ -290,11 +290,14 @@ export const userContext = {
     expect(module).toContain('__userContext: registration')
     expect(module).toContain('"wellId": string | null')
     expect(module).not.toContain("from 'zod'")
-    const contract = result?.files.find(file => file.path.endsWith('/user-context.contract.json'))
-    expect(JSON.parse(contract?.contents ?? '{}')).toMatchObject({
-      id: 'shell',
-      node: { fields: { preferences: { kind: 'default' } } },
+    const registration = /const registration = (.+) as const/.exec(module ?? '')?.[1]
+    expect(JSON.parse(registration ?? '{}')).toMatchObject({
+      contract: {
+        id: 'shell',
+        node: { fields: { preferences: { kind: 'default' } } },
+      },
     })
+    expect(result?.files.filter(file => file.path.includes('user-context'))).toHaveLength(1)
   })
   it('does not generate a binding for a shell that owns or reads no context', () => {
     expect(plan()?.aliases['#mfe/user-context']).toBeUndefined()

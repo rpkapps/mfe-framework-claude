@@ -1,171 +1,131 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
 
 import { createDemoBackend, DEMO_SCOPE } from './server.mjs'
 
-test('saved selections survive reopening and partial writes preserve comparison', async () => {
+async function database(t) {
   const directory = await mkdtemp(join(tmpdir(), 'user-context-demo-'))
-  try {
-    const file = join(directory, 'records.json')
-    const signal = new AbortController().signal
-    const scope = DEMO_SCOPE
-    const id = 'lab'
-    const backend = createDemoBackend(file)
-    await backend.write(
-      {
-        scope,
-        id,
-        expectedRevision: 0,
-        operationId: 'choose',
-        value: { 'well-selection': { wellId: '42', runId: '7', comparisonMode: 'overlay' } },
-      },
-      signal,
-    )
-    const reopened = createDemoBackend(file)
-    const write = {
-      scope,
-      id,
-      expectedRevision: 1,
-      operationId: 'change-run',
-      value: { 'well-selection': { runId: '8' } },
-    }
-    const result = await reopened.write(write, signal)
-    assert.deepEqual(result.value, {
-      units: 'metric',
-      'well-selection': { wellId: '42', runId: '8', comparisonMode: 'overlay' },
-    })
-    assert.deepEqual(await reopened.write(write, signal), result)
-    assert.deepEqual(await reopened.hydrate(scope, [id], signal), [result])
-  } finally {
-    await rm(directory, { recursive: true, force: true })
-  }
+  t.after(() => rm(directory, { recursive: true, force: true }))
+  const file = join(directory, 'records.json')
+  return { file, backend: createDemoBackend(file), signal: new AbortController().signal }
+}
+function operation(id, value, expectedRevision = 0, operationId = 'save') {
+  return { scope: DEMO_SCOPE, id, value, expectedRevision, operationId }
+}
+
+// Generic JSON merges and validation live in the runtime suite; these exercise the real file.
+test('accepted records and original retry receipts survive reopening', async t => {
+  const { file, backend, signal } = await database(t)
+  const first = operation('lab', { units: 'imperial' })
+  const accepted = await backend.write(first, signal)
+  const latest = await backend.write(operation('lab', { units: 'metric' }, 1, 'later'), signal)
+  const reopened = createDemoBackend(file)
+  assert.deepEqual(await reopened.write(first, signal), accepted)
+  assert.deepEqual(await reopened.hydrate(DEMO_SCOPE, ['lab'], signal), [latest])
 })
 
-test('concurrent saves cannot overwrite a newer revision', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'user-context-demo-'))
-  try {
-    const backend = createDemoBackend(join(directory, 'records.json'))
-    const signal = new AbortController().signal
-    const write = {
-      scope: DEMO_SCOPE,
-      id: 'lab',
-      expectedRevision: 0,
-      value: { units: 'imperial' },
-    }
-    const results = await Promise.allSettled([
-      backend.write({ ...write, operationId: 'first' }, signal),
-      backend.write({ ...write, operationId: 'second' }, signal),
-    ])
-    assert.equal(results[0].status, 'fulfilled')
-    assert.equal(results[1].status, 'rejected')
-    assert.equal(results[1].reason.code, 'user-context/conflict')
-    await assert.rejects(
-      backend.hydrate('another-workspace', ['lab'], signal),
-      /Unknown demo identity/,
-    )
-  } finally {
-    await rm(directory, { recursive: true, force: true })
+test('file transactions preserve owner documents, reject stale writes and enforce demo routes', async t => {
+  const { file, backend, signal } = await database(t)
+  const other = JSON.stringify([null, null, 'another-user'])
+  await writeFile(
+    file,
+    JSON.stringify({
+      documents: { [other]: { future: { untouched: true } } },
+      metadata: { [other]: { future: { revision: 8, receipts: {} } } },
+    }),
+  )
+  const widget = backend.forOwner('well-inspection')
+  const shell = backend.forOwner('shell')
+  const brief = { wellId: '42', runId: '7', text: 'Inspect North Ridge' }
+  const results = await Promise.allSettled([
+    backend.write(operation('lab', { units: 'imperial' }), signal),
+    widget.write(operation('well-inspection', { brief }), signal),
+    shell.write(operation('shell', { preferences: { theme: 'dark' } }), signal),
+    backend.write(operation('lab', { units: 'metric' }, 0, 'stale'), signal),
+  ])
+  assert.deepEqual(
+    results.map(result => result.status),
+    ['fulfilled', 'fulfilled', 'fulfilled', 'rejected'],
+  )
+  assert.equal(results[3].reason.code, 'user-context/conflict')
+  const persisted = JSON.parse(await readFile(file, 'utf8'))
+  assert.deepEqual(persisted.documents, {
+    [other]: { future: { untouched: true } },
+    [DEMO_SCOPE]: {
+      lab: { units: 'imperial' },
+      'well-inspection': { brief },
+      shell: { preferences: { theme: 'dark' } },
+    },
+  })
+  assert.equal(persisted.metadata[other].future.revision, 8)
+  assert.deepEqual(Object.keys(persisted.metadata[DEMO_SCOPE]).sort(), [
+    'lab',
+    'shell',
+    'well-inspection',
+  ])
+  for (const record of Object.values(persisted.metadata[DEMO_SCOPE])) {
+    assert.equal(record.revision, 1)
+    assert.equal(Object.hasOwn(record, 'value'), false)
   }
+  assert.deepEqual(await backend.hydrate(DEMO_SCOPE, ['constructor'], signal), [
+    { id: 'constructor', revision: 0 },
+  ])
+  const restored = await createDemoBackend(file).hydrate(DEMO_SCOPE, ['well-inspection'], signal)
+  assert.deepEqual(restored[0].value, { brief })
+  await assert.rejects(widget.write(operation('lab', { ownerId: 'lab' }, 1), signal), {
+    code: 'user-context/unauthorized-owner',
+  })
+  await assert.rejects(backend.hydrate(other, ['future'], signal), /Unknown demo identity/)
+  assert.throws(() => backend.forOwner('unknown'), /Unknown demo owner/)
 })
 
-// Request data cannot change the fixed writer configured for this demo endpoint.
-test('forged owner fields cannot write another MFE slice', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'user-context-demo-'))
-  try {
-    const backend = createDemoBackend(join(directory, 'records.json'))
-    const signal = new AbortController().signal
-    for (const ownerId of ['lab', 'well-inspection']) {
-      await assert.rejects(
-        backend.write(
-          {
-            scope: DEMO_SCOPE,
-            id: 'well-inspection',
-            ownerId,
-            expectedRevision: 0,
-            operationId: `forge-${ownerId}`,
-            value: { brief: { wellId: '42', runId: '7', text: 'Forged brief' } },
-          },
-          signal,
-        ),
-        { code: 'user-context/unauthorized-owner' },
-      )
-    }
-    assert.deepEqual(await backend.hydrate(DEMO_SCOPE, ['well-inspection'], signal), [
-      { id: 'well-inspection', revision: 0 },
-    ])
-    await assert.rejects(
-      backend.write(
-        {
-          scope: 'another-workspace',
-          id: 'lab',
-          expectedRevision: 0,
-          operationId: 'wrong-scope',
-          value: { units: 'imperial' },
-        },
-        signal,
-      ),
-      /Unknown demo identity/,
-    )
-  } finally {
-    await rm(directory, { recursive: true, force: true })
+test('legacy records migrate without losing preferences, briefs or receipt metadata', async t => {
+  const { file, backend, signal } = await database(t)
+  const scope = DEMO_SCOPE
+  const other = JSON.stringify(['tenant', 'account', 'another-user'])
+  const brief = { wellId: '42', runId: '7', text: 'Previously saved inspection' }
+  const receipt = {
+    request: 'existing-request',
+    record: { id: 'shell', revision: 3, value: { preferences: { theme: 'dark' } } },
   }
-})
-
-test('widget-owned briefs persist independently and its endpoint cannot write Lab', async () => {
-  const directory = await mkdtemp(join(tmpdir(), 'user-context-demo-'))
-  try {
-    const file = join(directory, 'records.json')
-    const backend = createDemoBackend(file)
-    const widget = backend.forOwner('well-inspection')
-    const signal = new AbortController().signal
-    const brief = { wellId: '42', runId: '7', text: 'Inspect North Ridge' }
-    await Promise.all([
-      backend.write(
-        {
-          scope: DEMO_SCOPE,
-          id: 'lab',
-          expectedRevision: 0,
-          operationId: 'units',
-          value: { units: 'imperial' },
-        },
-        signal,
-      ),
-      widget.write(
-        {
-          scope: DEMO_SCOPE,
-          id: 'well-inspection',
-          expectedRevision: 0,
-          operationId: 'brief',
-          value: { brief },
-        },
-        signal,
-      ),
-    ])
-    const records = await createDemoBackend(file).hydrate(
-      DEMO_SCOPE,
-      ['lab', 'well-inspection'],
-      signal,
-    )
-    assert.equal(records[0].value.units, 'imperial')
-    assert.deepEqual(records[1].value, { brief })
-    await assert.rejects(
-      widget.write(
-        {
-          scope: DEMO_SCOPE,
-          id: 'lab',
-          expectedRevision: 1,
-          operationId: 'forged-lab',
-          value: { units: 'metric' },
-        },
-        signal,
-      ),
-      { code: 'user-context/unauthorized-owner' },
-    )
-    assert.throws(() => backend.forOwner('unknown'), /Unknown demo owner/)
-  } finally {
-    await rm(directory, { recursive: true, force: true })
+  const legacy = {
+    [JSON.stringify([scope, 'lab'])]: {
+      revision: 2,
+      value: { units: 'imperial', future: true },
+      receipts: {},
+    },
+    [JSON.stringify([scope, 'shell'])]: {
+      revision: 3,
+      value: { preferences: { theme: 'dark' } },
+      receipts: { 'old-operation': receipt },
+    },
+    [JSON.stringify([scope, 'well-inspection'])]: { revision: 1, value: { brief }, receipts: {} },
+    [JSON.stringify([other, 'lab'])]: {
+      revision: 8,
+      value: { unknownField: 'untouched' },
+      receipts: {},
+    },
   }
+  await writeFile(file, JSON.stringify(legacy))
+  const hydrated = await backend.hydrate(scope, ['shell', 'well-inspection'], signal)
+  assert.deepEqual(
+    hydrated.map(record => record.value),
+    [{ preferences: { theme: 'dark' } }, { brief }],
+  )
+  // Hydration is read-only; the next accepted write commits the converted layout.
+  assert.deepEqual(JSON.parse(await readFile(file, 'utf8')), legacy)
+  await backend.write(operation('lab', { units: 'metric' }, 2, 'after-upgrade'), signal)
+  const upgraded = JSON.parse(await readFile(file, 'utf8'))
+  assert.deepEqual(upgraded.documents[scope], {
+    lab: { units: 'metric', future: true },
+    shell: { preferences: { theme: 'dark' } },
+    'well-inspection': { brief },
+  })
+  assert.deepEqual(upgraded.documents[other], { lab: { unknownField: 'untouched' } })
+  assert.deepEqual(upgraded.metadata[scope].shell.receipts['old-operation'], receipt)
+  assert.equal(upgraded.metadata[scope].shell.revision, 3)
+  assert.equal(upgraded.metadata[other].lab.revision, 8)
 })
