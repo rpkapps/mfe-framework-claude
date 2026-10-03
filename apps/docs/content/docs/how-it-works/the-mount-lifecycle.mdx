@@ -72,7 +72,7 @@ failure is `load/entry-failure`.
 The runtime creates a scope root, a `display: contents` element carrying `data-mfe-scope`,
 `data-mfe-mount` and `data-mfe-kind`. It puts the definition's element inside it. It then creates
 the mount context: a mount token such as `operations#1`, the depth, the base path, telemetry, the
-definition's two storage areas, an abort signal and an overlay root appended to `document.body`.
+definition's storage, an abort signal and an overlay root appended to `document.body`.
 The base path is always an empty string for a Widget, which owns no URL.
 
 A definition renders into its element and portals into the overlay root. It never adds a root of

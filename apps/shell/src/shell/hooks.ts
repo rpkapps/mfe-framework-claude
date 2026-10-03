@@ -9,27 +9,15 @@ import {
   useActiveDefinition,
   useMfeRuntime,
   useStoredState,
-  useTheme,
   type ActiveDefinition,
-  type StoredStateSetter,
+  type StoredKey,
+  type StoredUpdate,
 } from '@company/mfe-react'
 import type { ActionRegistrationHandle } from '@company/mfe-react/host'
-import { z } from 'zod'
 
-import {
-  DashboardLayoutSchema,
-  EMPTY_LAYOUT,
-  migrateLayout,
-  type DashboardLayout,
-} from './dashboard/layout-store.ts'
-import {
-  DEFAULT_PANELS,
-  migratePanels,
-  PanelLayoutSchema,
-  SNAP_TO_TOP_DEFAULT,
-  SnapToTopSchema,
-  type PanelLayout,
-} from './dashboard/panels-store.ts'
+import { assistantWidthKey, dashboardKey, dashboardPanelsKey, snapToTopKey } from '../storage.ts'
+import type { DashboardLayout } from './dashboard/layout-store.ts'
+import type { PanelLayout } from './dashboard/panels-store.ts'
 import { shellActions } from './shell-actions.ts'
 import { shellUi, type ShellSurface } from './ui-store.ts'
 
@@ -85,11 +73,9 @@ export function useActionShortcuts(): void {
 export function useShellActions(): void {
   const runtime = useMfeRuntime('the shell actions')
   const navigate = useNavigate()
-  const theme = useTheme()
   const [layout, setLayout] = useDashboardLayout()
   const registrations = shellActions({
     runtime,
-    theme,
     layout,
     setLayout,
     goToDashboard: () => void navigate({ to: '/' }),
@@ -139,38 +125,41 @@ export function useShellSurface(): ShellSurface | null {
   return useSyncExternalStore(shellUi.subscribe, shellUi.getSnapshot, shellUi.getSnapshot)
 }
 
-/** One key for every reader, so a Widget added from the palette is already on the canvas the page renders. */
-export function useDashboardLayout(): readonly [
-  DashboardLayout,
-  StoredStateSetter<DashboardLayout>,
-] {
-  return useStoredState('dashboard', DashboardLayoutSchema, {
-    defaultValue: EMPTY_LAYOUT,
-    migrate: migrateLayout,
+/**
+ * Writes a browser-stored value and moves on: a local write settles at once, and a refused one
+ * (a full quota) shows in the key's status instead of failing the caller.
+ */
+export type StoredSetter<T> = (next: StoredUpdate<T>) => void
+
+function useStoredValue<T>(key: StoredKey<T>): readonly [T, StoredSetter<T>] {
+  const stored = useStoredState(key)
+  // Stable, as the hook's own `set` is, so a caller can list it in its dependencies.
+  const latest = useRef(stored)
+  useEffect(() => {
+    latest.current = stored
   })
+  const write = useCallback<StoredSetter<T>>(next => {
+    latest.current.set(next).catch(() => undefined)
+  }, [])
+  return [stored.value, write]
+}
+
+/** One key for every reader, so a Widget added from the palette is already on the canvas the page renders. */
+export function useDashboardLayout(): readonly [DashboardLayout, StoredSetter<DashboardLayout>] {
+  return useStoredValue(dashboardKey)
 }
 
 /** The split between catalogue, canvas and activity, remembered across reloads like the tiles. */
-export function useDashboardPanels(): readonly [PanelLayout, StoredStateSetter<PanelLayout>] {
-  return useStoredState('dashboard-panels', PanelLayoutSchema, {
-    defaultValue: DEFAULT_PANELS,
-    migrate: migratePanels,
-  })
+export function useDashboardPanels(): readonly [PanelLayout, StoredSetter<PanelLayout>] {
+  return useStoredValue(dashboardPanelsKey)
 }
 
-/** One object for every reader: the store binds a key to the schema object it was first given. */
-const AssistantWidthSchema = z.number().positive().nullable()
-
 /** The width, in pixels, the user last dragged the assistant to; null until they do. */
-export function useAssistantWidth(): readonly [number | null, StoredStateSetter<number | null>] {
-  return useStoredState('assistant-width', AssistantWidthSchema, {
-    defaultValue: null,
-  })
+export function useAssistantWidth(): readonly [number | null, StoredSetter<number | null>] {
+  return useStoredValue(assistantWidthKey)
 }
 
 /** Whether the canvas lifts its tiles to the top when a drag is released. */
-export function useSnapToTop(): readonly [boolean, StoredStateSetter<boolean>] {
-  return useStoredState('dashboard-snap', SnapToTopSchema, {
-    defaultValue: SNAP_TO_TOP_DEFAULT,
-  })
+export function useSnapToTop(): readonly [boolean, StoredSetter<boolean>] {
+  return useStoredValue(snapToTopKey)
 }

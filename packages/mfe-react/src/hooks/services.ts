@@ -28,10 +28,7 @@ export function useBasePath(): string {
 export function useMfeStorage(): MfeStorage {
   const mount = useOptionalMfeMount()
   const { storage } = useMfeRuntime('useMfeStorage()')
-  return useMemo(
-    () => mount?.storage ?? storage.forCaller({ owner: HOST_SCOPE }),
-    [mount, storage],
-  )
+  return useMemo(() => mount?.storage ?? storage.forCaller({ owner: HOST_SCOPE }), [mount, storage])
 }
 
 /**

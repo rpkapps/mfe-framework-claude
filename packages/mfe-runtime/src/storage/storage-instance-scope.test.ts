@@ -70,24 +70,7 @@ describe('instance-scoped storage', () => {
     expect(local.snapshot()).toEqual({})
   })
 
-  it('reactive and imperative instance writes share a binding and notify its subscribers', () => {
-    const binding = bind('north')
-    let notifications = 0
-    const unsubscribe = binding.subscribe(() => {
-      notifications += 1
-    })
-    const storage = store.storageFor('chart', 'local', 'north')
-
-    storage.key('zoom', schema, { scope: 'instance' }).set(4)
-    expect(binding.read()).toBe(4)
-    expect(notifications).toBe(1)
-    storage.remove('zoom', { scope: 'instance' })
-    expect(binding.read()).toBe(1)
-    expect(notifications).toBe(2)
-    unsubscribe()
-  })
-
-  it('clears only the selected instance, and definition clearing removes all its own scopes', () => {
+  it('definition clearing removes all its own scopes and nothing of another definition', () => {
     const north = bind('north')
     const south = bind('south')
     const other = bind('north', 'chart-legacy')
@@ -97,9 +80,7 @@ describe('instance-scoped storage', () => {
     other.set(4)
     shared.set(5)
 
-    store.storageFor('chart', 'local', 'north').clear({ scope: 'instance' })
-    expect([north.read(), south.read(), shared.read(), other.read()]).toEqual([1, 3, 5, 4])
-    expect(store.clearDefinition('chart')).toBe(2)
+    expect(store.clearDefinition('chart')).toBe(3)
     expect([north.read(), south.read(), shared.read(), other.read()]).toEqual([1, 1, 1, 4])
   })
 
@@ -107,7 +88,7 @@ describe('instance-scoped storage', () => {
     const north = bind('north')
     north.set(3)
     expect(() => store.clearDefinition('')).toThrow(/non-empty definition id/)
-    expect(() => store.storageFor(':')).toThrow(/without a colon/)
+    expect(() => store.clearDefinition(':')).toThrow(/without a colon/)
     expect(north.read()).toBe(3)
   })
 

@@ -14,7 +14,11 @@ export interface MemoryUserStorage extends UserStorageAdapter {
   /** Writes as another tab or device would, and pushes the result to every `sync` handle. */
   write(owner: string, key: string, value: StoredValue | null): void
   /** Every save the framework sent, in order. */
-  readonly saves: readonly { readonly owner: string; readonly key: string; readonly value: StoredValue | null }[]
+  readonly saves: readonly {
+    readonly owner: string
+    readonly key: string
+    readonly value: StoredValue | null
+  }[]
 }
 
 export function createMemoryUserStorage(initial: UserStorageState = {}): MemoryUserStorage {
@@ -25,9 +29,7 @@ export function createMemoryUserStorage(initial: UserStorageState = {}): MemoryU
   const saves: { owner: string; key: string; value: StoredValue | null }[] = []
 
   const snapshot = (): UserStorageState =>
-    Object.fromEntries(
-      [...rows].map(([owner, keys]) => [owner, Object.fromEntries(keys)] as const),
-    )
+    Object.fromEntries([...rows].map(([owner, keys]) => [owner, Object.fromEntries(keys)] as const))
   const store = (owner: string, key: string, value: StoredValue | null): StoredRow | null => {
     let keys = rows.get(owner)
     if (keys === undefined) {

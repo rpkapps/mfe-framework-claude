@@ -2,11 +2,15 @@
   "capabilities": "/docs",
   "troubleshooting": "/docs",
   "storage-outside-render": "/docs/remember-a-value#read-or-write-outside-render",
-  "shared-state-outside-render": "/docs/shared-state#read-state-in-a-loader-or-resolver",
+  "shared-state-outside-render": "/docs/remember-a-value#read-or-write-outside-render",
   "share-a-value-with-the-shell": "/docs/remember-a-value#choose-where-to-store-a-value",
   "log-an-event": "/docs/telemetry#record-events-measurements-and-caught-errors",
   "report-an-error": "/docs/telemetry#record-events-measurements-and-caught-errors",
   "trace-an-operation": "/docs/telemetry#trace-work-and-end-the-span",
   "add-custom-styles": "/docs/use-the-design-system",
-  "how-it-works/adapters-and-legacy-angular": "/docs/how-it-works/adapters"
+  "how-it-works/adapters-and-legacy-angular": "/docs/how-it-works/adapters",
+  "shared-state": "/docs/remember-a-value#read-another-apps-value",
+  "configure-shared-state": "/docs/configure-user-storage",
+  "evolve-shared-state": "/docs/change-the-shape-of-a-stored-value",
+  "how-it-works/shared-state": "/docs/configure-user-storage"
 }

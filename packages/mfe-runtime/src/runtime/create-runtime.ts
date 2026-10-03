@@ -6,6 +6,7 @@
 
 import {
   withoutUndefined,
+  type AnyStoredKey,
   type DeadlineConfig,
   type DiagnosticsSink,
   type MfeAdapter,
@@ -41,6 +42,7 @@ import { ShellStateStore } from '../shell-state/shell-state-store.ts'
 import { recordSessionIdentity } from '../storage/session-identity.ts'
 import { StorageService } from '../storage/service.ts'
 import { MfeStorageStore } from '../storage/storage-store.ts'
+import { attachStoredTheme, cachedTheme, type ThemePreference } from '../theme/stored-theme.ts'
 import { assembleRuntime, reportRejectedEntries } from './assemble-runtime.ts'
 
 /** Shared, shell-owned services, one instance per document. */
@@ -74,11 +76,19 @@ export interface CreateMfeRuntimeOptions {
    * and again when the user changes; how values stay fresh is the adapter's `sync`.
    */
   readonly storage?: { readonly user?: UserStorageAdapter }
+  /**
+   * The host-owned key that holds the theme preference. The runtime then owns the effective theme:
+   * `shellState`, the document's `dark` class and `colorScheme`, `system` following
+   * `prefers-color-scheme`, and a per-user cache that `themeBootstrapScript()` reads before first
+   * paint. Without it, the shell sets `shellState.theme` itself.
+   */
+  readonly theme?: AnyStoredKey<ThemePreference>
   /** Raw registry entries, usually fetched by the shell at boot. */
   readonly registryEntries: readonly unknown[]
   /** In production this is the federation loader. */
   readonly loader: ContainerLoader
-  readonly shellState: ShellState
+  /** `theme` is the runtime's to decide when the `theme` option names a key. */
+  readonly shellState: Omit<ShellState, 'theme'> & { readonly theme?: ShellState['theme'] }
   readonly telemetryProvider: TelemetryProvider
   readonly navigationBridge?: NavigationBridge
   readonly diagnosticsSinks?: readonly DiagnosticsSink[]
@@ -152,7 +162,13 @@ export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHa
   const diagnostics = options.diagnostics ?? new DiagnosticsHub()
   const removeSinks = (options.diagnosticsSinks ?? []).map(sink => diagnostics.add(sink))
 
-  const shellState = new ShellStateStore(options.shellState)
+  const shellState = new ShellStateStore({
+    ...options.shellState,
+    theme:
+      options.theme === undefined
+        ? (options.shellState.theme ?? 'light')
+        : cachedTheme(options.shellState.user),
+  })
   const browser = new MfeStorageStore({ diagnostics })
   const { previousIdentity } = recordSessionIdentity(browser, identityOf(shellState.getSnapshot()))
   const storage = new StorageService({ browser, user: options.storage?.user, diagnostics })
@@ -217,10 +233,18 @@ export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHa
     auditAction: options.auditAction,
   })
 
+  // After the identity observer above, so an identity change has reset the user area by the time
+  // the theme reads it.
+  const stopTheme =
+    options.theme === undefined
+      ? undefined
+      : attachStoredTheme({ storage, shellState, key: options.theme })
+
   return {
     runtime: assembled.runtime,
     activeOverrides: overrides.overrides,
     dispose: () => {
+      stopTheme?.()
       stopRecordingIdentity()
       assembled.dispose()
       if (ownsDiagnostics) diagnostics.clear()

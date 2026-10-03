@@ -21,15 +21,13 @@ describe('the mount-bound services', () => {
       telemetry: injectTelemetry(),
       signal: injectMfeSignal(),
       basePath: injectBasePath(),
-      local: injectMfeStorage(),
-      session: injectMfeStorage('session'),
+      storage: injectMfeStorage(),
     }))
 
     expect(services.mount.definitionId).toBe('orders')
     expect(services.basePath).toBe('/orders')
     expect(services.telemetry).toBe(services.mount.telemetry)
-    expect(services.local).toBe(services.mount.storage.local)
-    expect(services.session).toBe(services.mount.storage.session)
+    expect(services.storage).toBe(services.mount.storage)
     expect(services.signal.aborted).toBe(false)
 
     await app.dispose()

@@ -156,16 +156,29 @@ export function createMemoryRuntime(options: MemoryRuntimeOptions = {}): MemoryR
 
   const definitionIds = definitions.map(definition => definition.id)
   const seedOwner = (key: AnyStoredKey<unknown>, caller: SeedCaller | undefined): string =>
-    key.owner ?? caller?.owner ?? (definitionIds.length === 1 ? definitionIds[0] : undefined) ?? HOST_SCOPE
+    key.owner ??
+    caller?.owner ??
+    (definitionIds.length === 1 ? definitionIds[0] : undefined) ??
+    HOST_SCOPE
   const seeds = options.storage?.values ?? []
   const userRows: Record<string, Record<string, { v: number; d: unknown; revision: number }>> = {}
   for (const [key, value, caller] of seeds) {
     if (key.storage !== 'user') continue
     const owner = seedOwner(key, caller)
-    const name = key.perInstance ? `${key.name}@${caller?.instanceId ?? ''}` : key.name
-    userRows[owner] = { ...userRows[owner], [name]: { v: key.version, d: key.schema.parse(value), revision: 1 } }
+    if (key.perInstance && caller?.instanceId === undefined)
+      throw new Error(`Seed '${key.name}' with an instanceId: the key is perInstance`)
+    const name = key.perInstance ? `${key.name}@${caller?.instanceId}` : key.name
+    userRows[owner] = {
+      ...userRows[owner],
+      [name]: { v: key.version, d: key.schema.parse(value), revision: 1 },
+    }
   }
-  const userStorage = options.storage?.user === undefined ? createMemoryUserStorage(userRows) : undefined
+  if (options.storage?.user !== undefined && Object.keys(userRows).length > 0)
+    throw new Error(
+      'Seed user values through your own adapter: storage.values seeds only the in-memory one',
+    )
+  const userStorage =
+    options.storage?.user === undefined ? createMemoryUserStorage(userRows) : undefined
   const storage = new StorageService({
     browser,
     user: options.storage?.user ?? userStorage,
@@ -174,9 +187,11 @@ export function createMemoryRuntime(options: MemoryRuntimeOptions = {}): MemoryR
   for (const [key, value, caller] of seeds) {
     if (key.storage === 'user') continue
     const owner = seedOwner(key, caller)
+    // Parsed first, so a seed that fails its schema throws here as a user seed does.
+    const parsed = key.schema.parse(value)
     const binding = storage.bind({ owner, instanceId: caller?.instanceId }, key)
     try {
-      binding.set(value).catch(() => undefined)
+      binding.set(parsed).catch(() => undefined)
     } finally {
       binding.release()
     }

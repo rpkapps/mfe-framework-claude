@@ -7,6 +7,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  DEFAULT_SETTINGS,
   DEVTOOLS_STORAGE_KEY,
   readDevtoolsSettings,
   writeDevtoolsSettings,
@@ -68,9 +69,14 @@ describe('reading the devtools flag', () => {
     expect(readDevtoolsSettings()).toMatchObject({ on: true, side: 'right', size: 500 })
   })
 
-  it('restores the Shared State tab after a reload', () => {
+  it('restores the Storage tab after a reload', () => {
+    page('', JSON.stringify({ ...SETTINGS, tab: 'storage' }))
+    expect(readDevtoolsSettings().tab).toBe('storage')
+  })
+
+  it('opens the default tab when the saved one was the removed Shared State tab', () => {
     page('', JSON.stringify({ ...SETTINGS, tab: 'shared-state' }))
-    expect(readDevtoolsSettings().tab).toBe('shared-state')
+    expect(readDevtoolsSettings().tab).toBe(DEFAULT_SETTINGS.tab)
   })
 
   it('ignores a value that is neither JSON nor a flag word', () => {

@@ -155,20 +155,25 @@ repository declares `widgetScopes`, so name the globs that hold your own Widget 
 <Tabs items={['React', 'Angular']} defaultIndex={0}>
 <Tab value="React">
 
-```tsx title="examples/lab/src/routes/storage.tsx (trimmed)"
-const [draft, setDraft] = useStoredState('draft', draftSchema, {
-  defaultValue: { note: '', pinned: false },
-})
+```tsx title="src/routes/storage.tsx"
+import { storedKey, useStoredState } from '@company/mfe-react'
+
+const draftKey = storedKey('draft', draftSchema.default({ note: '', pinned: false }))
+
+// Inside your component.
+const { value: draft, set: setDraft } = useStoredState(draftKey)
 ```
 
 </Tab>
 <Tab value="Angular">
 
 ```ts title="src/settings.component.ts (Angular)"
+import { injectStoredState, storedKey } from '@company/mfe-angular'
+
+const draftKey = storedKey('draft', draftSchema.default({ note: '', pinned: false }))
+
 export class SettingsComponent {
-  readonly draft = injectStoredState('draft', draftSchema, {
-    defaultValue: { note: '', pinned: false },
-  })
+  readonly draft = injectStoredState(draftKey)
 }
 ```
 
@@ -178,7 +183,8 @@ Call `injectStoredState` in an Angular injection context, such as a component fi
 </Tabs>
 
 Every container in the origin writes into one shared key space, so two teams pick one name and the
-keys collide. Both `useStoredState` and `injectStoredState` put your definition id in front of your key.
+keys collide. A key declared with `storedKey` belongs to your definition, so its name cannot collide
+with another container's, and only your definition writes it.
 
 <Callout type="error" title="mfe/no-raw-storage">
 
@@ -223,15 +229,15 @@ file and the selector ([framework styling constraints](/docs/use-the-design-syst
 <Tabs items={['React', 'Angular']} defaultIndex={0}>
 <Tab value="React">
 
-```ts title="examples/lab/src/routes/storage.tsx (trimmed)"
-import { useMfeStorage, useStoredState } from '@company/mfe-react'
+```ts title="src/routes/storage.tsx"
+import { storedKey, useMfeStorage, useStoredState } from '@company/mfe-react'
 ```
 
 </Tab>
 <Tab value="Angular">
 
 ```ts title="src/settings.component.ts (Angular)"
-import { injectMfeStorage, injectStoredState } from '@company/mfe-angular'
+import { injectMfeStorage, injectStoredState, storedKey } from '@company/mfe-angular'
 ```
 
 </Tab>

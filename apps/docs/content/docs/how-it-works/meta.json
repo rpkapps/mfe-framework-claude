@@ -1,12 +1,5 @@
 {
   "title": "Architecture & decisions",
   "defaultOpen": false,
-  "pages": [
-    "design",
-    "the-mount-lifecycle",
-    "the-isolation-boundaries",
-    "adapters",
-    "shared-state",
-    "decisions"
-  ]
+  "pages": ["design", "the-mount-lifecycle", "the-isolation-boundaries", "adapters", "decisions"]
 }

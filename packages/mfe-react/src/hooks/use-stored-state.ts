@@ -33,14 +33,14 @@ export interface ReadonlyStoredState<R> {
   readonly status: StoredStatus
   readonly error: StorageError | undefined
   /** After a failed load, loads again; after a failed save, sends it again. */
-  retry(): Promise<void>
+  readonly retry: () => Promise<void>
 }
 
 export interface StoredState<T, R = T> extends ReadonlyStoredState<R> {
   /** Always takes the whole value, even with `select`. Resolves once the value is stored. */
-  set(next: StoredUpdate<T>): Promise<void>
+  readonly set: (next: StoredUpdate<T>) => Promise<void>
   /** Removes the stored value, so the key reads its schema default again. */
-  reset(): Promise<void>
+  readonly reset: () => Promise<void>
 }
 
 type ReadonlyStoredSnapshot<R> = Pick<ReadonlyStoredState<R>, 'value' | 'status' | 'error'>
@@ -89,7 +89,7 @@ export function useStoredState<T, R = T>(
     if (selector === undefined) return snapshot as unknown as ReadonlyStoredSnapshot<R>
     const previous = selected.current
     if (previous !== null && previous.snapshot === snapshot) return previous.result
-    const value = selector(snapshot.value as T)
+    const value = selector(snapshot.value)
     // An unchanged selection keeps its identity, so React bails out of the render.
     const result =
       previous !== null &&
@@ -138,14 +138,7 @@ function useBinding<T>(open: () => StoredBinding<T>): {
   const held = useRef<HeldBinding<T> | null>(null)
 
   // Read through a binding released at once, so the key stays open only while it is subscribed.
-  const initial = useMemo(() => {
-    const binding = open()
-    try {
-      return binding.getSnapshot()
-    } finally {
-      binding.release()
-    }
-  }, [open])
+  const initial = useMemo(() => readOnce(open), [open])
 
   const subscribe = useCallback(
     (listener: () => void) => {
@@ -174,16 +167,25 @@ function useBinding<T>(open: () => StoredBinding<T>): {
   }, [open])
 
   // A child's mount effect runs before this component subscribes, and may already write.
-  const withBinding = useCallback(<R,>(use: (binding: StoredBinding<T>) => R): R => {
+  const withBinding = useCallback(<R>(run: (binding: StoredBinding<T>) => R): R => {
     const current = held.current
-    if (current !== null) return use(current.binding)
+    if (current !== null) return run(current.binding)
     const transient = latestOpen.current()
     try {
-      return use(transient)
+      return run(transient)
     } finally {
       transient.release()
     }
   }, [])
 
   return { read, subscribe, withBinding }
+}
+
+function readOnce<T>(open: () => StoredBinding<T>): StoredSnapshot<T> {
+  const binding = open()
+  try {
+    return binding.getSnapshot()
+  } finally {
+    binding.release()
+  }
 }

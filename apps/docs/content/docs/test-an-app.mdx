@@ -59,7 +59,7 @@ it('reads its path parameter from the host URL', async () => {
 
 `mountApp` is asynchronous and waits for Angular to settle. This example assumes your App displays
 its account id at `accounts/:accountId`. Replace the definition, URL and assertion with your own.
-If your definition declares shared state, supply its contract and persistence fixtures in the test options.
+If your App reads stored values, seed them by key with the environment's `storage` option ([test storage](/docs/test-storage-and-lifecycle)).
 
 </Tab>
 </Tabs>

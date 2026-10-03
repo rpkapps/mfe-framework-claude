@@ -10,9 +10,11 @@ it builds the way a generated container does: Nx's Angular webpack builder with 
   `injectUser()` reads from the shell.
 - `/inspections/:inspectionId` shows one inspection; the router binds the parameter to an input.
 - `/settings` is the App's settings capability, which the shell lists in its own settings.
-- `/shared-state` hosts the inspection planner Widget, also mounted beside the React survey review.
-  The React App and Angular Widget import `sharedStateSchema` from `@example/shared-state-contracts`.
-  Follow [the shared-state walkthrough](../shared-state/README.md) to run them together.
+- `/user-storage` hosts the inspection planner Widget, also mounted beside the React survey review.
+  `src/storage.ts` declares what Fieldwork reads and stores: the Lab's `units` and `well-selection`
+  through `storedKey.from('lab', ...)`, with Fieldwork's own schemas and defaults and no setter, and
+  the Widget's own `brief`, which it saves with `injectStoredState(inspectionBrief).set(...)`.
+  Follow [the user-storage walkthrough](../user-storage/README.md) to run them together.
 
 ## An Nx workspace of its own
 

@@ -10,4 +10,4 @@
 
 import { withMfe } from '@company/mfe-nx/webpack'
 
-export default withMfe({ sharedStatePolicy: '../shared-state-contracts/release-policy.json' })
+export default withMfe()

@@ -613,20 +613,23 @@ const raw = localStorage
 **Valid**
 
 ```ts
-import { useMfeStorage, useStoredState } from '@company/mfe-react'
+import { storedKey, useMfeStorage, useStoredState } from '@company/mfe-react'
 import { z } from 'zod'
 
-// Module scope: the schema is part of the key's declaration, not a per-render value.
-const prefs = z.object({ density: z.enum(['compact', 'comfortable']) })
-const theme = z.enum(['light', 'dark', 'system'])
+// Module scope: one declaration per value, imported wherever it is read.
+const prefs = storedKey(
+  'prefs',
+  z.object({ density: z.enum(['compact', 'comfortable']) }).default({ density: 'comfortable' }),
+)
+const theme = storedKey('theme', z.enum(['light', 'dark', 'system']).default('system'))
 
-export function usePrefs() {
+export function usePrefsReader() {
   const storage = useMfeStorage()
-  return storage.key('prefs', prefs).get()
+  return () => storage.peek(prefs)
 }
 
-export function useTheme() {
-  return useStoredState('theme', theme, { defaultValue: 'system' })
+export function useThemePreference() {
+  return useStoredState(theme)
 }
 ```
 
@@ -664,8 +667,9 @@ shell override bootstrap opt out through `allowedScopes`.
 project's accessor — `localStorage.getItem('k')` becomes
 `storage.getItem('k')` — offered as a suggestion rather than a fix, because it
 rewrites the object and nothing else: the file still has to bind
-`const storage = useMfeStorage()` and spell the read the boundary's way,
-`storage.key('k', schema).get()`.
+`const storage = useMfeStorage()`, declare the value once with
+`storedKey('k', schema.default(...))`, and read it the boundary's way,
+`storage.get(key)` or `storage.peek(key)`.
 
 **Options**
 

@@ -116,13 +116,25 @@ observer.observe(scopeRoot)
 ### useMfeStorage
 
 ```ts
-useMfeStorage(area?: 'local' | 'session'): MfeStorage
+useMfeStorage(): MfeStorage
 ```
 
-Returns the imperative storage handle for this definition. `area` defaults to `'local'`. `MfeStorage` has `key(name, schema, options)`, `remove(name, options?)` and `clear(options?)`, and a bound key has `get()`, `set(value)` and `remove()`. Pass `{ scope: 'instance' }` to use the `instanceId` the host gave this Widget; omitting it keeps definition scope. `get()` does not subscribe, so rendered state uses `useStoredState` instead.
+Returns the imperative storage handle, keyed by the same keys `useStoredState` takes. Use it in handlers and effects; rendered values use `useStoredState`. Outside a mount it reads and writes the host page's own values, owned by `@host`.
 
-```ts title="examples/lab/src/routes/storage.tsx"
-const local = useMfeStorage()
+| Member                   | Does                                                                                  |
+| ------------------------ | ------------------------------------------------------------------------------------- |
+| `get(key)`               | Resolves with the value once user storage has loaded.                                 |
+| `peek(key)`              | Returns the value now: the default while user storage is loading.                     |
+| `set(key, next)`         | Writes a value or an updater result. Resolves once stored. Not on a read-only key.    |
+| `reset(key)`             | Removes the stored value, so the key reads its default again. Not on a read-only key. |
+| `subscribe(key, listen)` | Calls `listen(value)` when the value changes, and returns the unsubscribe.            |
+| `status(key)`            | `'loading'`, `'ready'`, `'saving'` or `'error'`.                                      |
+
+React route callbacks read the same handle from `context.mfe.storage`.
+
+```ts
+const storage = useMfeStorage()
+await storage.set(units, 'imperial')
 ```
 
 Recipe: [Read or write storage outside render](/docs/remember-a-value#read-or-write-outside-render).
@@ -314,29 +326,71 @@ if (block.pending) {
 
 Recipe: [Block navigation when edits are unsaved](/docs/block-navigation-when-unsaved).
 
-### useStoredState
+### storedKey
 
 ```ts
-useStoredState<T>(
+storedKey<S extends z.ZodType>(
   name: string,
-  schema: z.ZodType<T>,
-  options: { defaultValue: T; storage?: 'local' | 'session'; scope?: 'definition' | 'instance'; version?: number; migrate?: (value: unknown, fromVersion: number) => T },
-): readonly [T, (next: T | ((current: T) => T)) => void]
+  schema: S, // must have .default(...)
+  options?: {
+    storage?: 'local' | 'session' | 'user' // default 'local'
+    perInstance?: boolean // default false
+    version?: number // default 1
+    migrate?: (value: unknown, fromVersion: number) => z.output<S>
+  },
+): StoredKey<z.output<S>>
+
+storedKey.from<S extends z.ZodType>(owner: string, name: string, schema: S, options?): ReadonlyStoredKey<z.output<S>>
 ```
 
-Stored state that rerenders when the value changes. Declare the schema at module scope. An unreadable stored value throws, so the failure reaches an error boundary rather than looking like missing data. The record belongs to the browser, so a sign-out keeps it and the next user reads it.
+Declares one stored value, once, at module scope. The schema's default is what an absent value reads as; a schema without one does not type-check. The declaring definition owns the key and is its only writer. `perInstance: true` keeps one value per placed copy, keyed by the host's `instanceId`. A name may not contain `@` or `:`.
 
-Two copies of a definition share the value by default. With `scope: 'instance'`, the key uses the
-`instanceId` the host gave the Widget. The same ID reads the same value after a reload. Without a
-non-empty host ID, instance scope throws `storage/failure`.
+`storedKey.from` reads a `user` value another definition, or `@host`, owns. It is read-only, and the reader's own schema and default apply.
 
-```ts title="examples/lab/src/routes/storage.tsx"
-const [draft, setDraft] = useStoredState('draft', draftSchema, {
-  defaultValue: { note: '', pinned: false },
+```ts
+export const units = storedKey('units', z.enum(['metric', 'imperial']).default('metric'), {
+  storage: 'user',
 })
 ```
 
-Recipe: [Remember a value across reloads](/docs/remember-a-value).
+Recipe: [Store a value](/docs/remember-a-value).
+
+### useStoredState
+
+```ts
+useStoredState<T, R = T>(key: StoredKey<T>, options?: { select?: (value: T) => R }): {
+  value: R
+  status: 'loading' | 'ready' | 'saving' | 'error'
+  error: StorageError | undefined
+  set(next: T | ((current: T) => T)): Promise<void>
+  reset(): Promise<void>
+  retry(): Promise<void>
+}
+useStoredState<T, R = T>(key: ReadonlyStoredKey<T>, options?: { select?: (value: T) => R }): {
+  value: R
+  status: 'loading' | 'ready' | 'saving' | 'error'
+  error: StorageError | undefined
+  retry(): Promise<void>
+}
+```
+
+Stored state that rerenders when the key changes, in any area. The value is the schema default while loading or after an error, never `undefined`, and the hook never suspends. `set` always takes the whole value, even with `select`, and validates it. A `user` write renders at once, shows `saving`, and rolls back with `error` when the save fails. `retry` loads again after a failed load, or sends a failed save again.
+
+`select` narrows what the component reads, and it rerenders only when the selected part changes. Inline selectors are fine.
+
+| Status    | `local` / `session`                                   | `user`                           |
+| --------- | ----------------------------------------------------- | -------------------------------- |
+| `loading` | never                                                 | until the shell's load settles   |
+| `ready`   | a readable value                                      | loaded, no save in flight        |
+| `saving`  | never                                                 | a save of this key in flight     |
+| `error`   | the stored value failed its schema, or a write failed | the load or the last save failed |
+
+```ts
+const { value, set, status } = useStoredState(units)
+const { value: well } = useStoredState(filters, { select: f => f.well })
+```
+
+Recipe: [Store a value](/docs/remember-a-value).
 
 ## Rendering a Widget
 
@@ -363,7 +417,7 @@ content. With neither, the host shows its defaults in the Widget's box.
 
 `onInputRejected(error)` hears about a later update the Widget refused. The last valid inputs stay
 on screen, with a message that can be replaced by `inputFallback({ error })`. A valid update removes
-that message. `instanceId` names the copy for keys declared with `scope: 'instance'`.
+that message. `instanceId` names the copy for keys declared with `perInstance: true`.
 
 Recipe: [Render a Widget inside your App](/docs/render-a-widget).
 
@@ -568,19 +622,18 @@ Recipe: [Runtime snapshots for a shell bug report](/docs/telemetry#runtime-snaps
 
 ## Where each hook may be called
 
-| Hook                                                                                                                                            | Inside a mount | On the host page |
-| ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ---------------- |
-| `useUser`, `useGroups`, `useTheme`, `useAction`, `useAgentContext`, `useAgentPrompt`, `useAgentSuggestions`, `useBreadcrumbs`, `useStoredState` | yes            | yes              |
-| `useApps`, `useWidgets`, `useRegistryEntries`, `useCapabilityPages`, `useActiveDefinition`, `useMfeRuntime`                                     | yes            | yes              |
-| `useBasePath`, `useMfeSignal`, `useMfeStorage`, `useScopeRoot`, `useTelemetry`, `useNavigationBlock`                                            | yes            | no               |
+| Hook                                                                                                                                                             | Inside a mount | On the host page |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ---------------- |
+| `useUser`, `useGroups`, `useTheme`, `useAction`, `useAgentContext`, `useAgentPrompt`, `useAgentSuggestions`, `useBreadcrumbs`, `useStoredState`, `useMfeStorage` | yes            | yes              |
+| `useApps`, `useWidgets`, `useRegistryEntries`, `useCapabilityPages`, `useActiveDefinition`, `useMfeRuntime`                                                      | yes            | yes              |
+| `useBasePath`, `useMfeSignal`, `useScopeRoot`, `useTelemetry`, `useNavigationBlock`                                                                              | yes            | no               |
 
 Called in the wrong place, a hook throws `mount/failure` and names itself.
 
 ## Related
 
-- [Share state across Apps and Widgets](/docs/shared-state) — typed shared keys and reactive bindings
-- [Use shared state outside render](/docs/shared-state#read-state-in-a-loader-or-resolver) — route callbacks
-
+- [Store a value](/docs/remember-a-value) — keys, areas and another app's values.
+- [Read or write storage outside render](/docs/remember-a-value#read-or-write-outside-render) — route callbacks.
 - [createApp and createWidget options](/docs/reference/create-app-and-create-widget) — the two factories.
 - [Route staticData fields](/docs/reference/static-data) — what a route declares.
 - [Testing API](/docs/reference/testing-api) — how to render these in a test.

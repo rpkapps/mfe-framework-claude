@@ -14,6 +14,8 @@ import {
   type Diagnostic,
   type MfeAdapter,
   type RegistryEntry,
+  type UserStorageState,
+  storedKey,
 } from '@company/mfe-core'
 
 import { DEFAULT_DEADLINES } from '../deadline.ts'
@@ -436,18 +438,40 @@ describe("the tab's session", () => {
     expect(recordedIdentity()).toEqual({ identity: 'grace' })
   })
 
-  it('keeps what an App stored across a sign-out, since a record belongs to the browser', () => {
+  it('keeps what an App stored across a sign-out, since a record belongs to the browser', async () => {
     const { runtime } = create()
-    const density = runtime.storage.bind('reports', {
-      name: 'density',
-      schema: z.enum(['compact', 'comfortable']),
-    })
-    density.set('compact')
+    const density = storedKey('density', z.enum(['compact', 'comfortable']).default('comfortable'))
+    const storage = runtime.storage.forCaller({ owner: 'reports' })
+    await storage.set(density, 'compact')
 
     runtime.shellState.apply({ user: null, groups: [] })
 
-    expect(density.read()).toBe('compact')
-    density.release()
+    expect(storage.peek(density)).toBe('compact')
+  })
+
+  it("drops the previous user's values on a sign-in and loads the new user's", async () => {
+    const units = storedKey('units', z.enum(['metric', 'imperial']).default('metric'), {
+      storage: 'user',
+    })
+    const rows: Record<string, UserStorageState> = {
+      ada: { reports: { units: { v: 1, d: 'imperial', revision: 1 } } },
+      grace: {},
+    }
+    let signedIn = 'ada'
+    const load = vi.fn(() => Promise.resolve(rows[signedIn] ?? {}))
+    const { runtime } = create({
+      storage: { user: { load, save: () => Promise.resolve(null) } },
+    })
+    const storage = runtime.storage.forCaller({ owner: 'reports' })
+    expect(await storage.get(units)).toBe('imperial')
+
+    signedIn = 'grace'
+    runtime.shellState.apply({ user: { id: 'grace', name: 'Grace' } })
+
+    expect(storage.status(units)).toBe('loading')
+    expect(storage.peek(units)).toBe('metric')
+    expect(await storage.get(units)).toBe('metric')
+    expect(load).toHaveBeenCalledTimes(2)
   })
 })
 

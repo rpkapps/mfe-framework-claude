@@ -17,7 +17,12 @@ import {
   type Type,
 } from '@angular/core'
 import { createApplication } from '@angular/platform-browser'
-import { createMfeError, type MfeError } from '@company/mfe-core'
+import {
+  createMfeError,
+  withoutUndefined,
+  type MfeError,
+  type UserStorageAdapter,
+} from '@company/mfe-core'
 import {
   mountDefinition,
   type DefinitionMount,
@@ -27,6 +32,7 @@ import {
   createMemoryRuntime,
   type MemoryRuntime,
   type MemoryRuntimeOptions,
+  type StoredSeed,
 } from '@company/mfe-runtime/testing'
 
 import type { AppDefinition, MfeDefinition, WidgetDefinition } from '../definition.ts'
@@ -38,18 +44,52 @@ import { provideMfeRuntime } from '../host/provide-runtime.ts'
  */
 export * from '@company/mfe-runtime/testing'
 
-export type MfeTestEnvironmentOptions = MemoryRuntimeOptions
+/** The same storage options as React's `createMfeTestEnvironment`, over the memory runtime's. */
+export interface MfeTestEnvironmentOptions extends Omit<MemoryRuntimeOptions, 'storage'> {
+  /**
+   * Stored values in place before anything mounts, in any area. Each belongs to the key's owner,
+   * else the only definition listed, else the host page, unless the seed names its owner.
+   */
+  readonly storage?: readonly StoredSeed[]
+  /** The `user` backend; an in-memory one, seeded from `storage`, when omitted. */
+  readonly userStorage?: UserStorageAdapter
+  /**
+   * The host-supplied placement identity seeded `perInstance` values belong to; `mountWidget`
+   * also places the Widget with it.
+   */
+  readonly instanceId?: string
+}
 
 export interface MfeTestEnvironment extends MemoryRuntime {
   /** `provideMfeRuntime(runtime)`, for a host component under test outside any mount. */
   readonly providers: EnvironmentProviders
 }
 
+/** Only the options a memory runtime reads, so an absent one stays absent. */
+function memoryOptions({
+  storage,
+  userStorage,
+  instanceId,
+  ...rest
+}: MfeTestEnvironmentOptions): MemoryRuntimeOptions {
+  const values = storage?.map(([key, value, caller]): StoredSeed => [
+    key,
+    value,
+    { ...withoutUndefined({ instanceId }), ...caller },
+  ])
+  return {
+    ...rest,
+    ...(values === undefined && userStorage === undefined
+      ? {}
+      : { storage: withoutUndefined({ values, user: userStorage }) }),
+  }
+}
+
 /** Every environment is independent, so no singleton leaks state between tests. */
 export function createMfeTestEnvironment(
   options: MfeTestEnvironmentOptions = {},
 ): MfeTestEnvironment {
-  const memory = createMemoryRuntime(options)
+  const memory = createMemoryRuntime(memoryOptions(options))
   return { ...memory, providers: provideMfeRuntime(memory.runtime) }
 }
 
@@ -83,7 +123,6 @@ export interface WidgetOutput {
 }
 
 export interface MountWidgetOptions extends PlacementOptions {
-  readonly instanceId?: string
   readonly inputs?: Readonly<Record<string, unknown>>
   readonly onOutput?: (name: string, payload: unknown) => void
 }

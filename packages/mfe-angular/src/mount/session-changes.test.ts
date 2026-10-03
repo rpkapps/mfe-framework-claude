@@ -17,6 +17,7 @@ import {
 import { ActivatedRoute, Router, type Routes } from '@angular/router'
 import { createMountContext, mountDefinition } from '@company/mfe-runtime'
 import { Observable } from 'rxjs'
+import { storedKey } from '@company/mfe-core'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
@@ -28,6 +29,8 @@ import { injectAction } from '../inject/action.ts'
 import { injectNavigationBlock } from '../inject/navigation-block.ts'
 import { injectStoredState } from '../inject/stored-state.ts'
 import { createMfeTestEnvironment, mountApp, mountWidget } from '../testing/index.ts'
+
+const densityKey = storedKey('density', z.enum(['compact', 'comfortable']).default('compact'))
 
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -255,10 +258,7 @@ describe('Angular security session transitions', () => {
     class StatefulRoute {
       readonly service = inject(SESSION_SERVICE)
       readonly draft = signal('empty')
-      readonly density = injectStoredState('density', z.enum(['compact', 'comfortable']), {
-        defaultValue: 'compact',
-        scope: 'definition',
-      })
+      readonly density = injectStoredState(densityKey)
       constructor() {
         instances.push(this)
         inject(DestroyRef).onDestroy(destroyed)
@@ -277,7 +277,7 @@ describe('Angular security session transitions', () => {
     })
     const token = app.element.getAttribute('data-mfe-mount')
     instances[0]!.draft.set('unsaved')
-    instances[0]!.density.set('comfortable')
+    await instances[0]!.density.set('comfortable')
     app.environment.setShellState({
       theme: 'dark',
       user: { id: 'ada', name: 'Ada renamed' },

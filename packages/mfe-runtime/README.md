@@ -22,8 +22,15 @@ const { runtime, activeOverrides, dispose } = createMfeRuntime({
   telemetryProvider,
   diagnostics, // an existing hub, so installShellAuth could report before this
   deadlines: { load: 60_000 }, // merged over DEFAULT_DEADLINES
+  storage: { user: { load, save, sync } }, // the `user` area's backend; optional
 })
 ```
+
+`storage.user` is the shell's backend for values declared with `storage: 'user'`: `load` returns
+the signed-in user's whole table, `save` sends one key, and the optional `sync` keeps it fresh
+through `replace`. The runtime loads it before Apps mount, and again when the user changes.
+[Provide user storage from the shell](../../apps/docs/content/docs/configure-user-storage.mdx)
+has the procedure.
 
 `readRegistry` checks each entry's required `requiresRuntime` range, then offers
 it to every adapter's `detect`. Exactly one must recognise it. None and the entry
@@ -152,7 +159,7 @@ with, so an entry without `shareScopes` shares in `default` alone.
 | `registry`     | the accepted entries by id, and the rejected ones with their reasons                           |
 | `loader`       | the shared loader, with each adapter's `aroundLoad` applied                                    |
 | `shellState`   | user, groups and theme, with each change classified as an identity, groups or theme transition |
-| `storage`      | validated storage, scoped by definition id, with `@host` for the page                          |
+| `storage`      | the `StorageService`: local, session and user values by key, owned per definition or `@host`   |
 | `actions`      | the action registry the palette and the key listener read                                      |
 | `breadcrumbs`  | the breadcrumb store the header reads                                                          |
 | `agentContext` | what the agent is told with each turn: the URL, the Apps, the selections                       |

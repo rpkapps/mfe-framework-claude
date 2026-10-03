@@ -93,7 +93,7 @@ Patching `{{target}}` changes event dispatch for every MFE and outlives your own
 Read and write through the MFE storage boundary: replace `{{access}}` with `{{accessor}}` from `const {{accessor}} = useMfeStorage()`.
 ```
 
-**Fix.** Use `useStoredState()` in a component, or `useMfeStorage()` everywhere else. The suggestion rewrites the object only, so the file still has to bind the accessor and spell the read the boundary's way.
+**Fix.** Use `useStoredState()` in a component, or `useMfeStorage()` everywhere else. The suggestion rewrites the object only, so the file still has to bind the accessor, declare the value with `storedKey`, and read it by key: `storage.get(key)`.
 
 **Options.**
 

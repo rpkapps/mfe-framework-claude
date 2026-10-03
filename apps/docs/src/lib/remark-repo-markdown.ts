@@ -20,7 +20,7 @@ export function rewriteDiagramUrl(url: string): string {
 
 /** Canonical repository pages keep their relative Markdown links readable on GitHub. */
 export function rewriteRepoPageUrl(url: string): string {
-  const match = /^(?:\.\/)?(design|decisions|shared-state)\.md([?#].*)?$/.exec(url)
+  const match = /^(?:\.\/)?(design|decisions)\.md([?#].*)?$/.exec(url)
   return match ? `/docs/how-it-works/${match[1]}${match[2] ?? ''}` : url
 }
 

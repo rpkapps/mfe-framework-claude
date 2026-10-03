@@ -1,6 +1,6 @@
 # The diagrams
 
-Eighteen Excalidraw scenes, and the SVGs the docs use. Both are committed, and they are committed
+Seventeen Excalidraw scenes, and the SVGs the docs use. Both are committed, and they are committed
 together: an SVG whose scene has moved on is a picture of software that no longer exists, so
 `pnpm diagrams:check` fails the build when the two disagree.
 
@@ -444,14 +444,14 @@ load settles, and the definition's `mount` runs once (§14).
 
 Subtitle: "How a stored key is composed, and what it survives." Five boxes and one table. Across
 the top, three boxes joined by arrows labelled **binds to** and **writes**: a blue
-`useStoredState('filters', schema)` ("what the author writes"), a green **What it binds to**
+`useStoredState(filters)` ("what the author writes"), a green **What it binds to**
 ("storage 'local', version 1") and a green `operations:filters` ("one key, one versioned
 envelope"). Below, a panel **What survives what** ("the store decides how long; nothing clears it
 at sign-out") holds a table with two columns, `storage: 'local'` and `storage: 'session'`, and
 five rows: a sign-out — kept / kept; another user signs in — kept, and read / kept, and read; a
 reload — kept / kept; the tab closes — kept / gone with it; version raised — `migrate()`, or
 unreadable / `migrate()`, or unreadable. To the right, a yellow **The page's own scope**
-(`@host — bindHost(), hostStorage()`) and a red **Nothing personal** ("the next user of this
+(`@host — keys used outside a mount`) and a red **Nothing personal** ("the next user of this
 browser reads it"). A legend names the four colours.
 
 Not on the figure. The key is `<definitionId>:<name>`, never scoped by mount token, so two mounts
@@ -530,15 +530,14 @@ These diagrams show the React entry first, then its Angular equivalent. Both con
 same runtime service supplied by the shell. The runtime column names the service, while the
 shell column shows its page connection. The examples and exact API details belong in the guide.
 
-| Diagram                   | Capability entry page | Connection                                                                    |
-| ------------------------- | --------------------- | ----------------------------------------------------------------------------- |
-| `capability-actions`      | Register an action    | `useAction()` / `injectAction()` → action registry → command palette          |
-| `capability-storage`      | Persist state         | `useStoredState()` / `injectStoredState()` → storage store → browser adapters |
-| `capability-theme`        | Read the shell theme  | Shell theme setting → shell state → `useTheme()` / `injectTheme()`            |
-| `capability-breadcrumbs`  | Add breadcrumbs       | `useBreadcrumbs()` / `injectBreadcrumbs()` → breadcrumb store → shell trail   |
-| `capability-requests`     | Make an API request   | Generated `#mfe/fetch` → declared API, with the shell session token           |
-| `capability-shared-state` | Share selections      | Generated bindings → shared state service → shell-configured adapter          |
-| `capability-navigation`   | Link to another App   | App router → navigation bridge → shell router                                 |
+| Diagram                  | Capability entry page | Connection                                                                                    |
+| ------------------------ | --------------------- | --------------------------------------------------------------------------------------------- |
+| `capability-actions`     | Register an action    | `useAction()` / `injectAction()` → action registry → command palette                          |
+| `capability-storage`     | Store a value         | `useStoredState(key)` / `injectStoredState(key)` → storage service → browser and user storage |
+| `capability-theme`       | Read the shell theme  | Shell theme setting → shell state → `useTheme()` / `injectTheme()`                            |
+| `capability-breadcrumbs` | Add breadcrumbs       | `useBreadcrumbs()` / `injectBreadcrumbs()` → breadcrumb store → shell trail                   |
+| `capability-requests`    | Make an API request   | Generated `#mfe/fetch` → declared API, with the shell session token                           |
+| `capability-navigation`  | Link to another App   | App router → navigation bridge → shell router                                                 |
 
 ### capability-actions
 
@@ -548,9 +547,10 @@ by its adapter. The callback remains owned by its registration and is removed on
 
 ### capability-storage
 
-Both adapters read and update records through the runtime storage store. The shell supplies the
-browser adapters used for local and session storage. A key belongs to its definition by default.
-Instance scope adds an instance identifier. Neither storage area clears its records at sign-out.
+Both adapters read and write stored keys through the runtime storage service. A key declared with
+`storedKey` says where its value lives. Local and session values go to the browser's web storage.
+User values go to the shell's `storage.user` adapter, which loads and saves them. A key belongs to
+the definition that declares it, and `perInstance` adds the host's instance id.
 
 ### capability-theme
 
@@ -569,13 +569,6 @@ restores that route-derived contribution. Disposal removes the mount's contribut
 Both frameworks import the same generated `#mfe/fetch` module. The generated transport resolves
 request URLs using deployment configuration. The shell supplies one session token source. The
 transport attaches its token only to declared API origins. Other origins receive no token.
-
-### capability-shared-state
-
-The build generates `useSharedState()` or `injectSharedState()` for each definition's declared
-contract. Mount bindings connect those calls to the runtime shared state service. The shell
-configures its schema, scope and adapter. The adapter loads and saves backend records. Optional
-subscriptions deliver external changes. This store is separate from browser stored state.
 
 ### capability-navigation
 

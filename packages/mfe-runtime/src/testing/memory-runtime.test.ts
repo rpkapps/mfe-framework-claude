@@ -14,6 +14,7 @@ import {
   type DefinitionKind,
   type MfeAdapter,
   type RegistryEntry,
+  storedKey,
 } from '@company/mfe-core'
 
 import { createMemoryRuntime, type MemoryRuntime } from './memory-runtime.ts'
@@ -197,17 +198,91 @@ describe('createMemoryRuntime', () => {
     expect(diagnostics.map(diagnostic => diagnostic.error.id)).toEqual(['first', 'second'])
   })
 
-  it('shares no storage with another runtime', () => {
+  it('shares no storage with another runtime', async () => {
     const first = memoryRuntime()
     const second = memoryRuntime()
+    const density = storedKey('density', z.string().default('comfortable'))
 
-    first.runtime.storage.storageFor('reports', 'local').key('density', z.string()).set('compact')
+    await first.runtime.storage.forCaller({ owner: 'reports' }).set(density, 'compact')
 
-    expect(
-      second.runtime.storage.storageFor('reports', 'local').key('density', z.string()).get(),
-    ).toBeNull()
+    expect(second.runtime.storage.forCaller({ owner: 'reports' }).peek(density)).toBe('comfortable')
     expect(first.storageAreas.local.length).toBe(1)
     expect(second.storageAreas.local.length).toBe(0)
+  })
+
+  describe('seeded storage values', () => {
+    const units = storedKey('units', z.enum(['metric', 'imperial']).default('metric'), {
+      storage: 'user',
+    })
+    const sidebar = storedKey('sidebar-open', z.boolean().default(true))
+    const zoom = storedKey('zoom', z.number().default(1), { storage: 'session', perInstance: true })
+    const tile = storedKey('tile', z.string().default('small'), {
+      storage: 'user',
+      perInstance: true,
+    })
+
+    it('seeds user and local values for the only definition it was handed', async () => {
+      const { runtime, userStorage, storageAreas } = memoryRuntime({
+        definitions: [definition('reports', 'app', 'react')],
+        storage: {
+          values: [
+            [units, 'imperial'],
+            [sidebar, false],
+          ],
+        },
+      })
+      const storage = runtime.storage.forCaller({ owner: 'reports' })
+
+      expect(await storage.get(units)).toBe('imperial')
+      expect(storage.status(units)).toBe('ready')
+      expect(storage.peek(sidebar)).toBe(false)
+      expect(userStorage?.snapshot()).toEqual({
+        reports: { units: { v: 1, d: 'imperial', revision: 1 } },
+      })
+      expect(storageAreas.local.length).toBe(1)
+    })
+
+    it('seeds per-instance values and values of a named owner, else the host', async () => {
+      const labUnits = storedKey.from(
+        'lab',
+        'units',
+        z.enum(['metric', 'imperial']).default('metric'),
+        {
+          storage: 'user',
+        },
+      )
+      const { runtime, userStorage } = memoryRuntime({
+        storage: {
+          values: [
+            [labUnits, 'imperial'],
+            [units, 'imperial'],
+            [tile, 'large', { owner: 'board', instanceId: 'north' }],
+            [zoom, 3, { owner: 'board', instanceId: 'north' }],
+            [sidebar, false],
+          ],
+        },
+      })
+      await runtime.storage.whenLoaded()
+
+      expect(userStorage?.snapshot()).toEqual({
+        lab: { units: { v: 1, d: 'imperial', revision: 1 } },
+        '@host': { units: { v: 1, d: 'imperial', revision: 1 } },
+        board: { 'tile@north': { v: 1, d: 'large', revision: 1 } },
+      })
+      const north = runtime.storage.forCaller({ owner: 'board', instanceId: 'north' })
+      const south = runtime.storage.forCaller({ owner: 'board', instanceId: 'south' })
+      expect(north.peek(tile)).toBe('large')
+      expect(north.peek(zoom)).toBe(3)
+      expect(south.peek(tile)).toBe('small')
+      expect(south.peek(zoom)).toBe(1)
+      expect(runtime.storage.forCaller({ owner: 'fieldwork' }).peek(labUnits)).toBe('imperial')
+      expect(runtime.storage.forCaller({ owner: '@host' }).peek(sidebar)).toBe(false)
+    })
+
+    it('refuses a seed that fails the key’s schema', () => {
+      expect(() => memoryRuntime({ storage: { values: [[units, 'si']] } })).toThrow()
+      expect(() => memoryRuntime({ storage: { values: [[sidebar, 'open']] } })).toThrow()
+    })
   })
 
   it('drops every blocker once disposed, as a shell’s does', () => {

@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url'
 import { defineConfig, rspack } from '@rsbuild/core'
 import { pluginReact } from '@rsbuild/plugin-react'
 
+import { themeBootstrapScript } from '@company/mfe-react/host'
 import { pluginMfeHostConfig } from '@company/mfe-rspack'
 import { hostFederation } from '@company/mfe-rspack/federation'
 
@@ -46,7 +47,11 @@ export default defineConfig({
   // Rsbuild names the generated document after its entry, so any other name serves the shell at /<name>.
   source: { entry: { index: './src/index.tsx' } },
 
-  html: { template: './src/index.html' },
+  html: {
+    template: './src/index.html',
+    // The pre-paint theme script, written by the runtime so it reads the runtime's own cache key.
+    templateParameters: { themeBootstrap: themeBootstrapScript() },
+  },
 
   moduleFederation: {
     options: {

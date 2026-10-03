@@ -589,37 +589,7 @@ describe('cross-tab storage events', () => {
   })
 })
 
-describe('imperative storage', () => {
-  it('notifies reactive subscribers of an imperative write and removal', () => {
-    const { store } = harness()
-    track(store)
-    const bound = store.bind(ORDERS, { name: 'theme', schema: themeSchema, defaultValue: 'light' })
-    const listener = vi.fn()
-    bound.subscribe(listener)
-
-    const storage = store.storageFor(ORDERS)
-    const key = storage.key('theme', themeSchema)
-    key.set('dark')
-    expect(listener).toHaveBeenCalledTimes(1)
-    expect(bound.getSnapshot()).toEqual({ status: 'value', value: 'dark' })
-
-    storage.remove('theme')
-    expect(listener).toHaveBeenCalledTimes(2)
-    expect(bound.getSnapshot()).toEqual({ status: 'default', value: 'light' })
-  })
-
-  it('returns null for a missing key and throws for an invalid one', () => {
-    const { store, local } = harness()
-    track(store)
-    const storage = store.storageFor(ORDERS)
-    const theme = storage.key('theme', themeSchema)
-
-    expect(theme.get()).toBeNull()
-
-    local.setItem('acme-orders:theme', envelope('chartreuse'))
-    expect(() => theme.get()).toThrow(/declared schema/)
-  })
-
+describe('clearing a definition', () => {
   it('clears only the exact prefix and notifies every mount of that definition', () => {
     const { store, local } = harness()
     track(store)
@@ -636,7 +606,7 @@ describe('imperative storage', () => {
     mountA.subscribe(seenA)
     mountB.subscribe(seenB)
 
-    store.storageFor(ORDERS).clear()
+    expect(store.clearDefinition(ORDERS)).toBe(2)
 
     expect(Object.keys(local.snapshot()).sort()).toEqual([
       'acme-orders-legacy:theme',
@@ -654,7 +624,7 @@ describe('imperative storage', () => {
     local.setItem('acme-orders:theme', envelope('dark'))
     session.setItem('acme-orders:theme', envelope('dark'))
 
-    store.storageFor(ORDERS, 'session').clear()
+    store.clearDefinition(ORDERS, 'session')
 
     expect(Object.keys(local.snapshot())).toEqual(['acme-orders:theme'])
     expect(session.snapshot()).toEqual({})
@@ -690,32 +660,6 @@ describe('declaration conflicts', () => {
         version: 2,
       }),
     ).toThrow(/version/)
-  })
-
-  it('rejects an imperative declaration that disagrees with the active one', () => {
-    const { store } = harness()
-    track(store)
-    store.bind(ORDERS, { name: 'theme', schema: themeSchema })
-
-    const storage = store.storageFor(ORDERS)
-    expect(() => storage.key('theme', z.string()).get()).toThrow(/same schema object/)
-  })
-
-  it('accepts an imperative declaration that declares no default beside a bound one that does', () => {
-    const { store } = harness()
-    track(store)
-    const bound = store.bind(ORDERS, {
-      name: 'theme',
-      schema: themeSchema,
-      defaultValue: 'light',
-    })
-
-    const key = store.storageFor(ORDERS).key('theme', themeSchema)
-    expect(key.get()).toBeNull()
-
-    key.set('dark')
-    expect(bound.getSnapshot()).toEqual({ status: 'value', value: 'dark' })
-    expect(key.get()).toBe('dark')
   })
 })
 

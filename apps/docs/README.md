@@ -1,7 +1,7 @@
 # `@company/docs` — the documentation site
 
 The author-facing documentation for the micro-frontend framework: getting started, Apps, Widgets,
-browser storage, shared state, telemetry, shell integration, development and deployment.
+storage, telemetry, shell integration, development and deployment.
 Reference and architecture sections hold API contracts, the design map and decision history.
 It is a Vite + TanStack Start application, prerendered to static files.
 Its interface uses `@tecton/react`, the design system the shell and React containers use.
@@ -33,8 +33,7 @@ apps/docs/content/docs/
   meta.json          the sidebar: its sections, in order
   index.mdx          /docs            "Overview"
   quickstart.mdx     /docs/quickstart … and one file per task guide
-  remember-a-value.mdx /docs/remember-a-value   browser storage
-  shared-state.mdx   /docs/shared-state   consumer bindings and route callbacks
+  remember-a-value.mdx /docs/remember-a-value   local, session and user storage
   telemetry.mdx      /docs/telemetry   events, errors and traces
   how-it-works/
     meta.json        the How it works pages, in order
@@ -65,13 +64,10 @@ separator:
     "---Widgets---",
     "create-a-widget",
     "…",
-    "---Browser storage---",
+    "---Storage---",
     "remember-a-value",
     "change-the-shape-of-a-stored-value",
-    "---Shared state---",
-    "shared-state",
-    "configure-shared-state",
-    "evolve-shared-state",
+    "configure-user-storage",
     "---Telemetry---",
     "telemetry",
     "---Shell integration---",
@@ -121,13 +117,12 @@ Short prerequisites and warnings can repeat beside the example where readers nee
 Env configuration has its own sidebar group. The top-level API group contains three task guides:
 API requests, API URL and TanStack Query. Consolidated guides have one current destination:
 
-| Topic                                                        | Canonical guide               |
-| ------------------------------------------------------------ | ----------------------------- |
-| Browser preferences, channel selection and imperative access | `/docs/remember-a-value`      |
-| Shared-state components, loaders and resolvers               | `/docs/shared-state`          |
-| Events, caught errors, measurements and traces               | `/docs/telemetry`             |
-| Generated styles, inheritance and overlays                   | `/docs/use-the-design-system` |
-| React and Angular adapter architecture                       | `/docs/how-it-works/adapters` |
+| Topic                                                      | Canonical guide               |
+| ---------------------------------------------------------- | ----------------------------- |
+| Stored values in every area, loaders and imperative access | `/docs/remember-a-value`      |
+| Events, caught errors, measurements and traces             | `/docs/telemetry`             |
+| Generated styles, inheritance and overlays                 | `/docs/use-the-design-system` |
+| React and Angular adapter architecture                     | `/docs/how-it-works/adapters` |
 
 Link to the canonical page or section when editing content.
 
@@ -151,26 +146,23 @@ Do not add page-level width overrides or force API names to wrap.
 
 ### Repository Markdown is rendered, not copied
 
-Three repository files are rendered directly into the architecture section:
+Two repository files are rendered directly into the architecture section:
 
-| Source                 | Site route                        | Purpose                                        |
-| ---------------------- | --------------------------------- | ---------------------------------------------- |
-| `docs/design.md`       | `/docs/how-it-works/design`       | Design map                                     |
-| `docs/decisions.md`    | `/docs/how-it-works/decisions`    | Decision history                               |
-| `docs/shared-state.md` | `/docs/how-it-works/shared-state` | Shared-state protocol and maintainer contracts |
+| Source              | Site route                     | Purpose          |
+| ------------------- | ------------------------------ | ---------------- |
+| `docs/design.md`    | `/docs/how-it-works/design`    | Design map       |
+| `docs/decisions.md` | `/docs/how-it-works/decisions` | Decision history |
 
 These files are the single source and also render on GitHub. None is duplicated here.
-The author task guide remains at `/docs/shared-state`. It links to the protocol for deeper detail.
 
 A `fumadocs-mdx` collection takes one directory, so `src/lib/docs.ts` declares a second collection
-over `../../docs` limited to these three files. `src/lib/source.ts` concatenates the two collections' virtual
+over `../../docs` limited to these two files. `src/lib/source.ts` concatenates the two collections' virtual
 file lists into one page tree and maps the repository files into the `how-it-works` folder.
-That lets `content/docs/how-it-works/meta.json` list `design`, `decisions` and `shared-state`
+That lets `content/docs/how-it-works/meta.json` list `design` and `decisions`
 beside the MDX pages written here.
 
 The repository files carry no frontmatter. `src/lib/repo-page.ts` derives their titles from the `# ` heading
-and descriptions from the paragraph under it. Title overrides distinguish the shared-state protocol
-from the author task guide.
+and descriptions from the paragraph under it. A title override names the design map.
 
 ## Writing MDX here
 

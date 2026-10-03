@@ -2032,6 +2032,41 @@ record — leaves it for the next person on a shared browser profile, and the fr
 nothing to stop it. Clearing it is the container's own work until retention comes back, and
 bringing it back is an optional field, so it would not break anyone who stores today.
 
-## Shared-state contracts and persistence
+---
 
-Shared-state authoring uses one domain Zod object with actual state IDs as its root keys. Generated bindings expose a typed hook/injector and an imperative store for routes. Contract compilation and compatibility history stay in development/release tooling; runtime values use the shell’s latest compiled schema. Object writes merge recursively, omission never deletes a field, and older consumers need no runtime contract list. Optimistic writes retain original record revisions, merge supplied object fields transactionally, and await durable acceptance. Scope changes invalidate bindings and pending work. See [the shared-state API and protocol](./shared-state.md) for structural clears, supported evolution and backend obligations.
+## 57. One runtime storage API replaces compiler-based shared state
+
+**Status:** decided; supersedes the shared-state contracts that never shipped.
+
+Two APIs stored values. Browser storage took a name, a schema and a default at every call site
+(`useStoredState(name, schema, { defaultValue, ... })`), and `storage.key(name, schema)` repeated
+them imperatively. Shared state compiled one domain schema per shell into generated bindings
+(`#mfe/shared-state`), a declaration file per definition, a release-window policy and a
+transactional backend protocol. An author had to learn both, and choose between them by where a
+value lived rather than by what it was. Shared state also cost a build step that every container,
+React or Angular, had to run before it type-checked, and a shell schema that had to deploy before
+the consumer that read it.
+
+So there is one API. A value is declared once with `storedKey(name, schema.default(...), {
+storage, perInstance, version, migrate })`, and the key is what `useStoredState`,
+`injectStoredState` and `context.mfe.storage` take, in every area. `local` and `session` stay in
+the browser. `user` lives in the shell's backend, behind one adapter on `createMfeRuntime`:
+`load` returns the signed-in user's whole table, `save` sends one key, and the optional `sync` is
+how the shell keeps it fresh by calling `replace`. The table is one row per user, owner and key,
+with a revision per key, so saves are last-write-wins per key and status is per key. The declaring
+definition owns a key and is its only writer; another definition reads a user value through
+`storedKey.from(owner, ...)`, with its own schema and default, so it never imports the owner's code.
+
+Nothing is generated: a key is a plain import, so there is no codegen, no declaration file and no
+compile-time policy. The shell owns the transport, so the framework never polls, opens sockets or
+syncs tabs. The user's values load once, up front, while remote entries download, and Apps mount
+after the load settles, so a first render and a route loader already see saved values instead of
+flashing defaults. A failed load still mounts Apps, with defaults and an `error` status that
+`retry()` clears.
+
+**Cost:** mixed-version safety moves from the build to the reader. A stored value that fails a
+reader's schema, after `migrate`, reads as the default with status `error`, and nothing at build
+time stops an owner from changing a shape its readers still expect. Per-field merging of concurrent
+writes is gone too: a key is replaced as a whole, so two writers of one object key lose one write.
+Keys that change independently should be separate keys. The `user` load is one request for the
+whole table, which suits preferences and selections and not large documents.

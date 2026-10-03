@@ -5,19 +5,14 @@ import { Field, FieldDescription, FieldLabel } from '@tecton/react/components/fi
 import { Input } from '@tecton/react/components/input'
 import { Switch } from '@tecton/react/components/switch'
 import { useId, useState, type ReactNode } from 'react'
-import { z } from 'zod'
 
 import { DataList, DataRow, Fields, LabPage, LabSection, Value } from '../lab-page.tsx'
+import { draft as draftKey, visits as visitsKey } from '../storage.ts'
 
 export const Route = createFileRoute('/storage')({
   staticData: { breadcrumb: 'Storage' },
   component: Storage,
 })
-
-/** Schemas are declared at module scope, as the storage contract requires: one rebuilt every render
- * would rebind the key on every render. */
-const draftSchema = z.object({ note: z.string(), pinned: z.boolean() })
-const visitsSchema = z.number().int().nonnegative()
 
 function Storage(): ReactNode {
   const id = useId()
@@ -26,20 +21,17 @@ function Storage(): ReactNode {
 
   // A stored value belongs to the browser: it survives a sign-out, and the next person to sign in
   // on this browser reads it (§56).
-  const [draft, setDraft] = useStoredState('draft', draftSchema, {
-    defaultValue: { note: '', pinned: false },
-  })
-
-  const [visits, setVisits] = useStoredState('visits', visitsSchema, {
-    defaultValue: 0,
-    storage: 'session',
-  })
+  // Each key is declared once, in src/storage.ts, with its schema, default and area.
+  const draftState = useStoredState(draftKey)
+  const visitsState = useStoredState(visitsKey)
+  const draft = draftState.value
+  const visits = visitsState.value
 
   return (
     <LabPage
       eyebrow="Storage"
       title="Validated and scoped"
-      description="An MFE never touches localStorage. It declares a key with a schema, and gets a subscribed value and a stable setter — with the key namespaced under this definition's id, so two MFEs cannot collide."
+      description="An MFE never touches localStorage. It declares a key with a schema and a default, and gets a subscribed value and an awaitable setter — with the key namespaced under this definition's id, so two MFEs cannot collide."
       tryThis={
         <>
           Type a note, reload the page, and it is still there. Then open devtools and look for
@@ -55,7 +47,7 @@ function Storage(): ReactNode {
             id={`${id}-note`}
             value={draft.note}
             onChange={event => {
-              setDraft(current => ({ ...current, note: event.target.value }))
+              void draftState.set(current => ({ ...current, note: event.target.value }))
             }}
           />
           <FieldDescription>
@@ -70,7 +62,7 @@ function Storage(): ReactNode {
             id={`${id}-pinned`}
             checked={draft.pinned}
             onCheckedChange={next => {
-              setDraft(current => ({ ...current, pinned: next }))
+              void draftState.set(current => ({ ...current, pinned: next }))
             }}
           />
         </Field>
@@ -89,7 +81,7 @@ function Storage(): ReactNode {
         <div className="flex gap-2">
           <Button
             onClick={() => {
-              setVisits(current => current + 1)
+              void visitsState.set(current => current + 1)
             }}
           >
             Count a visit
@@ -97,7 +89,7 @@ function Storage(): ReactNode {
           <Button
             variant="outline"
             onClick={() => {
-              setVisits(0)
+              void visitsState.set(0)
             }}
           >
             Reset
@@ -107,14 +99,14 @@ function Storage(): ReactNode {
 
       <LabSection title="The imperative handle" note="useMfeStorage">
         <p className="text-sm text-muted-foreground">
-          For reads, migrations and explicit removal. <code className="font-mono">get()</code> does
+          For loaders, actions and explicit removal. <code className="font-mono">peek()</code> does
           not subscribe, which is why rendering stored state uses the hook above instead.
         </p>
         <div className="flex gap-2">
           <Button
             variant="outline"
             onClick={() => {
-              setReadBack(local.key('draft', draftSchema).get())
+              setReadBack(local.peek(draftKey))
             }}
           >
             Read it back
@@ -122,8 +114,9 @@ function Storage(): ReactNode {
           <Button
             variant="outline"
             onClick={() => {
-              local.remove('draft')
-              setReadBack('removed')
+              void local.reset(draftKey).then(() => {
+                setReadBack('removed')
+              })
             }}
           >
             Remove the key
@@ -131,7 +124,7 @@ function Storage(): ReactNode {
         </div>
         {readBack === undefined ? null : (
           <DataList>
-            <DataRow label="key('draft').get()" hint="a read, not a subscription">
+            <DataRow label="peek(draft)" hint="a read, not a subscription">
               <Value value={readBack} />
             </DataRow>
           </DataList>

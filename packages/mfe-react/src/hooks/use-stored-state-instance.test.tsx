@@ -2,6 +2,7 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { ReactNode } from 'react'
 import { z } from 'zod'
+import { storedKey } from '@company/mfe-core'
 
 import { createMemoryRuntime, type MemoryRuntime } from '@company/mfe-runtime/testing'
 import { createMountContext } from '@company/mfe-runtime'
@@ -10,11 +11,11 @@ import { MfeProvider } from '../runtime-context.tsx'
 import { withQueryClient } from '../runtime.ts'
 import { createWidget } from '../definition.ts'
 import { DynamicWidget } from '../lazy-widget.tsx'
-import { useStoredState, type StoredStateSetter } from './use-stored-state.ts'
+import { useStoredState, type StoredState } from './use-stored-state.ts'
 
-const schema = z.number()
+const zoomKey = storedKey('zoom', z.number().default(1), { perInstance: true })
 let memory: MemoryRuntime | undefined
-const setters = new Map<string, StoredStateSetter<number>>()
+const setters = new Map<string, StoredState<number>['set']>()
 
 afterEach(() => {
   memory?.dispose()
@@ -22,8 +23,8 @@ afterEach(() => {
 })
 
 function Tile({ name }: { readonly name: string }): ReactNode {
-  const [zoom, setZoom] = useStoredState('zoom', schema, { defaultValue: 1, scope: 'instance' })
-  setters.set(name, setZoom)
+  const { value: zoom, set } = useStoredState(zoomKey)
+  setters.set(name, set)
   return <output data-testid={name}>{zoom}</output>
 }
 
@@ -47,7 +48,7 @@ describe('useStoredState instance scope', () => {
     const view = render(page('north'))
     await screen.findByTestId('north')
     await screen.findByTestId('south')
-    act(() => setters.get('north')?.(4))
+    act(() => void setters.get('north')?.(4))
     expect(screen.getByTestId('north')).toHaveTextContent('4')
     expect(screen.getByTestId('south')).toHaveTextContent('1')
 
@@ -77,7 +78,7 @@ describe('useStoredState instance scope', () => {
       </MfeProvider>
     )
     const view = render(page())
-    act(() => setters.get('north')?.(4))
+    act(() => void setters.get('north')?.(4))
     expect(screen.getByTestId('north')).toHaveTextContent('4')
     expect(screen.getByTestId('south')).toHaveTextContent('1')
 

@@ -25,18 +25,15 @@ import { Panel, PanelContent, PanelHeader, PanelTitle } from '@tecton/react/tect
 import { CopyButton } from '@tecton/react/tecton/copy-button'
 import { CheckCircle2Icon } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
-import { z } from 'zod'
 
 import { FdaCard, fdaSummaries } from '../components/fda-card/page.tsx'
+import { tableDensity } from '../storage.ts'
 import { AlertPanel } from '../widgets.ts'
 
 export const Route = createFileRoute('/')({
   staticData: { breadcrumb: 'Overview' },
   component: Overview,
 })
-
-// Declared at module scope, as the storage contract requires.
-const densitySchema = z.enum(['comfortable', 'compact'])
 
 function Overview(): ReactNode {
   const navigate = useNavigate()
@@ -46,9 +43,8 @@ function Overview(): ReactNode {
 
   // A display density belongs to the browser rather than to a person, so everyone here shares it,
   // as they share every stored value (§56).
-  const [density, setDensity] = useStoredState('table-density', densitySchema, {
-    defaultValue: 'comfortable',
-  })
+  const stored = useStoredState(tableDensity)
+  const density = stored.value
 
   // Registration is a hook, so this action is in the shell's palette while this route is on screen
   // and gone with it.
@@ -57,7 +53,7 @@ function Overview(): ReactNode {
     label: `Switch to ${density === 'compact' ? 'comfortable' : 'compact'} density`,
     canExecute: () => (user ? allow() : deny('Sign in to change display preferences.')),
     execute: () => {
-      setDensity(current => (current === 'compact' ? 'comfortable' : 'compact'))
+      void stored.set(current => (current === 'compact' ? 'comfortable' : 'compact'))
     },
   })
 
@@ -87,7 +83,7 @@ function Overview(): ReactNode {
           </CopyButton>
           <Button
             onClick={() => {
-              setDensity(current => (current === 'compact' ? 'comfortable' : 'compact'))
+              void stored.set(current => (current === 'compact' ? 'comfortable' : 'compact'))
             }}
           >
             {density === 'compact' ? 'Comfortable density' : 'Compact density'}

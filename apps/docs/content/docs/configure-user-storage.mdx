@@ -1,0 +1,157 @@
+---
+title: 'Provide user storage from the shell'
+description: "Give the runtime one adapter that loads and saves the signed-in user's stored values, and optionally keeps them fresh."
+---
+
+Shell builders. Local and session storage are built in. The `user` area needs your backend: give
+`createMfeRuntime` one adapter with `load`, `save` and an optional `sync`, and every key declared
+with `storage: 'user'` reads and writes through it.
+
+## Steps
+
+<Steps>
+<Step>
+### 1. Store one row per user, owner and key
+
+```sql shared title="Illustrative backend table"
+create table user_storage (
+  user_id  text    not null,
+  owner    text    not null,  -- the definition id, or @host for the shell
+  key      text    not null,  -- a perInstance key is stored as <name>@<instanceId>
+  version  integer not null,
+  data     jsonb   not null,
+  revision integer not null,  -- bumped by the server on every save of this key
+  primary key (user_id, owner, key)
+);
+```
+
+The backend reads the user from the session. The adapter never sends a user id.
+
+</Step>
+<Step>
+### 2. Pass the adapter to the runtime
+
+<Tabs items={['React', 'Angular']} defaultValue="React">
+<Tab value="React">
+
+```ts title="src/boot.tsx"
+import { createMfeRuntime } from '@company/mfe-react/host'
+
+const { runtime } = createMfeRuntime({
+  // ...registryEntries, adapters, loader, shellState
+  storage: {
+    user: {
+      load: signal => api.get('/user-storage', { signal }),
+      save: (owner, key, value, signal) =>
+        api.put(`/user-storage/${owner}/${encodeURIComponent(key)}`, value, { signal }),
+    },
+  },
+})
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/main.ts"
+import { createMfeRuntime } from '@company/mfe-angular/host'
+
+const { runtime } = createMfeRuntime({
+  // ...registryEntries, adapters, loader, shellState
+  storage: {
+    user: {
+      load: signal => api.get('/user-storage', { signal }),
+      save: (owner, key, value, signal) =>
+        api.put(`/user-storage/${owner}/${encodeURIComponent(key)}`, value, { signal }),
+    },
+  },
+})
+```
+
+</Tab>
+</Tabs>
+
+`load` returns the whole table for the signed-in user, as `{ [owner]: { [key]: { v, d, revision } } }`.
+`save` sends one key, with `{ v, d }` or `null` to remove it, and resolves with the stored row, or
+`null` once removed.
+
+</Step>
+<Step>
+### 3. Keep values fresh, if you need to
+
+```ts shared title="Illustrative adapter field"
+sync: (storage, signal) => {
+  const id = setInterval(async () => {
+    storage.replace(await api.get('/user-storage', { signal }))
+  }, 60_000)
+  signal.addEventListener('abort', () => clearInterval(id))
+},
+```
+
+The framework never polls, opens sockets or syncs tabs on its own. A socket or server-sent events
+call `storage.replace` the same way. Without `sync`, values change only through this tab's saves
+and the next load.
+
+</Step>
+<Step>
+### 4. Bound a slow backend
+
+```ts shared title="Illustrative adapter field"
+load: signal =>
+  api.get('/user-storage', { signal: AbortSignal.any([signal, AbortSignal.timeout(3000)]) }),
+```
+
+Apps mount after the load settles, and the load runs while remote entries download. A timeout is a
+failed load: Apps mount with defaults and status `error`, and `retry()` recovers.
+
+</Step>
+</Steps>
+
+## What the runtime does with the adapter
+
+- It calls `load` once at start, and again when the signed-in user changes. A user change aborts
+  `sync` and every save in flight, and clears the previous user's values first.
+- Saves are last-write-wins per key, with one save in flight per key. Saves to different keys go
+  out in parallel; further changes to a busy key are coalesced and sent when it settles.
+- `replace` is safe at any time. A row older than the one held is ignored, and a key with a save in
+  flight keeps this tab's value until the save settles. A key missing from the state is removed.
+- Until a load succeeds, writes to `user` keys reject with `storage/not-ready`.
+
+The shell's own values are keys like any App's. Outside an App or Widget mount they belong to the
+reserved `@host` owner, and Apps read them with `storedKey.from('@host', ...)`.
+
+## Check it works
+
+Open the devtools **Storage** tab. It shows the load as **Loaded**, and every stored key by owner
+with its status, data and row. Change a value in an App, reload, and the value is still there. Make
+`load` reject, and the tab shows **Load failed** while Apps still mount with their defaults.
+
+## Errors
+
+<Callout type="error" title="storage/persistence-failed, at load">
+
+```text shared
+<user> failed to load the user's stored values <all>: TypeError: Failed to fetch. Apps mounted with
+defaults; call retry() to load again.
+```
+
+**Fix.** Check the endpoint `load` calls. A consumer's `retry()`, or a later `replace`, recovers.
+
+</Callout>
+
+<Callout type="error" title="storage/not-ready, without an adapter">
+
+```text shared
+lab failed to read a user value units: expected a user storage adapter on
+createMfeRuntime({ storage: { user } }), received no adapter.
+```
+
+**Fix.** Pass `storage.user` to `createMfeRuntime`, or have the App store this value locally.
+
+</Callout>
+
+## Related
+
+- [Store a value](/docs/remember-a-value) — how Apps declare and read user keys
+- [Test storage and the lifecycle](/docs/test-storage-and-lifecycle) — a memory adapter in tests
+- [Open the devtools](/docs/open-the-devtools) — inspect the user area
+- [Error codes](/docs/reference/error-codes) — every `storage/*` code

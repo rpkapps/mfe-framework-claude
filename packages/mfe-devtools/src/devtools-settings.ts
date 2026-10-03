@@ -16,7 +16,7 @@ export const DEVTOOLS_QUERY_PARAM = 'devtools'
 export type DevtoolsSide = 'top' | 'bottom' | 'left' | 'right'
 
 /** Which tab is showing. */
-export type DevtoolsTab = 'overrides' | 'registry' | 'shared-state'
+export type DevtoolsTab = 'overrides' | 'registry' | 'storage'
 
 export interface DevtoolsSettings {
   /** Whether the trigger renders and the panel chunk is fetched at all. */
@@ -40,7 +40,7 @@ export const DEFAULT_SETTINGS: DevtoolsSettings = Object.freeze({
 })
 
 const SIDES: readonly DevtoolsSide[] = ['top', 'bottom', 'left', 'right']
-const TABS: readonly DevtoolsTab[] = ['overrides', 'registry', 'shared-state']
+const TABS: readonly DevtoolsTab[] = ['overrides', 'registry', 'storage']
 
 /** The truthy spellings a developer types into a console or a URL. */
 const TRUTHY = new Set(['1', 'true', 'on', 'yes', ''])

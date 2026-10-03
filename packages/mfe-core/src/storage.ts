@@ -53,9 +53,10 @@ export interface ReadonlyStoredKey<T> extends StoredKeyFields<T> {
 export type AnyStoredKey<T> = StoredKey<T> | ReadonlyStoredKey<T>
 
 /** A schema without `.default()` is rejected at the call site, not on first read. */
-type WithDefault<S extends z.ZodType> = undefined extends z.input<S>
-  ? S
-  : S & { readonly '~storedKey': 'Give the schema a .default(...)' }
+type WithDefault<S extends z.ZodType> =
+  undefined extends z.input<S>
+    ? S
+    : S & { readonly '~storedKey': 'Give the schema a .default(...)' }
 
 export type StoredUpdate<T> = T | ((previous: T) => T)
 
@@ -67,11 +68,7 @@ export interface StoredSnapshot<T> {
 }
 
 export type StorageErrorCode =
-  | 'unauthorized-owner'
-  | 'invalid-value'
-  | 'not-ready'
-  | 'disposed'
-  | 'persistence-failed'
+  'unauthorized-owner' | 'invalid-value' | 'not-ready' | 'disposed' | 'persistence-failed'
 
 export interface StorageError extends MfeError {
   readonly code: `storage/${StorageErrorCode}`
@@ -117,13 +114,11 @@ function declare<T>(
 ): AnyStoredKey<T> {
   const id = owner ?? '<declaring app>'
   const fail = (expected: string, observed: string, repair: string): never => {
-    throw createStorageError(
-      'invalid-value',
-      id,
-      String(name),
-      'declare a stored key',
-      { expected, observed, repair },
-    )
+    throw createStorageError('invalid-value', id, String(name), 'declare a stored key', {
+      expected,
+      observed,
+      repair,
+    })
   }
   if (typeof name !== 'string' || name.length === 0 || name.includes('@') || name.includes(':'))
     fail(
@@ -162,7 +157,7 @@ function declare<T>(
     version,
     ...(options.migrate === undefined ? {} : { migrate: options.migrate }),
     ...(owner === undefined ? {} : { owner }),
-  }) as AnyStoredKey<T>
+  })
 }
 
 /**

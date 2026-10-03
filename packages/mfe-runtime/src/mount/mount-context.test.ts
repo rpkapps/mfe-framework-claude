@@ -7,6 +7,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
+import { storedKey } from '@company/mfe-core'
+
 import { createMemoryRuntime, type MemoryRuntime } from '../testing/memory-runtime.ts'
 import { createMountContext, createMountToken, mountScopedStores } from './mount-context.ts'
 import {
@@ -114,17 +116,18 @@ describe('createMountContext', () => {
     expect(context.overlayRoot.ownerDocument).toBe(other)
   })
 
-  it('scopes storage to the definition, so two mounts of it share their records', () => {
+  it('scopes storage to the definition, so two mounts of it share their records', async () => {
     const host = runtime()
     const first = createMountContext({ runtime: host, definitionId: 'reports', kind: 'app' })
     const second = createMountContext({ runtime: host, definitionId: 'reports', kind: 'app' })
     const other = createMountContext({ runtime: host, definitionId: 'alerts', kind: 'app' })
+    const density = storedKey('density', z.string().default('comfortable'))
 
-    first.context.storage.local.key('density', z.string()).set('compact')
+    await first.context.storage.set(density, 'compact')
 
     expect(first.context.mountToken).not.toBe(second.context.mountToken)
-    expect(second.context.storage.local.key('density', z.string()).get()).toBe('compact')
-    expect(other.context.storage.local.key('density', z.string()).get()).toBeNull()
+    expect(second.context.storage.peek(density)).toBe('compact')
+    expect(other.context.storage.peek(density)).toBe('comfortable')
   })
 
   it('keeps stable instance preferences across disposal while isolating duplicate widget tiles', async () => {
@@ -132,19 +135,21 @@ describe('createMountContext', () => {
     const options = { runtime: host, definitionId: 'alert-panel', kind: 'widget' as const }
     const north = createMountContext({ ...options, instanceId: 'north' })
     const south = createMountContext({ ...options, instanceId: 'south' })
-    const schema = z.string()
-    north.context.storage.local.key('view', schema, { scope: 'instance' }).set('compact')
-    north.context.storage.local.key('shared', schema).set('dark')
+    const view = storedKey('view', z.string().default('roomy'), { perInstance: true })
+    const shared = storedKey('shared', z.string().default('light'))
+    await north.context.storage.set(view, 'compact')
+    await north.context.storage.set(shared, 'dark')
 
-    expect(south.context.storage.local.key('view', schema, { scope: 'instance' }).get()).toBeNull()
-    expect(south.context.storage.local.key('shared', schema).get()).toBe('dark')
+    expect(south.context.storage.peek(view)).toBe('roomy')
+    expect(south.context.storage.peek(shared)).toBe('dark')
     await north.dispose()
+    await expect(north.context.storage.set(view, 'late')).rejects.toMatchObject({
+      code: 'storage/disposed',
+    })
     const remounted = createMountContext({ ...options, instanceId: 'north' })
     expect(remounted.context.mountToken).not.toBe(north.context.mountToken)
     expect(remounted.context.instanceId).toBe('north')
-    expect(remounted.context.storage.local.key('view', schema, { scope: 'instance' }).get()).toBe(
-      'compact',
-    )
+    expect(remounted.context.storage.peek(view)).toBe('compact')
   })
 
   it('attaches a body-level overlay root carrying the scope and the mount', () => {

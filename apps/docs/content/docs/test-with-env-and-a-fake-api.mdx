@@ -76,8 +76,8 @@ Replace `my-app` with your Nx project name.
 </Tabs>
 
 Tests use the adapter's public package exports. They need no framework repository checkout,
-framework source aliases, running shell, or live backend. Generate real `#mfe/meta` and shared-state
-bindings when your definition imports them; only configuration and fetch are replaced by the fixtures above.
+framework source aliases, running shell, or live backend. Generate a real `#mfe/meta` when your
+definition imports it; only configuration and fetch are replaced by the fixtures above.
 
 ## Steps
 
@@ -202,7 +202,7 @@ expect(mfeRequests()[0]?.url).toBe('https://api.example.test/v1/assets?site=nort
 expect(mfeRequests()[0]?.authorization).toBe('Bearer token-7')
 ```
 
-This assumes your Angular App has an `assets` route that sends the same request. Supply its shared-state fixtures if it declares shared state.
+This assumes your Angular App has an `assets` route that sends the same request. Seed any stored values it reads through the environment's `storage` option.
 
 </Tab>
 </Tabs>

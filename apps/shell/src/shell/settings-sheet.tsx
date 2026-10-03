@@ -3,9 +3,15 @@
  * list at the bottom links to the settings pages the registry says each one published.
  */
 
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { useApps, useCapabilityPages, useMfeRuntime, useTheme } from '@company/mfe-react'
+import {
+  useApps,
+  useCapabilityPages,
+  useMfeRuntime,
+  useStoredState,
+  useTheme,
+} from '@company/mfe-react'
 import { devtools } from '@company/mfe-devtools'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
@@ -33,12 +39,14 @@ import {
   ExternalLinkIcon,
   LayersIcon,
   LayoutDashboardIcon,
+  MonitorIcon,
   MoonIcon,
   SunIcon,
   Trash2Icon,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { themeKey } from '../storage.ts'
 import { collectDiagnostics, formatReport } from './diagnostics.ts'
 import { EMPTY_LAYOUT } from './dashboard/layout-store.ts'
 import { useDashboardLayout } from './hooks.ts'
@@ -56,7 +64,6 @@ export function SettingsSheet({
   const runtime = useMfeRuntime('the shell settings')
   const navigate = useNavigate()
   const apps = useApps()
-  const theme = useTheme()
   const [layout, setLayout] = useDashboardLayout()
 
   // Only the settings pages: flattening every capability put each application's help and release
@@ -78,36 +85,7 @@ export function SettingsSheet({
         <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-4">
           <div className="flex flex-col gap-6 pb-2">
             <Section title="Appearance" hint="Shared with every mounted application">
-              <Item variant="outline" size="sm">
-                <ItemContent>
-                  <ItemTitle>Theme</ItemTitle>
-                  <ItemDescription className="whitespace-normal">
-                    Applied to the document, and published to every mount through the shell state.
-                  </ItemDescription>
-                </ItemContent>
-                <ItemActions>
-                  <ToggleGroup
-                    aria-label="Theme"
-                    value={[theme]}
-                    variant="outline"
-                    size="sm"
-                    spacing={0}
-                    onValueChange={values => {
-                      // Pressing the chosen theme again empties the group; one theme always applies.
-                      const next: unknown = values[0]
-                      if (next !== 'light' && next !== 'dark') return
-                      runtime.shellState.apply({ theme: next })
-                    }}
-                  >
-                    <ToggleGroupItem value="light" aria-label="Light theme">
-                      <SunIcon /> Light
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="dark" aria-label="Dark theme">
-                      <MoonIcon /> Dark
-                    </ToggleGroupItem>
-                  </ToggleGroup>
-                </ItemActions>
-              </Item>
+              <ThemeSettings />
             </Section>
 
             <Section title="Widget dashboard" hint={`${String(layout.tiles.length)} tiles saved`}>
@@ -257,5 +235,69 @@ function Section({
       </div>
       {children}
     </section>
+  )
+}
+
+/** Saved with the user's values, so it follows them to every device and application. */
+function ThemeSettings(): ReactNode {
+  const runtime = useMfeRuntime('the theme setting')
+  const stored = useStoredState(themeKey)
+  const { value, status } = stored
+  const theme = useTheme()
+  const [saveFailed, setSaveFailed] = useState(false)
+
+  if (status === 'loading')
+    return <p role="status">Loading your saved preference… Current appearance: {theme}.</p>
+  // Nothing can be saved until the user's values have loaded; `retry` loads them again.
+  if (runtime.storage.user?.phase !== 'ready')
+    return (
+      <div className="flex flex-col items-start gap-2">
+        <p role="alert">Your preference could not be loaded. Current appearance: {theme}.</p>
+        <Button variant="outline" size="sm" onClick={() => void stored.retry()}>
+          Retry
+        </Button>
+      </div>
+    )
+
+  return (
+    <Item variant="outline" size="sm">
+      <ItemContent>
+        <ItemTitle>Theme</ItemTitle>
+        <ItemDescription className="whitespace-normal">
+          Saved to your user settings and shared across applications.
+        </ItemDescription>
+        {status === 'saving' ? <p role="status">Saving preference…</p> : null}
+        {saveFailed ? <p role="alert">Your theme was not saved. Please try again.</p> : null}
+      </ItemContent>
+      <ItemActions>
+        <ToggleGroup
+          aria-label="Theme"
+          value={[value]}
+          variant="outline"
+          size="sm"
+          spacing={0}
+          disabled={status === 'saving'}
+          onValueChange={values => {
+            // Pressing the chosen theme again empties the group; one preference always applies.
+            const next: unknown = values[0]
+            if (next !== 'light' && next !== 'dark' && next !== 'system') return
+            setSaveFailed(false)
+            stored.set(next).catch(() => {
+              setSaveFailed(true)
+            })
+          }}
+        >
+          <ToggleGroupItem value="light" aria-label="Light theme">
+            <SunIcon data-icon="inline-start" /> Light
+          </ToggleGroupItem>
+          <ToggleGroupItem value="dark" aria-label="Dark theme">
+            <MoonIcon data-icon="inline-start" /> Dark
+          </ToggleGroupItem>
+          <ToggleGroupItem value="system" aria-label="System theme">
+            <MonitorIcon data-icon="inline-start" /> System
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </ItemActions>
+    </Item>
   )
 }

@@ -54,7 +54,9 @@ export interface StorageServiceOptions {
   readonly diagnostics?: DiagnosticsHub | undefined
 }
 
-type Decoded = { readonly ok: true; readonly value: unknown } | { readonly ok: false; readonly error: StorageError }
+type Decoded =
+  | { readonly ok: true; readonly value: unknown }
+  | { readonly ok: false; readonly error: StorageError }
 
 export class StorageService {
   readonly browser: MfeStorageStore
@@ -77,10 +79,10 @@ export class StorageService {
   whenLoaded(signal?: AbortSignal): Promise<void> {
     const loaded = this.user?.whenLoaded() ?? Promise.resolve()
     if (signal === undefined) return loaded
-    if (signal.aborted) return Promise.reject(signal.reason as unknown)
+    if (signal.aborted) return Promise.reject(abortError(signal))
     return new Promise<void>((resolve, reject) => {
       const abort = (): void => {
-        reject(signal.reason as unknown)
+        reject(abortError(signal))
       }
       signal.addEventListener('abort', abort, { once: true })
       void loaded.then(() => {
@@ -238,10 +240,10 @@ export class StorageService {
 
     const write = async (next: StoredUpdate<T> | typeof RESET): Promise<void> => {
       this.#assertWritable(caller, owner, key)
-      if (next === RESET) return user.save(owner, row, null)
+      if (next === RESET) return await user.save(owner, row, null)
       const value = this.#candidate(owner, key, getSnapshot(), next)
       assertJson(owner, key.name, value)
-      return user.save(owner, row, { v: key.version, d: value })
+      return await user.save(owner, row, { v: key.version, d: value })
     }
 
     return {
@@ -320,16 +322,21 @@ export class StorageService {
       try {
         apply()
       } catch (cause) {
-        const error = isMfeError(cause) && cause.code.startsWith('storage/') && cause.code !== 'storage/failure'
-          ? (cause as StorageError)
-          : createStorageError(
-              'persistence-failed',
-              owner,
-              key.name,
-              `write the ${area} storage key`,
-              { observed: describeThrown(cause), repair: 'The stored value is unchanged.' },
-              cause,
-            )
+        // A refused write (read-only key, invalid value, disposed caller) leaves the status as it is.
+        if (
+          isMfeError(cause) &&
+          cause.code.startsWith('storage/') &&
+          cause.code !== 'storage/failure'
+        )
+          return Promise.reject(cause)
+        const error = createStorageError(
+          'persistence-failed',
+          owner,
+          key.name,
+          `write the ${area} storage key`,
+          { observed: describeThrown(cause), repair: 'The stored value is unchanged.' },
+          cause,
+        )
         this.#setWriteError(writeId, error)
         return Promise.reject(error)
       }
@@ -368,7 +375,12 @@ export class StorageService {
   }
 
   /** Resolves a functional update against what this tab reads, then validates the result. */
-  #candidate<T>(owner: string, key: AnyStoredKey<T>, current: StoredSnapshot<T>, next: StoredUpdate<T>): T {
+  #candidate<T>(
+    owner: string,
+    key: AnyStoredKey<T>,
+    current: StoredSnapshot<T>,
+    next: StoredUpdate<T>,
+  ): T {
     let candidate: unknown = next
     if (typeof next === 'function') {
       if (current.status === 'error' && current.error?.code === 'storage/invalid-value')
@@ -434,7 +446,17 @@ export class StorageService {
 
 const RESET = Symbol('reset')
 
-function describeIssues(error: { readonly issues: readonly { readonly path: readonly PropertyKey[]; readonly message: string }[] }): string {
+/** `AbortSignal.reason` is untyped; the rejection is always an `Error`. */
+function abortError(signal: AbortSignal): Error {
+  const reason: unknown = signal.reason
+  return reason instanceof Error
+    ? reason
+    : new DOMException('The operation was aborted.', 'AbortError')
+}
+
+function describeIssues(error: {
+  readonly issues: readonly { readonly path: readonly PropertyKey[]; readonly message: string }[]
+}): string {
   return error.issues
     .map(issue => `${issue.path.map(String).join('.') || '<root>'}: ${issue.message}`)
     .join('; ')
@@ -489,8 +511,7 @@ function assertJson(owner: string, name: string, value: unknown): void {
     if (typeof current === 'number' && Number.isFinite(current)) return
     const prototype: unknown =
       current !== null && typeof current === 'object' ? Object.getPrototypeOf(current) : undefined
-    const plain =
-      Array.isArray(current) || prototype === Object.prototype || prototype === null
+    const plain = Array.isArray(current) || prototype === Object.prototype || prototype === null
     if (typeof current !== 'object' || !plain || seen.has(current as object))
       throw createStorageError('invalid-value', owner, name, 'write a user value', {
         expected: 'plain JSON data',

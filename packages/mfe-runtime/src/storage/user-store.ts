@@ -96,6 +96,11 @@ export class UserStorageStore {
     return this.#phase
   }
 
+  /** Why the last load failed, while it stays failed. */
+  get loadError(): StorageError | undefined {
+    return this.#phase === 'error' ? this.#loadError : undefined
+  }
+
   /** Settles once the current load has; never rejects, since a failed load still mounts apps. */
   whenLoaded(): Promise<void> {
     return this.#loaded
@@ -103,8 +108,7 @@ export class UserStorageStore {
 
   read(owner: string, key: string): UserRowState {
     const slot = this.#slots.get(slotKey(owner, key))
-    const error =
-      this.#phase === 'error' ? this.#loadError : (slot?.failed?.error ?? undefined)
+    const error = this.#phase === 'error' ? this.#loadError : (slot?.failed?.error ?? undefined)
     const pending = slot?.queued !== undefined ? slot.queued.value : slot?.sending?.value
     const current = slot?.snapshot
     if (
@@ -143,7 +147,11 @@ export class UserStorageStore {
   }
 
   /** Confirmed rows, owner then key, for devtools. */
-  entries(): readonly { readonly owner: string; readonly key: string; readonly state: UserRowState }[] {
+  entries(): readonly {
+    readonly owner: string
+    readonly key: string
+    readonly state: UserRowState
+  }[] {
     return [...this.#slots.keys()].map(id => {
       const [owner = '', key = ''] = id.split(SEPARATOR)
       return { owner, key, state: this.read(owner, key) }
@@ -189,13 +197,17 @@ export class UserStorageStore {
 
   /** After a failed load, loads again; after a failed save of this key, sends it again. */
   retry(owner: string, key: string): Promise<void> {
-    if (this.#phase === 'error') {
-      this.#load()
-      return this.#loaded
-    }
+    if (this.#phase === 'error') return this.retryLoad()
     const failed = this.#slots.get(slotKey(owner, key))?.failed
     if (failed === undefined) return Promise.resolve()
     return this.save(owner, key, failed.value)
+  }
+
+  /** Loads again after a failed load; does nothing otherwise. */
+  retryLoad(): Promise<void> {
+    if (this.#phase !== 'error') return Promise.resolve()
+    this.#load()
+    return this.#loaded
   }
 
   /**
@@ -283,30 +295,30 @@ export class UserStorageStore {
     this.#phase = 'loading'
     this.#loadError = undefined
     this.#notifyAll()
-    let loading: Promise<UserStorageState>
-    try {
-      loading = Promise.resolve(this.#adapter.load(signal))
-    } catch (error) {
-      loading = Promise.reject(error)
-    }
-    this.#loaded = loading.then(
-      state => {
-        if (this.#disposed || generation !== this.#generation) return
-        if (state === null || typeof state !== 'object')
-          throw new TypeError('load() must resolve with an object of owner → key → row')
-        this.#phase = 'ready'
-        this.replace(state, generation)
-        this.#notifyAll()
-        this.#startSync(generation, signal)
-      },
-      (error: unknown) => {
+    // The executor catches an adapter that throws instead of rejecting.
+    const loading = new Promise<UserStorageState>(resolve => {
+      resolve(this.#adapter.load(signal))
+    })
+    this.#loaded = loading
+      .then(
+        state => {
+          if (this.#disposed || generation !== this.#generation) return
+          if (state === null || typeof state !== 'object')
+            throw new TypeError('load() must resolve with an object of owner → key → row')
+          this.#phase = 'ready'
+          this.replace(state, generation)
+          this.#notifyAll()
+          this.#startSync(generation, signal)
+        },
+        (error: unknown) => {
+          if (this.#disposed || generation !== this.#generation) return
+          this.#fail(error)
+        },
+      )
+      .catch((error: unknown) => {
         if (this.#disposed || generation !== this.#generation) return
         this.#fail(error)
-      },
-    ).catch((error: unknown) => {
-      if (this.#disposed || generation !== this.#generation) return
-      this.#fail(error)
-    })
+      })
   }
 
   #fail(error: unknown): void {
@@ -363,12 +375,9 @@ export class UserStorageStore {
     const generation = this.#generation
     const signal = this.#controller.signal
     slot.sending = { value }
-    let saving: Promise<StoredRow | null>
-    try {
-      saving = Promise.resolve(this.#adapter.save(owner, key, value, signal))
-    } catch (error) {
-      saving = Promise.reject(error)
-    }
+    const saving = new Promise<StoredRow | null>(resolve => {
+      resolve(this.#adapter.save(owner, key, value, signal))
+    })
     void saving
       .then(row => {
         if (this.#disposed || generation !== this.#generation) throw signal.reason
@@ -448,7 +457,10 @@ export class UserStorageStore {
           '<user>',
           '<listener>',
           'notify a storage subscriber',
-          { observed: describeThrown(error), repair: 'Fix the subscriber; the others were notified.' },
+          {
+            observed: describeThrown(error),
+            repair: 'Fix the subscriber; the others were notified.',
+          },
           error,
         ),
         { severity: 'warning' },

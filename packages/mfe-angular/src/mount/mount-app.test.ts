@@ -24,6 +24,7 @@ import {
   mountDefinition,
   parseBoundaryLocation,
 } from '@company/mfe-runtime'
+import { storedKey } from '@company/mfe-core'
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
@@ -34,6 +35,8 @@ import { injectTheme } from '../inject/shell-state.ts'
 import { injectStoredState } from '../inject/stored-state.ts'
 import { mfeRouteData } from '../routing/route-data.ts'
 import { createMfeTestEnvironment, mountApp, type MountedTestDefinition } from '../testing/index.ts'
+
+const densityKey = storedKey('density', z.enum(['compact', 'comfortable']).default('compact'))
 
 @Component({ selector: 'test-overview', template: '<h1>overview</h1>' })
 class OverviewComponent {}
@@ -248,9 +251,7 @@ describe('mounting an App', () => {
       constructor() {
         injectAction({ name: 'refresh', label: 'Refresh', execute: () => undefined })
         injectNavigationBlock(false)
-        injectStoredState('density', z.enum(['compact', 'comfortable']), {
-          defaultValue: 'compact',
-        })
+        injectStoredState(densityKey)
       }
     }
     const busyApp = createApp({ id: 'busy', routes: [{ path: '', component: BusyComponent }] })

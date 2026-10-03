@@ -28,14 +28,14 @@ export interface ReadonlyStoredState<R> {
   readonly status: Signal<StoredStatus>
   readonly error: Signal<StorageError | undefined>
   /** After a failed load, loads again; after a failed save, sends it again. */
-  retry(): Promise<void>
+  readonly retry: () => Promise<void>
 }
 
 export interface StoredState<T, R = T> extends ReadonlyStoredState<R> {
   /** Always takes the whole value, even with `select`. Resolves once the value is stored. */
-  set(next: StoredUpdate<T>): Promise<void>
+  readonly set: (next: StoredUpdate<T>) => Promise<void>
   /** Removes the stored value, so the key reads its schema default again. */
-  reset(): Promise<void>
+  readonly reset: () => Promise<void>
 }
 
 export function injectStoredState<T, R = T>(

@@ -1,207 +1,258 @@
 ---
-title: 'Browser storage'
-description: 'Store local or session preferences, read them in handlers and routes, and keep Widget instances separate.'
+title: 'Store a value'
+description: 'Declare a stored key once, then read and write it in local, session or user storage with one API.'
 ---
 
-Keep a browser preference across reloads with React's `useStoredState` or Angular's `injectStoredState`.
-Apps and Widgets store it under their own definition id.
+Keep a preference across reloads, for one tab, or for the signed-in user on every device. Declare
+the value once as a key, then read and write it with React's `useStoredState` or Angular's
+`injectStoredState`. Apps and Widgets.
 
 <Diagram
   src="/diagrams/capability-storage.svg"
-  alt="React and Angular consumers receive scoped browser storage from the shell runtime."
-  caption="The shell supplies storage. Your definition owns its records."
+  alt="React and Angular consumers read and write stored keys through the runtime's storage service."
+  caption="The shell supplies storage. Your definition owns its values."
 >
-  The shell runtime provides each mount with scoped browser storage. React reads a subscribed value
-  through `useStoredState`. Angular reads a signal through `injectStoredState`. Both validate writes
-  against your schema. The shell's own records have a separate scope.
+  The runtime gives each mount one storage service. React reads a subscribed value through
+  `useStoredState`. Angular reads signals through `injectStoredState`. Both validate writes against
+  the key's schema. Local and session values live in the browser; user values live in the shell's
+  backend.
 </Diagram>
 
 ## Choose where to store a value
 
-| Need                                                    | Use                                                          |
-| ------------------------------------------------------- | ------------------------------------------------------------ |
-| A preference for one definition in this browser         | This guide's local storage                                   |
-| A preference for this tab                               | `storage: 'session'`                                         |
-| A selection shared with the shell or another definition | [Shared state](/docs/shared-state), with backend persistence |
-| Data for one hosted Widget                              | [Widget inputs and outputs](/docs/define-inputs-and-outputs) |
+| Need                                                 | Use                                                                         |
+| ---------------------------------------------------- | --------------------------------------------------------------------------- |
+| A preference for this browser, such as a table split | `storage: 'local'`, the default                                             |
+| A draft for this tab alone                           | `storage: 'session'`                                                        |
+| A preference that follows the user to every device   | `storage: 'user'`, which the shell [provides](/docs/configure-user-storage) |
+| A value another App or the shell owns                | [`storedKey.from`](#read-another-apps-value), read-only                     |
+| Data for one hosted Widget                           | [Widget inputs and outputs](/docs/define-inputs-and-outputs)                |
 
-<Callout type="warning" title="Browser storage survives sign-out">
-  The next user of this browser profile can read these records. Keep personal data out of browser
-  storage.
+| Area      | Lives in                       | Shared across          | Survives sign-out        |
+| --------- | ------------------------------ | ---------------------- | ------------------------ |
+| `local`   | the browser's `localStorage`   | tabs of this browser   | yes, per browser profile |
+| `session` | the browser's `sessionStorage` | this tab only          | until the tab closes     |
+| `user`    | the shell's backend            | every device, per user | yes, per user            |
+
+<Callout type="warning" title="Local and session values survive sign-out">
+  The next user of this browser profile reads them. Anything personal belongs in `user` storage.
 </Callout>
 
 ## Steps
 
 <Steps>
 <Step>
-### 1. Declare the schema at module scope
+### 1. Declare the key once
 
-```ts shared title="examples/operations/src/routes/index.tsx"
+<Tabs items={['React', 'Angular']} defaultValue="React">
+<Tab value="React">
+
+```ts title="src/storage.ts"
+import { storedKey } from '@company/mfe-react'
 import { z } from 'zod'
 
-// Module scope: a schema rebuilt on every render rebinds the key on every render.
-const densitySchema = z.enum(['comfortable', 'compact'])
+export const density = storedKey(
+  'table-density',
+  z.enum(['comfortable', 'compact']).default('comfortable'),
+)
+
+export const units = storedKey('units', z.enum(['metric', 'imperial']).default('metric'), {
+  storage: 'user',
+})
 ```
 
-The framework compares schemas by reference. Export one schema object per key from one module.
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/storage.ts"
+import { storedKey } from '@company/mfe-angular'
+import { z } from 'zod'
+
+export const density = storedKey(
+  'table-density',
+  z.enum(['comfortable', 'compact']).default('comfortable'),
+)
+
+export const units = storedKey('units', z.enum(['metric', 'imperial']).default('metric'), {
+  storage: 'user',
+})
+```
+
+</Tab>
+</Tabs>
+
+The schema needs a `.default(...)`, and that default is what an absent value reads as. Your App owns
+every key it declares, and only the owner writes.
 
 </Step>
 <Step>
-### 2. Bind the key
+### 2. Read and write it
 
 <Tabs items={['React', 'Angular']} defaultValue="React">
 <Tab value="React">
 
-```tsx title="examples/operations/src/routes/index.tsx"
+```tsx title="src/routes/index.tsx"
 import { useStoredState } from '@company/mfe-react'
 
+import { density } from '../storage.ts'
+
 // Inside your component.
-const [density, setDensity] = useStoredState('table-density', densitySchema, {
-  defaultValue: 'comfortable',
-})
+const { value, set } = useStoredState(density)
+
+set(current => (current === 'compact' ? 'comfortable' : 'compact'))
 ```
 
 </Tab>
 <Tab value="Angular">
 
-```ts title="Illustrative Angular component field"
+```ts title="src/table.component.ts"
 import { injectStoredState } from '@company/mfe-angular'
 
+import { density } from './storage'
+
 // Inside your component class, in an injection context.
-readonly density = injectStoredState('table-density', densitySchema, {
-  defaultValue: 'comfortable',
-})
+readonly tableDensity = injectStoredState(density)
+
+toggle(): void {
+  void this.tableDensity.set(current => (current === 'compact' ? 'comfortable' : 'compact'))
+}
 ```
 
-Read `density.value()` in your template.
+Read `tableDensity.value()` in your template.
 
 </Tab>
 </Tabs>
 
-The stored key is `operations:table-density`. An absent record reads as `comfortable`.
+`set` takes a value or an updater, validates the result against the schema, and returns a promise.
+`reset()` removes the stored value, so the key reads its default again.
 
 </Step>
 <Step>
-### 3. Write a value
+### 3. Show the status of a user value
 
 <Tabs items={['React', 'Angular']} defaultValue="React">
 <Tab value="React">
 
-```tsx title="examples/operations/src/routes/index.tsx"
-setDensity(current => (current === 'compact' ? 'comfortable' : 'compact'))
+```tsx title="src/units-picker.tsx"
+const { value, set, status, error, retry } = useStoredState(units)
+
+return (
+  <>
+    <UnitsSelect value={value} disabled={status === 'loading'} onChange={next => set(next)} />
+    {status === 'error' && <RetryNotice message={error?.message} onRetry={retry} />}
+  </>
+)
 ```
 
 </Tab>
 <Tab value="Angular">
 
-```ts title="Illustrative Angular component method"
-this.density.set(current => (current === 'compact' ? 'comfortable' : 'compact'))
+```ts title="src/units-picker.component.ts"
+readonly unitsState = injectStoredState(units)
+// unitsState.value(), unitsState.status() and unitsState.error() are signals.
+// unitsState.retry() loads again after a failed load, or sends a failed save again.
 ```
 
 </Tab>
 </Tabs>
 
-Both setters accept a value or an updater function. Both validate the result against the schema.
-
-</Step>
-<Step>
-### 4. Keep it for this tab alone
-
-<Tabs items={['React', 'Angular']} defaultValue="React">
-<Tab value="React">
-
-```tsx title="examples/lab/src/routes/storage.tsx"
-const [visits, setVisits] = useStoredState('visits', visitsSchema, {
-  defaultValue: 0,
-  storage: 'session',
-})
-```
-
-</Tab>
-<Tab value="Angular">
-
-```ts title="Illustrative Angular component field"
-readonly visits = injectStoredState('visits', visitsSchema, {
-  defaultValue: 0,
-  storage: 'session',
-})
-```
-
-</Tab>
-</Tabs>
-
-`storage` defaults to `'local'`. `'session'` clears when the tab closes. The areas keep separate records with the same name.
-Angular accepts the same `storage` option.
+The value is always a `T`: the schema default while loading or after an error, never `undefined`.
+A `user` write renders at once, shows `saving`, and rolls back with `error` if the save fails.
 
 </Step>
 </Steps>
+
+## Read another app's value
+
+<Tabs items={['React', 'Angular']} defaultValue="React">
+<Tab value="React">
+
+```tsx title="src/storage.ts"
+export const labUnits = storedKey.from(
+  'lab',
+  'units',
+  z.enum(['metric', 'imperial']).default('metric'),
+  {
+    storage: 'user',
+  },
+)
+
+// Inside a component: no `set` or `reset` on a read-only key.
+const { value } = useStoredState(labUnits)
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/storage.ts"
+export const labUnits = storedKey.from('lab', 'units', z.enum(['metric', 'imperial']).default('metric'), {
+  storage: 'user',
+})
+
+// In a component field: no `set` or `reset` on a read-only key.
+readonly fromLab = injectStoredState(labUnits)
+```
+
+</Tab>
+</Tabs>
+
+The first argument is the owner's definition id, or `@host` for the shell's own values. Only `user`
+values can be read this way. You bring your own schema and default, so you never import the owner's
+code. A value that fails your schema reads as your default with status `error`.
+
+Pass `select` to re-render only when part of a value changes:
+`useStoredState(filters, { select: f => f.well })`. Angular takes the same option. `set` still
+takes the whole value.
 
 ## Read or write outside render
 
 <Tabs items={['React', 'Angular']} defaultValue="React">
 <Tab value="React">
 
-```tsx title="examples/lab/src/routes/storage.tsx"
+```tsx title="src/routes/wells.tsx"
 import { useMfeStorage } from '@company/mfe-react'
 
-// Capture inside your component. Use it in handlers or cleanups.
-const local = useMfeStorage()
-```
+// A route loader: get() waits for user storage to load.
+loader: async ({ context }) => {
+  const selection = await context.mfe.storage.get(wellSelection)
+  return fetchWell(selection.wellId)
+}
 
-React loaders read the same handle from `context.mfe.storage.local` or `context.mfe.storage.session`.
+// A handler: capture the handle inside your component.
+const storage = useMfeStorage()
+await storage.set(units, 'imperial')
+```
 
 </Tab>
 <Tab value="Angular">
 
-```ts title="Illustrative Angular component field"
+```ts title="src/wells.resolver.ts"
 import { injectMfeStorage } from '@company/mfe-angular'
 
-readonly local = injectMfeStorage()
-```
-
-Use `this.local` in methods. A resolver captures `injectMfeStorage()` before any `await`.
-
-</Tab>
-</Tabs>
-
-<Tabs items={['React', 'Angular']} defaultValue="React">
-<Tab value="React">
-
-```ts title="Illustrative handler using the density schema above"
-const key = local.key('table-density', densitySchema)
-const density = key.get()
-key.set('compact')
-key.remove()
-```
-
-</Tab>
-<Tab value="Angular">
-
-```ts title="Illustrative Angular handler using the density schema above"
-const key = this.local.key('table-density', densitySchema)
-const density = key.get()
-key.set('compact')
-key.remove()
+export const wellResolver: ResolveFn<Well> = async () => {
+  // Capture before any await.
+  const storage = injectMfeStorage()
+  const selection = await storage.get(wellSelection)
+  return fetchWell(selection.wellId)
+}
 ```
 
 </Tab>
 </Tabs>
 
-`get()` returns `null` for an absent record and does not subscribe. Writes update mounted consumers
-of that key. Reuse the same schema and options as the rendered binding.
-
-`local.clear()` removes definition-wide records for your definition. Pass `{ scope: 'instance' }`
-to `key`, `remove` or `clear` for the current Widget instance's records.
-The shell's `storage.clearDefinition(id)` clears that definition and its instances.
+The handle has `get`, `peek`, `set`, `reset`, `subscribe` and `status`, keyed by the same keys.
+`peek` is synchronous and returns the default while user storage is still loading.
 
 ## Check it works
 
-Reload the page. The value is still on screen. Open the browser developer tools, then Application,
-then Local storage, and look for `operations:table-density`. Two mounts of one definition agree on the value. Write through the imperative handle and confirm the displayed value updates.
+Reload the page. The value is still on screen. For a local value, open the browser developer tools,
+then Application, then Local storage, and look for `operations:table-density`. For a user value,
+open the devtools **Storage** tab and find the key under your definition id. Two mounts of one
+definition agree on the value.
 
-<Details summary="Give each Widget tile its own preferences">
+<Details summary="Give each Widget tile its own value">
 
-Two copies of a Widget read the same stored value by default. To keep a tile's preference separate,
+Two copies of a Widget read the same stored value by default. To keep a tile's value separate,
 give it an `instanceId` in the host:
 
 <Tabs items={['React', 'Angular']} defaultValue="React">
@@ -221,70 +272,69 @@ give it an `instanceId` in the host:
 </Tab>
 </Tabs>
 
-Inside the Widget, add `scope: 'instance'` to the key:
+Inside the Widget, declare the key with `perInstance: true`:
 
-<Tabs items={['React', 'Angular']} defaultValue="React">
-<Tab value="React">
-
-```tsx
-const [camera, setCamera] = useStoredState('camera', cameraSchema, {
-  defaultValue: defaultCamera,
-  scope: 'instance',
+```ts shared title="src/storage.ts"
+export const camera = storedKey('camera', cameraSchema.default(defaultCamera), {
+  perInstance: true,
 })
 ```
 
-</Tab>
-<Tab value="Angular">
-
-```ts title="Illustrative Angular component field"
-readonly camera = injectStoredState('camera', cameraSchema, {
-  defaultValue: defaultCamera,
-  scope: 'instance',
-})
-```
-
-</Tab>
-</Tabs>
-
-Reuse the ID when the tile returns after
-a reload. A new ID starts a separate record. Reusing one shares its settings. Omitting `scope`
-keeps reading the definition-wide value.
-
-`scope: 'instance'` without a non-empty host ID throws `storage/failure`. The same rule applies
-outside a mount, where there is no Widget instance.
+It works in every area. Reuse the ID when the tile returns after a reload, and keep `user` IDs
+stable across devices, such as a dashboard tile id. Reading a `perInstance` key without a host ID
+throws `storage/invalid-value`.
 
 </Details>
 
 ## Errors
 
-<Callout type="error" title="storage/failure, at bind">
+<Callout type="error" title="storage/invalid-value, at write">
 
 ```text shared
-lab failed to bind the local storage key draft: expected the same schema object every active
-consumer already declared, received a different schema object.
+lab failed to write a stored value density: expected a value matching the key's schema (…),
+received "dense". Fix the value passed to set() for 'density'. The stored value is unchanged.
 ```
 
-**Fix.** Move the `z.object({ … })` out of the component body. Export it from one module, and
-import it wherever the key is read.
+**Fix.** Pass a value the schema accepts. The promise rejects and the old value stays.
 
 </Callout>
 
-<Callout type="error" title="storage/failure, at write">
+<Callout type="error" title="storage/not-ready, at write">
 
 ```text shared
-lab failed to write the local storage key draft: expected local storage to accept 2097152
-characters, received QuotaExceededError: …
+lab failed to save a user value units: expected the user's stored values to have loaded, received
+a failed load. Wait for status "ready", or call retry() after a failed load.
 ```
 
-**Fix.** Store an identifier and fetch the body again, or clear this definition's records. The
-stored value is unchanged.
+**Fix.** Show the `error` status and offer `retry()`. Writes resume once a load succeeds.
+
+</Callout>
+
+<Callout type="error" title="storage/invalid-value, at bind">
+
+```text shared
+well-view failed to bind a stored key camera: expected a stable host-supplied instanceId for a
+perInstance key, received undefined.
+```
+
+**Fix.** Pass `instanceId` where the host places the Widget, or drop `perInstance`.
+
+</Callout>
+
+<Callout type="error" title="storage/persistence-failed, at write">
+
+```text shared
+lab failed to write the local storage key draft: …QuotaExceededError… The stored value is unchanged.
+```
+
+**Fix.** Store an identifier and fetch the body again, or reset values you no longer need.
 
 </Callout>
 
 ## Related
 
-- [Shared state](/docs/shared-state) — records shared across definitions
 - [Change the shape of a stored value](/docs/change-the-shape-of-a-stored-value) — versions and migrations
-- [React storage bindings](/docs/reference/hooks-and-components#usestoredstate) — exact options
-- [Angular storage bindings](/docs/reference/angular-adapter#read-the-shell-from-inside-a-mount) — signal and handle APIs
-- [Test storage and the lifecycle](/docs/test-storage-and-lifecycle) — seed and verify records
+- [Provide user storage from the shell](/docs/configure-user-storage) — the backend adapter
+- [React storage APIs](/docs/reference/hooks-and-components#usestoredstate) — exact signatures
+- [Angular storage APIs](/docs/reference/angular-adapter#store-a-value) — signals and the handle
+- [Test storage and the lifecycle](/docs/test-storage-and-lifecycle) — seed and verify values

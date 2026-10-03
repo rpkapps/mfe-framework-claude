@@ -134,21 +134,22 @@ describe('reaching the host scope through the definition surface', () => {
     expect(() => store.bind(HOST_SCOPE, { name: 'theme', schema: themeSchema })).toThrow(/bindHost/)
   })
 
-  it('is refused by storageFor() and clearDefinition() for the same reason', () => {
+  it('is refused by clearDefinition() for the same reason', () => {
     const { store } = harness()
 
-    expect(() => store.storageFor(HOST_SCOPE)).toThrow(/hostStorage/)
-    expect(() => store.clearDefinition(HOST_SCOPE)).toThrow(/hostStorage/)
+    expect(() => store.clearDefinition(HOST_SCOPE)).toThrow(/bindHost/)
   })
 
   it('reports the refusal as a structured storage failure', () => {
     const { store, reported } = harness()
 
+    let thrown: unknown
     try {
-      store.storageFor(HOST_SCOPE)
+      store.clearDefinition(HOST_SCOPE)
     } catch (error) {
-      expect(isMfeError(error)).toBe(true)
+      thrown = error
     }
+    expect(isMfeError(thrown)).toBe(true)
     expect(reported.at(-1)?.error.code).toBe('storage/failure')
   })
 
@@ -159,22 +160,5 @@ describe('reaching the host scope through the definition surface', () => {
     store.bind('host', { name: 'theme', schema: themeSchema }).set('dark')
 
     expect(Object.keys(local.snapshot())).toEqual(['host:theme'])
-  })
-})
-
-describe('the host imperative surface', () => {
-  it('reads, writes and clears only the host prefix', () => {
-    const { store, local } = harness()
-    const host = store.hostStorage()
-    const definition = store.storageFor('acme-orders')
-
-    host.key('theme', themeSchema).set('light')
-    definition.key('theme', themeSchema).set('dark')
-
-    expect(host.key('theme', themeSchema).get()).toBe('light')
-
-    host.clear()
-
-    expect(Object.keys(local.snapshot())).toEqual(['acme-orders:theme'])
   })
 })

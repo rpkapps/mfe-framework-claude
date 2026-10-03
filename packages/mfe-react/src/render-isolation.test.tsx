@@ -14,7 +14,7 @@ import { useAction } from './hooks/use-action.ts'
 import { useGroups, useTheme, useUser } from './hooks/shell-state.ts'
 import { useStoredState } from './hooks/use-stored-state.ts'
 import { DynamicWidget } from './lazy-widget.tsx'
-import { allow } from '@company/mfe-core'
+import { allow, storedKey } from '@company/mfe-core'
 
 let environment: MfeTestEnvironment | null = null
 
@@ -127,15 +127,16 @@ describe('shell state fans out only to the field that changed', () => {
 })
 
 describe('storage fans out per key', () => {
-  const densitySchema = z.enum(['comfortable', 'compact'])
-  const localeSchema = z.string()
+  const densityKey = storedKey(
+    'table-density',
+    z.enum(['comfortable', 'compact']).default('comfortable'),
+  )
+  const localeKey = storedKey('locale', z.string().default('en'))
 
   function makeDensityProbe(capture?: (setter: (next: 'comfortable' | 'compact') => void) => void) {
     return makeProbe('density', () => {
-      const [value, setter] = useStoredState('table-density', densitySchema, {
-        defaultValue: 'comfortable',
-      })
-      capture?.(setter)
+      const { value, set } = useStoredState(densityKey)
+      capture?.(next => void set(next))
       return value
     })
   }
@@ -147,9 +148,7 @@ describe('storage fans out per key', () => {
     const density = makeDensityProbe(setter => (setDensity = setter))
 
     const locale = makeProbe('locale', () => {
-      const [value] = useStoredState('locale', localeSchema, {
-        defaultValue: 'en',
-      })
+      const { value } = useStoredState(localeKey)
       return value
     })
 
@@ -442,18 +441,18 @@ describe('teardown returns resources to baseline', () => {
 describe('scaling: one change does not touch unrelated consumers', () => {
   it('writing one of many storage keys commits only that key’s probe', () => {
     const env = setup()
-    const schema = z.string()
     const KEY_COUNT = 40
+    const keys = Array.from({ length: KEY_COUNT }, (_, index) =>
+      storedKey(`key-${index}`, z.string().default('initial')),
+    )
 
     const commits = new Array<number>(KEY_COUNT).fill(0)
     const setters: ((next: string) => void)[] = []
 
     function KeyProbe({ index }: { readonly index: number }): ReactNode {
       commits[index] = (commits[index] ?? 0) + 1
-      const [value, setter] = useStoredState(`key-${index}`, schema, {
-        defaultValue: 'initial',
-      })
-      setters[index] = setter
+      const { value, set } = useStoredState(keys[index] as (typeof keys)[number])
+      setters[index] = next => void set(next)
       return <span>{value}</span>
     }
 

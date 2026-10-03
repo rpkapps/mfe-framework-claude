@@ -607,7 +607,12 @@ export class MfeStorageStore {
     this.#publish(entry, entry.defaultSnapshot)
   }
 
-  #removeRaw(definitionId: string, area: BrowserStorageArea, name: string, physicalKey: string): void {
+  #removeRaw(
+    definitionId: string,
+    area: BrowserStorageArea,
+    name: string,
+    physicalKey: string,
+  ): void {
     const store = this.#resolveAreaOrFail(definitionId, area, 'remove', name)
     try {
       store.removeItem(physicalKey)

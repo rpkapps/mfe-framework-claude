@@ -184,4 +184,3 @@ export {
   type IconData,
   type IconNode,
 } from '@company/mfe-core'
-
