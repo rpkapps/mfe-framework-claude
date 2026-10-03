@@ -8,7 +8,8 @@ export const userContextDeclarationsForTests = {
   // Angular's compiler reads the file itself. Transform its output so it cannot restore the declaration.
   enforce: 'post',
   transform(source, id) {
-    if (!id.endsWith('/src/mfe.ts') || !source.includes('userContext')) return undefined
+    // A declaration is an object property; a router that only reads context.mfe.userContext has none.
+    if (!id.endsWith('/src/mfe.ts') || !/[{,]\s*userContext\s*:/.test(source)) return undefined
     const references = resolve(dirname(id), '../.mfe/user-context.references.json')
     if (!existsSync(references))
       throw new Error(`Generate the container before testing: missing ${references}`)

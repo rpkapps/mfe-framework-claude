@@ -99,7 +99,7 @@ describe('host user context', () => {
     expect(host.hydrate).toHaveBeenLastCalledWith(['operations'], expect.any(AbortSignal))
     expect(host.hydratedUsers).toEqual(['one', 'two'])
     expect(host.unsubscribe).toHaveBeenCalledTimes(1)
-    expect(host.service.inspection?.getSnapshot().generation).toBe(1)
+    expect(host.service.inspection.getSnapshot().generation).toBe(1)
     host.dispose()
   })
 
@@ -127,7 +127,7 @@ describe('host user context', () => {
     const store = host.service.bind('operations', requirements)
     host.shellState.apply({ user: { ...user, name: 'New name' }, groups: ['new'], theme: 'dark' })
     expect(store.get('units')).toBe('metric')
-    expect(host.service.inspection?.getSnapshot().generation).toBe(0)
+    expect(host.service.inspection.getSnapshot().generation).toBe(0)
     host.dispose()
   })
 

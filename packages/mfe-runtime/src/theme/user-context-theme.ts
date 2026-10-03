@@ -62,7 +62,7 @@ export function attachUserContextTheme(options: {
   const read = (): void => {
     if (stopped) return
     const entry = service.inspection
-      ?.getSnapshot()
+      .getSnapshot()
       .entries.find(item => item.contract.id === requirements.ownerId)
     if (entry?.confirmed === undefined || entry.status === 'invalid') return
     // Selectors are author code; a bad selector must not interrupt a successful persistence write.
@@ -89,7 +89,7 @@ export function attachUserContextTheme(options: {
     apply()
     void service.prepare(requirements).then(read, () => {})
   }
-  const stopInspection = service.inspection?.subscribe(read)
+  const stopInspection = service.inspection.subscribe(read)
   const stopIdentity = shellState.observeTransitions(change => {
     if (change.transitions.some(transition => transition.kind === 'identity')) initialize()
   })

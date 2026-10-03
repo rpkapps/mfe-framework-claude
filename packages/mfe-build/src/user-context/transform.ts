@@ -15,33 +15,18 @@ export function userContextExpression(
   name: 'schema' | 'reads' = 'schema',
   host = false,
 ): ts.Expression | undefined {
-  if (
-    options.properties.some(property =>
-      ['userContextSchema', 'userContextReads'].includes(propertyName(property) ?? ''),
-    )
-  )
-    throw new Error(
-      'user-context/unsupported-schema: Declare userContext: { schema, reads } on definition options',
-    )
   const properties = options.properties.filter(
     candidate => propertyName(candidate) === 'userContext',
   )
   const property = properties[0]
   if (!property) return undefined
   if (
-    host &&
+    properties.length !== 1 ||
+    !ts.isPropertyAssignment(property) ||
     options.properties.slice(options.properties.indexOf(property) + 1).some(ts.isSpreadAssignment)
   )
     throw new Error(
-      'user-context/unsupported-schema: Place the explicit userContext declaration after options spreads so another object cannot override it',
-    )
-  if (
-    properties.length !== 1 ||
-    (!host && options.properties.some(ts.isSpreadAssignment)) ||
-    !ts.isPropertyAssignment(property)
-  )
-    throw new Error(
-      'user-context/unsupported-schema: Put userContext directly on definition options once without spreads',
+      'user-context/unsupported-schema: Declare userContext once, directly on the options and after any spreads, so another object cannot override it',
     )
   const declaration = unwrapExpression(property.initializer)
   if (!ts.isObjectLiteralExpression(declaration))

@@ -101,8 +101,8 @@ export interface UserContextAdapter {
 }
 export interface UserContextService {
   readonly protocolVersion: 1
-  /** Optional read-only diagnostics. Observing never hydrates or binds state. */
-  readonly inspection?: UserContextInspection
+  /** Read-only diagnostics. Observing never hydrates or binds state. */
+  readonly inspection: UserContextInspection
   prepare(requirements: UserContextRequirements, signal?: AbortSignal): Promise<void>
   bind<V = StateValues>(
     definitionId: string,
@@ -140,14 +140,16 @@ export interface UserContextScopeService extends UserContextService {
   setScope(scope: string): void
   dispose(): void
 }
-export type UserContextErrorCode =
-  | 'unauthorized-owner'
-  | 'invalid-value'
-  | 'unsupported-contract'
-  | 'not-ready'
-  | 'scope-disposed'
-  | 'conflict'
-  | 'persistence-failed'
+export const USER_CONTEXT_ERROR_CODES = [
+  'unauthorized-owner',
+  'invalid-value',
+  'unsupported-contract',
+  'not-ready',
+  'scope-disposed',
+  'conflict',
+  'persistence-failed',
+] as const
+export type UserContextErrorCode = (typeof USER_CONTEXT_ERROR_CODES)[number]
 export class UserContextError extends Error implements MfeError {
   readonly operation = 'user-context'
   readonly code: `user-context/${UserContextErrorCode}`

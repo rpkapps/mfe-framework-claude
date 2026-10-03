@@ -18,7 +18,7 @@ it('reports unsupported authoring expressions with source locations in editor di
   expect(reports[0]!.message).toMatch(/transform/)
 })
 
-it('leaves supported declarations clean without requiring a release policy in the editor', () => {
+it('leaves supported declarations clean', () => {
   const reports: unknown[] = []
   userContextRule()
     .create({

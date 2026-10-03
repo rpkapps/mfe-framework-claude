@@ -729,9 +729,7 @@ describe('normal host factory declarations', () => {
     expect(read?.getSnapshot()).toEqual({ units: 'metric' })
     expect(read).not.toHaveProperty('set')
     expect(
-      created.runtime.userContext?.inspection
-        ?.getSnapshot()
-        .entries.map(entry => entry.contract.id),
+      created.runtime.userContext?.inspection.getSnapshot().entries.map(entry => entry.contract.id),
     ).toEqual(['operations'])
     created.dispose()
   })

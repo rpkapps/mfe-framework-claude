@@ -74,18 +74,6 @@ describe('User Context tab', () => {
     render(<UserContextTab />)
     expect(screen.getByText('User Context is not configured')).toBeTruthy()
   })
-  it('supports a custom service without diagnostics', () => {
-    context.userContext = {
-      protocolVersion: 1,
-      prepare: vi.fn(),
-      bind: vi.fn(),
-      bindReadOnly: vi.fn(),
-      setScope: vi.fn(),
-      dispose: vi.fn(),
-    }
-    render(<UserContextTab />)
-    expect(screen.getByText('Inspection is unavailable')).toBeTruthy()
-  })
   it('unsubscribes when the inspector unmounts', () => {
     const { runtime } = setup()
     const subscribe = runtime.inspection.subscribe
@@ -230,7 +218,7 @@ describe('User Context tab', () => {
     expect(screen.queryByRole('alert')).toBeNull()
     expect(screen.getAllByText('Ready')).toHaveLength(2)
   })
-  it('keeps pending writes invisible until commit and clears values on scope changes', async () => {
+  it('shows pending writes only in the current value until commit and clears values on scope changes', async () => {
     let accept!: (record: StateRecord) => void
     const { runtime } = setup(
       () =>
@@ -245,7 +233,7 @@ describe('User Context tab', () => {
     act(() => {
       write = runtime.bind('units', requirements).set('system', 'imperial')
     })
-    expect(screen.getByLabelText('current value of units').textContent).toContain('"metric"')
+    expect(screen.getByLabelText('current value of units').textContent).toContain('"imperial"')
     expect(screen.getAllByText('Pending')).toHaveLength(2)
     await user.click(screen.getByRole('tab', { name: 'Confirmed' }))
     expect(screen.getByLabelText('confirmed value of units').textContent).toContain('"metric"')

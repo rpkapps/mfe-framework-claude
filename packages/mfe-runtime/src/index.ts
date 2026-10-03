@@ -256,6 +256,7 @@ export type { HostUserContextOptions, HostUserContextDefinition } from './user-c
 
 /** Browser persistence adapters use the same public host entry as createMfeRuntime. */
 export {
+  USER_CONTEXT_ERROR_CODES,
   UserContextError,
   type UserContextErrorCode,
   type StateRecord,

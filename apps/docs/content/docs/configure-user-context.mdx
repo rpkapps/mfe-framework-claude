@@ -55,7 +55,7 @@ export const userContextAdapter: UserContextAdapter = {
 }
 ```
 
-The API client returns authoritative `StateRecord` values, forwards abort signals, and preserves backend failures rather than manufacturing successful records. Its authenticated connection determines the user; the browser submits only owner IDs and values.
+The API client returns authoritative `StateRecord` values, forwards abort signals, and preserves backend failures rather than manufacturing successful records. To keep a backend's classification, throw a `UserContextError` whose code is one of `USER_CONTEXT_ERROR_CODES` (both exported by the `/host` entries), for example `conflict` for a stale `expectedRevision`. Its authenticated connection determines the user; the browser submits only owner IDs and values.
 
 An owner write includes `id`, `expectedRevision`, `operationId` and a structural object update. Preserve unknown fields when applying an older writer's update. Deduplicate operation IDs and compare revisions transactionally. Never trust a submitted owner ID as authorization; authorize using the authenticated server session.
 
@@ -161,7 +161,7 @@ The framework maintains a theme cache partitioned by authenticated tenant, accou
 
 ## Inspect context
 
-The developer tools' **User Context** tab displays each owner contract, committed value, record revision and pending write count. Merely opening the inspector does not hydrate or write context. Scope IDs are excluded from inspection snapshots.
+The developer tools' **User Context** tab displays each owner contract, committed value, value including pending writes, record revision and pending write count. Merely opening the inspector does not hydrate or write context. Scope IDs are excluded from inspection snapshots.
 
 ## Related
 

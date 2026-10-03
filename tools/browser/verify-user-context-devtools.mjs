@@ -50,7 +50,7 @@ export async function verifyUserContextDevtools(browser) {
     await screenshot('user-context-keys')
     await page.getByRole('tab', { name: 'Current value', exact: true }).click()
 
-    // Hold persistence: consumers and diagnostics must keep the durable value until acknowledgement.
+    // Hold persistence: consumers keep the durable value until acknowledgement; Current value shows the pending write.
     const pendingWrite = new Promise(resolve => {
       heldWrite = resolve
     })
@@ -61,7 +61,7 @@ export async function verifyUserContextDevtools(browser) {
     await survey.getByLabel('Well', { exact: true }).selectOption('well-17')
     const route = await pendingWrite
     await open()
-    await expect(page.getByLabel('current value of lab', { exact: true })).toContainText('well-42')
+    await expect(page.getByLabel('current value of lab', { exact: true })).toContainText('well-17')
     await expect(survey.getByLabel('Well', { exact: true })).toHaveValue('well-42')
     await expect(panel.getByRole('button', { name: 'Inspect lab', exact: true })).toContainText(
       'Pending',

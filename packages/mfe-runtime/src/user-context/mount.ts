@@ -66,11 +66,10 @@ export async function prepareUserContextMount(
     )
   await service.prepare(requirements, context.signal)
   const readers = new Map<string, UserContextReader>()
-  const generation = service.inspection?.getSnapshot().generation
+  const generation = service.inspection.getSnapshot().generation
   let invalidated = false
-  const stopInspection = service.inspection?.subscribe(() => {
-    const next = service.inspection?.getSnapshot().generation
-    if (next !== generation) {
+  const stopInspection = service.inspection.subscribe(() => {
+    if (service.inspection.getSnapshot().generation !== generation) {
       readers.clear()
       invalidated = true
     }
@@ -79,7 +78,7 @@ export async function prepareUserContextMount(
     'abort',
     () => {
       readers.clear()
-      stopInspection?.()
+      stopInspection()
     },
     { once: true },
   )

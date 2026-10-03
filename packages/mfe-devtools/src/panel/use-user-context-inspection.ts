@@ -13,7 +13,7 @@ const unavailable: UserContextInspectionSnapshot = Object.freeze({
 const getUnavailable = (): UserContextInspectionSnapshot => unavailable
 const subscribeUnavailable = (): (() => void) => () => {}
 
-/** The hook remains unconditional when a custom service has no inspection capability. */
+/** The hook remains unconditional when the shell configures no user-context service. */
 export function useUserContextInspection(
   inspection: UserContextInspection | undefined,
 ): UserContextInspectionSnapshot {

@@ -125,8 +125,8 @@ export function createHostUserContextBindings<
     const inspection = service.inspection
     const observer = useMemo(
       () => ({
-        subscribe: (listener: () => void) => inspection?.subscribe(listener) ?? (() => {}),
-        getSnapshot: () => inspection?.getSnapshot().generation ?? 0,
+        subscribe: (listener: () => void) => inspection.subscribe(listener),
+        getSnapshot: () => inspection.getSnapshot().generation,
       }),
       [inspection],
     )

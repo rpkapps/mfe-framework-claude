@@ -1,17 +1,10 @@
-import { readFileSync } from 'node:fs'
-import type { UserContextManifest } from '@company/mfe-core/user-context'
 import {
   collectImportedBindings,
   objectProperty,
   stringLiteralValue,
   ts,
 } from '../discovery/ts-ast.ts'
-import {
-  compileUserContext,
-  compileUserContextReads,
-  checkUserContextRelease,
-  type UserContextReleasePolicy,
-} from './compiler.ts'
+import { compileUserContext, compileUserContextReads } from './compiler.ts'
 import { userContextExpression } from './transform.ts'
 
 interface Context {
@@ -21,7 +14,7 @@ interface Context {
 }
 
 /** Register in an ESLint flat config. Build enforcement remains independent of suppressions. */
-export function userContextRule(policyFile?: string) {
+export function userContextRule() {
   return {
     meta: { type: 'problem' as const, schema: [] },
     create(context: Context) {
@@ -57,17 +50,8 @@ export function userContextRule(policyFile?: string) {
                 const id = objectProperty(node.arguments[0], 'id')
                 const ownerId =
                   (id ? stringLiteralValue(id.initializer) : undefined) ?? '<definition>'
-                const contracts = schema
-                  ? [...compileUserContext(ownerId, schema, file).contracts]
-                  : []
-                if (reads) contracts.push(...compileUserContextReads(ownerId, reads, file))
-                if (contracts.length && policyFile) {
-                  const manifest: UserContextManifest = { formatVersion: 1, contracts }
-                  checkUserContextRelease(
-                    [manifest],
-                    JSON.parse(readFileSync(policyFile, 'utf8')) as UserContextReleasePolicy,
-                  )
-                }
+                if (schema) compileUserContext(ownerId, schema, file)
+                if (reads) compileUserContextReads(ownerId, reads, file)
               } catch (error) {
                 const position = file.getLineAndCharacterOfPosition(node.getStart(file))
                 context.report({

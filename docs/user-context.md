@@ -49,7 +49,7 @@ The shell uses the normal `createMfeRuntime` from its framework’s `/host` entr
 
 The runtime derives each scope from the shell user's tenant ID, account ID and user ID. While no user is signed in, it performs no context storage operations. Updating identity through `runtime.shellState.apply({ user, groups })` invalidates old bindings and pending work; the shell remounts affected definitions. Old hydration, storage acknowledgements and subscription callbacks cannot enter the new scope. `dispose` aborts work and removes subscriptions. Applications do not construct scope strings or call a separate scope setter.
 
-Optional read-only inspection exposes owner contracts, committed values, status, record revisions and pending counts. Observing inspection never hydrates or writes. Inspection excludes authenticated scope values.
+Read-only inspection exposes owner contracts, committed values, values including pending writes, status, record revisions and pending counts. Observing inspection never hydrates or writes. Inspection excludes authenticated scope values.
 
 ## Build and release
 

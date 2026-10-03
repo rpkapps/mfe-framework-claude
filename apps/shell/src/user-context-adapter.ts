@@ -1,8 +1,8 @@
 import {
+  USER_CONTEXT_ERROR_CODES,
   UserContextError,
   type UserContextAdapter,
   type StateRecord,
-  type UserContextErrorCode,
 } from '@company/mfe-react/host'
 
 async function request<T>(path: string, body: unknown, signal: AbortSignal): Promise<T> {
@@ -19,16 +19,9 @@ async function request<T>(path: string, body: unknown, signal: AbortSignal): Pro
       id?: string
       message?: string
     }
-    const supported: readonly UserContextErrorCode[] = [
-      'unauthorized-owner',
-      'invalid-value',
-      'unsupported-contract',
-      'not-ready',
-      'scope-disposed',
-      'conflict',
-      'persistence-failed',
-    ]
-    const code = supported.find(candidate => failure.code === `user-context/${candidate}`)
+    const code = USER_CONTEXT_ERROR_CODES.find(
+      candidate => failure.code === `user-context/${candidate}`,
+    )
     throw new UserContextError(
       code ?? (response.status === 409 ? 'conflict' : 'persistence-failed'),
       failure.id ?? '<demo>',

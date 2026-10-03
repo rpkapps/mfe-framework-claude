@@ -91,13 +91,6 @@ export function UserContextTab(): ReactNode {
         description="Configure userContext on the shell runtime to inspect its contracts and values."
       />
     )
-  if (!userContext.inspection)
-    return (
-      <StateEmpty
-        title="Inspection is unavailable"
-        description="This user-context service does not expose read-only diagnostics. Use UserContextRuntime or provide its optional inspection capability."
-      />
-    )
   if (snapshot.disposed)
     return (
       <StateEmpty
@@ -280,11 +273,11 @@ function StateDetail({ entry }: { readonly entry: UserContextInspectionEntry }):
           </div>
           <TabsContent value="effective" className="min-h-0 overflow-auto">
             <JsonValue
-              value={entry.confirmed}
+              value={entry.effective}
               label={`current value of ${entry.contract.id}`}
               description={
                 entry.pendingWrites > 0
-                  ? 'Only accepted commits are visible; pending writes retain the last committed value.'
+                  ? 'Includes pending writes storage has not accepted yet. Consumers still read the Confirmed value.'
                   : 'The committed value visible to consumers of this owner slice.'
               }
             />

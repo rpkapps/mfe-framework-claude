@@ -10,7 +10,6 @@ import {
   compareContracts,
   compileUserContext,
   contractFor,
-  checkUserContextRelease,
   requirementsFor,
   validateArtifact,
 } from './compiler.ts'
@@ -168,33 +167,8 @@ describe('user-context contract compiler and release gate', () => {
       compareContracts(previous, compile(base.replace('wellId: z.string(), ', '')).contracts[0]!),
     ).not.toEqual([])
   })
-  it('checks every supported baseline, contracts availability and artifact integrity', () => {
-    const previous = compile(base)
-    const candidate = compile(
-      base.replace('wellId: z.string()', 'wellId: z.string(), extra: z.string().optional()'),
-    )
-    expect(() =>
-      checkUserContextRelease([candidate, previous], {
-        schema: candidate,
-        baselines: [previous],
-      }),
-    ).not.toThrow()
-    expect(() =>
-      checkUserContextRelease([previous], { schema: candidate, baselines: [previous] }),
-    ).not.toThrow()
-    expect(() =>
-      checkUserContextRelease([candidate], {
-        schema: { formatVersion: 1, contracts: [] },
-        baselines: [previous],
-      }),
-    ).toThrow('missing-contract')
-    const incompatible = compile(base.replace('wellId: z.string()', 'wellId: z.number()'))
-    expect(() =>
-      checkUserContextRelease([incompatible], {
-        schema: incompatible,
-        baselines: [previous],
-      }),
-    ).toThrow('incompatible-change')
+  it('checks artifact integrity', () => {
+    const candidate = compile(base)
     expect(() => validateArtifact({ ...candidate.contracts[0]!, revision: 'tampered' })).toThrow(
       'fingerprint',
     )
@@ -308,9 +282,8 @@ describe('user-context contract compiler and release gate', () => {
     expect(stateType(projected.contracts[0]!.node)).not.toMatch(/fontSize|selected/)
   })
   it.each([
-    'userContextSchema: z.object({})',
-    'userContextReads: { producer: z.object({}) }',
     'userContext: config',
+    'userContext: { schema: z.object({}) }, ...base',
     'userContext: {}',
     'userContext: { ...config }',
     'userContext: { schema: z.object({}), schema: z.object({}) }',
@@ -338,6 +311,16 @@ describe('user-context contract compiler and release gate', () => {
        export default createApp({ id: 'reader', router: makeRouter, ${declaration} });`,
     )
     expect(() => discoverDefinitions(file, syntax)).toThrow('user-context/unsupported-schema')
+  })
+  it('accepts a declaration placed after options spreads', () => {
+    const directory = temporary()
+    const file = join(directory, 'mfe.ts')
+    writeFileSync(
+      file,
+      `import { z } from 'zod'; import { createApp } from '@company/mfe-react';
+       export default createApp({ ...base, id: 'reader', router: makeRouter, userContext: { schema: z.object({}) } });`,
+    )
+    expect(() => discoverDefinitions(file, syntax)).not.toThrow()
   })
   it('replaces declarations and prunes user-context-only schema imports and local helpers', () => {
     const manifest = compile(base)

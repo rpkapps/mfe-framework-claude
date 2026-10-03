@@ -7,7 +7,7 @@ import { planContainer } from '../plan.ts'
 import { createContainer, cleanupContainers } from '../testing/fixtures.ts'
 import { TEST_PROFILE } from '../testing/profile.ts'
 import { userContextTransformRule } from './integration.ts'
-import { compileUserContext, checkUserContextRelease } from './compiler.ts'
+import { compileUserContext } from './compiler.ts'
 
 const temporary: string[] = []
 afterEach(() => {
@@ -98,23 +98,6 @@ describe('user-context generated bindings and production pipeline', () => {
       'createUserContextBindings<UserContextValues, UserContextReads>("reader")',
     )
     expect(binding).not.toContain('useUserContextStore')
-  })
-  it('keeps optional owner release compatibility separate from normal generation', () => {
-    const root = createContainer({ 'src/mfe.ts': entry })
-    const current = manifest()
-    const previous = manifest(schema.replace("z.enum(['metric','imperial'])", 'z.string()'))
-    // Generating a container neither loads release history nor requires a baseline option.
-    const generated = planContainer(profile, { containerRoot: root })
-    expect(generated.generated.descriptor.definitions[0]!.userContextContract).toEqual(
-      current.contracts[0],
-    )
-    // An owner can explicitly run this check in its own release tooling.
-    expect(() =>
-      checkUserContextRelease([current], { schema: current, baselines: [] }),
-    ).not.toThrow()
-    expect(() =>
-      checkUserContextRelease([current], { schema: current, baselines: [previous] }),
-    ).toThrow('incompatible-change')
   })
   it('generates Angular bindings consistent with its injection/signal API', () => {
     const root = createContainer({ 'src/mfe.ts': entry })

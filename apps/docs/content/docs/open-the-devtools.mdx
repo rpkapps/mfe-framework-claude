@@ -53,14 +53,13 @@ list scrolls independently of the value pane; arrow keys, Home and End navigate 
 narrow dock, use the searchable owner picker instead: the value pane retains the full width and
 height below it. Filtering the list does not change the selected owner.
 
-**Current value** and **Confirmed** show committed values. Pending write counts are visible,
-but a proposed update does not replace the current value until storage accepts it. **Contract** shows the schema and its fingerprint, which is independent of the
+**Current value** includes pending writes that storage has not accepted yet; **Confirmed** shows
+the committed value consumers read until storage accepts them. **Contract** shows the schema and its fingerprint, which is independent of the
 record revision. Copy controls copy the complete JSON even when a large preview is shortened.
 
 The inspector is read only: opening it does not hydrate state or create consumer bindings. A
 contract stays **Not loaded** until a micro-frontend prepares it. Scope changes clear the previous
-values. Shells without configured user context, or custom services without the optional inspection
-capability, show an explanatory empty state.
+values. Shells without configured user context show an explanatory empty state.
 
 </Step>
 
