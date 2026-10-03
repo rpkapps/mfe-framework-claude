@@ -321,6 +321,46 @@ describe('definition-owned user context', () => {
     runtime.dispose()
   })
 
+  it('settles an update made during conflict recovery locally', async () => {
+    const recovery = deferred<void>()
+    let hydrations = 0
+    const { runtime, backend, authorize, onError } = setup(adapter => ({
+      ...adapter,
+      hydrate: async (...args) => {
+        if (++hydrations === 2) await recovery.promise
+        return await adapter.hydrate(...args)
+      },
+    }))
+    await runtime.prepare(refs())
+    const store = runtime.bind(owner.id, refs())
+    await backend.write(
+      {
+        scope: 'tenant/user/workspace',
+        id: owner.id,
+        expectedRevision: 0,
+        operationId: 'external',
+        value: { units: 'imperial' },
+      },
+      signal(),
+    )
+    expect(await store.set('units', 'metric')).toMatchObject({
+      ok: false,
+      error: { code: 'user-context/conflict' },
+    })
+    await vi.waitFor(() => expect(hydrations).toBe(2))
+    const during = store.set('selection', null)
+    const behind = store.set('units', 'metric')
+    recovery.resolve()
+    expect(await during).toMatchObject({ ok: false, error: { code: 'user-context/conflict' } })
+    expect(await behind).toMatchObject({ ok: false, error: { code: 'user-context/conflict' } })
+    expect(store.get('units')).toBe('imperial')
+    expect(authorize.mock.calls.filter(call => call[2] === 'write')).toHaveLength(2)
+    expect(hydrations).toBe(2)
+    expect(onError).toHaveBeenCalledTimes(1)
+    expect(await store.set('units', 'metric')).toMatchObject({ ok: true, value: 'metric' })
+    runtime.dispose()
+  })
+
   it('fails stale scopes, settles pending writes, and ignores late adapter responses', async () => {
     const gate = deferred<StateRecord>()
     const { runtime } = setup(adapter => ({ ...adapter, write: () => gate.promise }))

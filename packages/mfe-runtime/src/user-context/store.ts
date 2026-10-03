@@ -564,6 +564,20 @@ export class UserContextRuntime implements UserContextService {
       while (entry.pending.length && generation === this.#generation && !this.#disposed) {
         const pending = entry.pending[0]
         if (!pending) break
+        if (pending.expectedRevision < entry.recordRevision) {
+          // A newer record (a recovery or another writer) landed after this intention was formed.
+          // The server would reject it as a conflict, so settle it locally with everything queued
+          // behind it instead of spending a request and a second recovery.
+          const stale = new UserContextError(
+            'conflict',
+            entry.canonical.id,
+            'State changed before this update was sent; refresh and choose again',
+          )
+          for (const queued of entry.pending.splice(0)) queued.reject(stale)
+          entry.effective = entry.confirmed
+          this.#notifyInspection()
+          break
+        }
         try {
           this.#inflight.add(pending)
           const expectedRevision = pending.expectedRevision
