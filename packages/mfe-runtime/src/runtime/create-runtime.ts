@@ -1,3 +1,4 @@
+import type { z } from 'zod'
 import {
   readCachedTheme,
   resolveTheme,
@@ -74,17 +75,21 @@ export interface MfeRuntime {
   readonly deadlines: DeadlineConfig
 }
 
-export interface CreateMfeRuntimeOptions {
-  readonly theme?: UserContextThemeOptions<unknown>
+export interface CreateMfeRuntimeOptions<
+  Schema extends z.ZodObject | undefined = z.ZodObject | undefined,
+> {
+  readonly theme?: UserContextThemeOptions<
+    NoInfer<Schema extends z.ZodObject ? z.output<Schema> : unknown>
+  >
   /** Persistence transport; contracts and identity are discovered by the framework. */
-  readonly userContext?: HostUserContextOptions
-  /** @internal Supplied by the generated host module. */
+  readonly userContext?: HostUserContextOptions<Schema>
+  /** @internal Injected by the host builder; never authored by the shell. */
   readonly __userContext?: HostUserContextDefinition
   /** Raw registry entries, usually fetched by the shell at boot. */
   readonly registryEntries: readonly unknown[]
   /** In production this is the federation loader. */
   readonly loader: ContainerLoader
-  readonly shellState: ShellState
+  readonly shellState: Omit<ShellState, 'theme'> & { readonly theme?: ShellState['theme'] }
   readonly telemetryProvider: TelemetryProvider
   readonly navigationBridge?: NavigationBridge
   readonly diagnosticsSinks?: readonly DiagnosticsSink[]
@@ -153,7 +158,19 @@ function containersByDefinitionId(entries: readonly unknown[]): ReadonlyMap<stri
   return byId
 }
 
-export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHandle {
+export function createMfeRuntime<Schema extends z.ZodObject | undefined = undefined>(
+  options: CreateMfeRuntimeOptions<Schema>,
+): MfeRuntimeHandle {
+  if (options.userContext && ('schema' in options.userContext || 'reads' in options.userContext))
+    throw createMfeError({
+      code: 'config/invalid',
+      id: '<shell>',
+      operation: 'read the shell user-context declaration',
+      expected: 'a user-context declaration compiled by the host builder',
+      observed: 'author schema or read declarations reached the runtime',
+      repair:
+        'Enable the MFE host build plugin and generate the host bindings before running createMfeRuntime. The builder removes userContext.schema and userContext.reads and supplies their compiled metadata.',
+    })
   if (
     options.theme !== undefined &&
     (options.userContext === undefined || options.__userContext?.contract === undefined)
@@ -164,7 +181,7 @@ export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHa
       operation: 'configure a user-context theme',
       expected: 'a generated shell owner contract and a user-context persistence adapter',
       repair:
-        'Declare the shell userContext.schema in mfe.config.ts, import createMfeRuntime from #mfe/user-context, and supply userContext.adapter.',
+        'Declare userContext.schema and userContext.adapter on createMfeRuntime options and compile the shell with the MFE host build plugin.',
     })
   const ownsDiagnostics = options.diagnostics === undefined
   const diagnostics = options.diagnostics ?? new DiagnosticsHub()
@@ -176,7 +193,7 @@ export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHa
           ...options.shellState,
           theme: resolveTheme(readCachedTheme(options.theme.cacheKey, options.shellState.user)),
         }
-      : options.shellState,
+      : { ...options.shellState, theme: options.shellState.theme ?? 'light' },
   )
   const storage = new MfeStorageStore({ diagnostics })
   const { previousIdentity } = recordSessionIdentity(storage, identityOf(shellState.getSnapshot()))
@@ -226,7 +243,7 @@ export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHa
 
   const assembled = assembleRuntime({
     registry,
-    theme: options.theme,
+    theme: options.theme as UserContextThemeOptions<unknown> | undefined,
     userContext: options.userContext,
     __userContext: options.__userContext,
     loader: options.loader,

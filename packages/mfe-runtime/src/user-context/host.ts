@@ -1,8 +1,11 @@
+import type { z } from 'zod'
 import type { Registry, ShellUser } from '@company/mfe-core'
 import {
   UserContextError,
   type StateContract,
-  type UserContextAdapter,
+  type UserContextAdapter as ScopedUserContextAdapter,
+  type StateWrite as ScopedStateWrite,
+  type StateRecord,
   type UserContextRequirements,
   type UserContextService,
 } from '@company/mfe-core/user-context'
@@ -10,13 +13,29 @@ import {
 import type { ShellStateStore } from '../shell-state/shell-state-store.ts'
 import { UserContextRuntime } from './store.ts'
 
+/** A write for the signed-in user; authentication identifies the user at the backend. */
+export type StateWrite = Omit<ScopedStateWrite, 'scope'>
+
+/** Shell persistence transport. The framework manages user changes and request cancellation. */
+export interface UserContextAdapter {
+  hydrate(ids: readonly string[], signal: AbortSignal): Promise<readonly StateRecord[]>
+  write(operation: StateWrite, signal: AbortSignal): Promise<StateRecord>
+  subscribe?(listener: (record: StateRecord) => void, signal: AbortSignal): () => void
+}
+
 /** Persistence is the shell's concern; generated deployment metadata supplies the contracts. */
-export interface HostUserContextOptions {
+export interface HostUserContextOptions<
+  Schema extends z.ZodObject | undefined = z.ZodObject | undefined,
+> {
+  /** Own values, compiled away by the host builder. */
+  readonly schema?: Schema
+  /** Only the foreign fields this shell reads, compiled away by the host builder. */
+  readonly reads?: Readonly<Record<string, z.ZodObject>>
   readonly adapter: UserContextAdapter
   readonly onError?: (error: unknown, id: string) => void
 }
 
-/** @internal Supplied by the generated host entry, never assembled by application code. */
+/** @internal Injected by the host build transform, never assembled by application code. */
 export interface HostUserContextDefinition {
   readonly contract?: StateContract
   readonly requirements: UserContextRequirements
@@ -60,26 +79,34 @@ export function createHostUserContext(options: {
       )
     contracts.push(definition.contract)
   }
-  const requireUser = (): void => {
+  const requireUser = (scope?: string): void => {
     if (shellState.getUser() === null)
       throw new UserContextError(
         'not-ready',
         '<user>',
         'Sign in before reading or writing persisted user context',
       )
+    if (scope !== undefined && scope !== identity(shellState.getUser()))
+      throw new UserContextError(
+        'scope-disposed',
+        '<user>',
+        'The request belongs to a previous signed-in identity',
+      )
   }
-  const adapter: UserContextAdapter = {
+  const adapter: ScopedUserContextAdapter = {
     hydrate: (scope, ids, signal) => {
-      requireUser()
-      return persistence.adapter.hydrate(scope, ids, signal)
+      requireUser(scope)
+      return persistence.adapter.hydrate(ids, signal)
     },
     write: (operation, signal) => {
-      requireUser()
-      return persistence.adapter.write(operation, signal)
+      requireUser(operation.scope)
+      const { scope: _scope, ...write } = operation
+      return persistence.adapter.write(write, signal)
     },
     subscribe: (scope, listener, signal) => {
       if (shellState.getUser() === null) return () => {}
-      return persistence.adapter.subscribe?.(scope, listener, signal) ?? (() => {})
+      requireUser(scope)
+      return persistence.adapter.subscribe?.(listener, signal) ?? (() => {})
     },
   }
   const runtime = new UserContextRuntime({

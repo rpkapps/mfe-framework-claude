@@ -8,7 +8,11 @@
 
 import { createServer } from 'node:http'
 import { fileURLToPath } from 'node:url'
-import { createDemoBackend, readRequestBody } from '../../examples/user-context/server.mjs'
+import {
+  createDemoBackend,
+  readRequestBody,
+  DEMO_SCOPE,
+} from '../../examples/user-context/server.mjs'
 import { DEV_API_PORT } from './api-port.mjs'
 
 /** Exported so `pnpm dev` checks and waits on this port without a second copy of the number. */
@@ -78,9 +82,15 @@ const server = createServer(async (request, response) => {
     request.once('aborted', abort)
     try {
       const body = await readRequestBody(request)
+      if (body === null || typeof body !== 'object' || Array.isArray(body))
+        throw new Error('User-context requests must be JSON objects')
+      if (Object.hasOwn(body, 'scope'))
+        throw new Error('User identity is determined by the server; do not submit scope')
       const record = url.pathname.endsWith('/hydrate')
-        ? await userContext.hydrate(body.scope, body.ids, controller.signal)
-        : await contextWriters.get(url.pathname).write(body, controller.signal)
+        ? await userContext.hydrate(DEMO_SCOPE, body.ids, controller.signal)
+        : await contextWriters
+            .get(url.pathname)
+            .write({ ...body, scope: DEMO_SCOPE }, controller.signal)
       json(response, 200, record)
     } catch (error) {
       json(response, error.code === 'user-context/conflict' ? 409 : 400, {

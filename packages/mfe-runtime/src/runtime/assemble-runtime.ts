@@ -130,34 +130,27 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
   })
 
   const configured = parts.testUserContext ?? parts.userContext
-  const persistence =
-    configured === undefined
-      ? undefined
-      : {
-          adapter: configured.adapter,
-          onError: (error: unknown, id: string) => {
-            diagnostics.report(
-              toMfeError(error, {
-                code: 'user-context/persistence-failed',
-                id,
-                operation: 'synchronize user context',
-                repair:
-                  'Handle the setter rejection or recover invalid data through the shell adapter.',
-              }),
-            )
-            configured.onError?.(error, id)
-          },
-        }
+  const reportContextError = (error: unknown, id: string): void => {
+    diagnostics.report(
+      toMfeError(error, {
+        code: 'user-context/persistence-failed',
+        id,
+        operation: 'synchronize user context',
+        repair: 'Handle the setter rejection or recover invalid data through the shell adapter.',
+      }),
+    )
+    configured?.onError?.(error, id)
+  }
   // The explicit schema/scope form is reserved for the low-level memory test harness.
   const explicit =
-    parts.testUserContext !== undefined && persistence !== undefined
-      ? new UserContextRuntime({ ...parts.testUserContext, ...persistence })
-      : undefined
+    parts.testUserContext === undefined
+      ? undefined
+      : new UserContextRuntime({ ...parts.testUserContext, onError: reportContextError })
   const managed =
-    persistence === undefined || explicit !== undefined
+    parts.userContext === undefined || explicit !== undefined
       ? undefined
       : createHostUserContext({
-          persistence,
+          persistence: { ...parts.userContext, onError: reportContextError },
           registry: parts.registry,
           shellState,
           definition: parts.__userContext,

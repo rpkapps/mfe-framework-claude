@@ -4,7 +4,7 @@
  * releases what it created and nothing it was lent.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { z } from 'zod'
 
 import {
@@ -583,11 +583,7 @@ describe('automatic user-context discovery', () => {
     expect(
       runtime.userContext?.bindReadOnly('reports', requirements, 'operations').get('units'),
     ).toBe('metric')
-    expect(hydrate).toHaveBeenCalledWith(
-      '[null,null,"ada"]',
-      ['operations'],
-      expect.any(AbortSignal),
-    )
+    expect(hydrate).toHaveBeenCalledWith(['operations'], expect.any(AbortSignal))
     runtime.shellState.apply({ user: null })
     await expect(runtime.userContext?.prepare(requirements)).rejects.toThrow('Sign in')
     expect(hydrate).toHaveBeenCalledTimes(1)
@@ -629,4 +625,114 @@ describe('theme configuration validation', () => {
       expect(add).not.toHaveBeenCalled()
     },
   )
+})
+
+describe('normal host factory declarations', () => {
+  it('infers schema output for the theme selector and rejects uncompiled author metadata', () => {
+    const adapter = { hydrate: vi.fn(), write: vi.fn() }
+    const configure = () =>
+      createMfeRuntime({
+        ...baseOptions(),
+        shellState: { user: null, groups: [] },
+        userContext: {
+          schema: z.object({
+            preferences: z.object({ theme: z.enum(['light', 'dark', 'system']).default('system') }),
+          }),
+          adapter,
+        },
+        theme: {
+          cacheKey: 'test:theme',
+          select: context => {
+            expectTypeOf(context.preferences.theme).toEqualTypeOf<'light' | 'dark' | 'system'>()
+            // @ts-expect-error: the selector is constrained to the owner's declared output
+            void context.notDeclared
+            // @ts-expect-error: nested unknown fields are rejected too
+            void context.preferences.other
+            return context.preferences.theme
+          },
+        },
+      })
+    expect(configure).toThrow('compiled by the host builder')
+    expect(adapter.hydrate).not.toHaveBeenCalled()
+  })
+
+  it('rejects uncompiled reads without contacting persistence', () => {
+    const adapter = { hydrate: vi.fn(), write: vi.fn() }
+    expect(() =>
+      createMfeRuntime({
+        ...baseOptions(),
+        userContext: {
+          reads: { lab: z.object({ units: z.enum(['metric', 'imperial']) }) },
+          adapter,
+        },
+      }),
+    ).toThrow('author schema or read declarations reached the runtime')
+    expect(adapter.hydrate).not.toHaveBeenCalled()
+  })
+
+  it('supports a host without context or an explicit initial theme', () => {
+    const withoutTheme = createMfeRuntime({
+      ...baseOptions(),
+      shellState: { user: null, groups: [] },
+    })
+    expect(withoutTheme.runtime.shellState.getTheme()).toBe('light')
+    withoutTheme.dispose()
+  })
+  it('supports a compiled reads-only shell without creating an owned slice', async () => {
+    const contract: StateContract = {
+      formatVersion: 1,
+      id: 'operations',
+      revision: 'one',
+      node: {
+        kind: 'object',
+        strict: false,
+        fields: { units: { kind: 'default', inner: { kind: 'string' }, value: 'metric' } },
+      },
+    }
+    const requirements = {
+      protocolVersion: 1 as const,
+      ownerId: 'shell',
+      contracts: [
+        {
+          id: contract.id,
+          revision: contract.revision,
+          capabilities: stateCapabilities(contract.node),
+        },
+      ],
+    }
+    const created = createMfeRuntime({
+      ...baseOptions(),
+      adapters: [createFederatedAdapter({ kind: 'react' })],
+      registryEntries: [
+        {
+          id: 'operations',
+          kind: 'app',
+          mfe: { framework: 'react' },
+          requiresRuntime: '>=1.1.0 <2.0.0',
+          container: 'ops',
+          manifestUrl: 'https://example.com/manifest.json',
+          expose: './operations',
+          userContextContract: contract,
+        },
+      ],
+      userContext: {
+        adapter: { hydrate: async () => [{ id: 'operations', revision: 0 }], write: vi.fn() },
+      },
+      __userContext: { requirements },
+    })
+    await created.runtime.userContext?.prepare(requirements)
+    const read = created.runtime.userContext?.bindReadOnly<{ units: string }>(
+      'shell',
+      requirements,
+      'operations',
+    )
+    expect(read?.getSnapshot()).toEqual({ units: 'metric' })
+    expect(read).not.toHaveProperty('set')
+    expect(
+      created.runtime.userContext?.inspection
+        ?.getSnapshot()
+        .entries.map(entry => entry.contract.id),
+    ).toEqual(['operations'])
+    created.dispose()
+  })
 })

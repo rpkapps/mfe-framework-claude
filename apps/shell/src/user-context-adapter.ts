@@ -1,10 +1,9 @@
 import {
   UserContextError,
   type UserContextAdapter,
-  type HostUserContextOptions,
   type StateRecord,
   type UserContextErrorCode,
-} from '@company/mfe-runtime/user-context'
+} from '@company/mfe-react/host'
 
 async function request<T>(path: string, body: unknown, signal: AbortSignal): Promise<T> {
   const response = await fetch(`http://localhost:3010/api/user-context/${path}`, {
@@ -34,14 +33,8 @@ async function request<T>(path: string, body: unknown, signal: AbortSignal): Pro
   return (await response.json()) as T
 }
 
-const adapter: UserContextAdapter = {
-  hydrate: (scope, ids, signal) =>
-    request<readonly StateRecord[]>('hydrate', { scope, ids }, signal),
+export const userContextAdapter: UserContextAdapter = {
+  hydrate: (ids, signal) => request<readonly StateRecord[]>('hydrate', { ids }, signal),
   write: (operation, signal) =>
     request<StateRecord>(`write/${encodeURIComponent(operation.id)}`, operation, signal),
-}
-
-/** The runtime derives the scope from shell identity and loads contracts from the registry. */
-export function createDemoUserContext(): HostUserContextOptions {
-  return { adapter }
 }

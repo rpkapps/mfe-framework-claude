@@ -2,7 +2,9 @@
 
 Each definition can own a context schema. React Lab owns the selected well, survey, comparison setting,
 and units in its `lab` slice. Angular Fieldwork reads that slice through a read-only binding. Its inspection Widget owns and persists its own `brief`.
-This folder supplies the example shell's browser adapter and the local API's file repository.
+This folder supplies shared well data and the local API's file repository. The shell's browser
+adapter lives in `apps/shell/src/user-context-adapter.ts` and is passed directly to its normal
+`createMfeRuntime` call beside the shell-owned schema.
 The runtime registers generated owner contracts privately. The adapter and backend know only
 opaque per-user owner documents; they import no Lab, Widget or shell schemas.
 
@@ -41,7 +43,7 @@ and provides the setter for the brief. Lab’s `units` and `well-selection` keys
 | Inspection-owned schema and Lab reads | `examples/fieldwork/src/user-context.schema.ts`       |
 | React owner hooks and partial writes  | `examples/lab/src/user-context-page.tsx`              |
 | Angular foreign reader                | `examples/fieldwork/src/well-inspection.component.ts` |
-| Browser transport                     | `examples/user-context/src/browser.ts`                |
+| Browser transport                     | `apps/shell/src/user-context-adapter.ts`              |
 | Local API                             | `tools/dev/api.mjs`                                   |
 | Durable file repository               | `examples/user-context/server.mjs`                    |
 
@@ -57,8 +59,10 @@ The single-process repository serializes writes, checks revisions, and preserves
 Earlier opaque demo records are converted without schemas, preserving values and retry metadata.
 Hydration remains read-only; the next accepted save commits the new document layout.
 
-This development API has no sign-in service. It accepts only the local shell demo identity,
-`u-2841`, with no tenant or account ID. The runtime derives that user's scope automatically.
+This development API has no sign-in service. Its endpoints assign the local demo identity
+`u-2841`, with no tenant or account ID, independently of the request body. The runtime handles
+identity internally; the browser adapter sends no scope. The local API chooses its fixed demo
+storage partition on the server.
 Separate, explicitly configured endpoints grant writes to `lab`, `well-inspection` and `shell`;
 each checks that submitted record IDs match the endpoint's fixed owner. These public local endpoints
 are demo capabilities, not authentication. An arbitrary endpoint cannot select a new owner, and
@@ -66,7 +70,8 @@ forged `ownerId` fields cannot change the fixed owner of an endpoint.
 
 A production integration must derive writer identity from its authenticated server request/session,
 authorize the authenticated tenant/account/user before reading or writing, and use a transactional
-database. The demo's identity check deliberately rejects unrelated signed-in identities.
+database. A deployment with real sign-in must replace these fixed demo endpoints with an
+authenticated API; the local API does not authenticate browser users.
 
 Changes are live between MFEs in one shell, with no cross-tab broadcasting.
 

@@ -14,6 +14,7 @@ import {
 export interface HostConfigOptions {
   /** The host's package root; defaults to the working directory. */
   readonly root?: string
+  readonly entries?: readonly string[]
   /** The name its configuration errors carry; defaults to the package name without its scope. */
   readonly id?: string
   readonly generatedDir?: string
@@ -30,6 +31,7 @@ export function planReactHostConfig(options: HostConfigOptions = {}): HostConfig
   return planHostConfig({
     root: options.root ?? process.cwd(),
     generator: '@company/mfe-rspack',
+    ...(options.entries ? { entries: options.entries } : {}),
     envModules: ['@company/mfe-rspack', '@company/mfe-rspack/env'],
     // The browser-safe subpath: the root export loads the plugin, which needs Node.
     checkModule: '@company/mfe-rspack/env',
@@ -41,7 +43,7 @@ export function planReactHostConfig(options: HostConfigOptions = {}): HostConfig
   })
 }
 
-/** Re-reads the declarations and rewrites what changed; `null` when the host declares none. */
+/** Re-read environment and runtime-call declarations; `null` when the host declares neither. */
 export function generateHostConfig(options: HostConfigOptions = {}): HostConfigGeneration | null {
   const plan = planReactHostConfig(options)
   if (plan === null) return null

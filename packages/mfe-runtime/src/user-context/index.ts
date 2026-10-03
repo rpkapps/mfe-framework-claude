@@ -13,3 +13,6 @@ export {
 export * from '@company/mfe-core/user-context'
 
 export type { HostUserContextOptions, HostUserContextDefinition } from './host.ts'
+
+/** Public browser adapter; the core scoped transport remains an internal server/test protocol. */
+export type { UserContextAdapter, StateWrite } from './host.ts'

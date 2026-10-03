@@ -48,6 +48,17 @@ describe('a React host', () => {
     })
   })
 
+  it('generates an ordinary custom-entry runtime context without an environment config', () => {
+    const root = createContainer({
+      'client/start.ts': `import {z} from 'zod'; import {createMfeRuntime} from '@company/mfe-react/host'; createMfeRuntime({userContext:{schema:z.object({theme:z.string()}),adapter}})`,
+    })
+    const summary = generateHost(root, ['client/start.ts'])
+    expect(summary.paths).toContain('.mfe/user-context.ts')
+    expect(existsSync(join(root, '.mfe/runtime-config.json'))).toBe(false)
+    expect(readFileSync(join(root, '.mfe/user-context.ts'), 'utf8')).not.toContain(
+      'createMfeRuntime',
+    )
+  })
   it('refuses a host that declares nothing, rather than generating an empty module', () => {
     const root = createContainer({ 'src/index.ts': '' })
     expect(() => generateHost(root)).toThrow(/no src\/mfe\.config\.ts/)

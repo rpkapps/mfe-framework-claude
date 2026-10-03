@@ -1,8 +1,9 @@
-import type { UserContextRequirements } from '@company/mfe-core/user-context'
+import type { StateContract, UserContextRequirements } from '@company/mfe-core/user-context'
 import {
   collectImportedBindings,
   collectTopLevelBindings,
   propertyName,
+  parseSourceFile,
   ts,
   unwrapExpression,
 } from '../discovery/ts-ast.ts'
@@ -10,6 +11,7 @@ import {
 export function userContextExpression(
   options: ts.ObjectLiteralExpression,
   name: 'schema' | 'reads' = 'schema',
+  host = false,
 ): ts.Expression | undefined {
   if (
     options.properties.some(property =>
@@ -25,8 +27,15 @@ export function userContextExpression(
   const property = properties[0]
   if (!property) return undefined
   if (
+    host &&
+    options.properties.slice(options.properties.indexOf(property) + 1).some(ts.isSpreadAssignment)
+  )
+    throw new Error(
+      'user-context/unsupported-schema: Place the explicit userContext declaration after options spreads so another object cannot override it',
+    )
+  if (
     properties.length !== 1 ||
-    options.properties.some(ts.isSpreadAssignment) ||
+    (!host && options.properties.some(ts.isSpreadAssignment)) ||
     !ts.isPropertyAssignment(property)
   )
     throw new Error(
@@ -42,9 +51,11 @@ export function userContextExpression(
     const key = propertyName(member)
     if (
       !key ||
-      !['schema', 'reads'].includes(key) ||
+      !(host ? ['schema', 'reads', 'adapter', 'onError'] : ['schema', 'reads']).includes(key) ||
       seen.has(key) ||
-      (!ts.isPropertyAssignment(member) && !ts.isShorthandPropertyAssignment(member))
+      (!ts.isPropertyAssignment(member) &&
+        !ts.isShorthandPropertyAssignment(member) &&
+        !(host && key === 'onError' && ts.isMethodDeclaration(member)))
     )
       throw new Error(
         'user-context/unsupported-schema: userContext accepts unique schema and reads declarations without spreads',
@@ -62,19 +73,63 @@ export function userContextExpression(
       ? member.name
       : undefined
 }
+export interface HostUserContextTransform {
+  readonly contract?: StateContract
+  readonly requirements: UserContextRequirements
+}
+export const HOST_RUNTIME_MODULES = [
+  '@company/mfe-react/host',
+  '@company/mfe-angular/host',
+  '@company/mfe-runtime',
+]
+/** A matching imported name can still be shadowed by an ordinary local function or variable. */
+export function isImportedRuntimeCall(identifier: ts.Identifier): boolean {
+  const binds = (name: ts.BindingName): boolean =>
+    ts.isIdentifier(name)
+      ? name.text === identifier.text
+      : name.elements.some(element => ts.isBindingElement(element) && binds(element.name))
+  for (let scope = identifier.parent; scope && !ts.isSourceFile(scope); scope = scope.parent) {
+    if (ts.isFunctionLike(scope) && scope.parameters.some(parameter => binds(parameter.name)))
+      return false
+    if (
+      (ts.isFunctionExpression(scope) || ts.isClassExpression(scope)) &&
+      scope.name?.text === identifier.text
+    )
+      return false
+    if (
+      (ts.isForStatement(scope) || ts.isForInStatement(scope) || ts.isForOfStatement(scope)) &&
+      scope.initializer &&
+      ts.isVariableDeclarationList(scope.initializer) &&
+      scope.initializer.declarations.some(declaration => binds(declaration.name))
+    )
+      return false
+    if (
+      ts.isCatchClause(scope) &&
+      scope.variableDeclaration &&
+      binds(scope.variableDeclaration.name)
+    )
+      return false
+    if (
+      ts.isBlock(scope) &&
+      scope.statements.some(statement =>
+        ts.isVariableStatement(statement)
+          ? statement.declarationList.declarations.some(declaration => binds(declaration.name))
+          : (ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) &&
+            statement.name?.text === identifier.text,
+      )
+    )
+      return false
+  }
+  return true
+}
 /** An actual declaration transform, followed by pruning authoring-only bindings/imports. */
 export function transformUserContextSource(
   source: string,
   filename: string,
   requirements: Readonly<Record<string, UserContextRequirements>>,
+  host?: HostUserContextTransform,
 ): string {
-  const file = ts.createSourceFile(
-    filename,
-    source,
-    ts.ScriptTarget.Latest,
-    true,
-    filename.endsWith('tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
-  )
+  const file = parseSourceFile(filename, source)
   const imports = collectImportedBindings(file)
   const factories = new Set(
     [...imports]
@@ -85,9 +140,26 @@ export function transformUserContextSource(
       )
       .map(([local]) => local),
   )
+  const hosts = new Set(
+    [...imports]
+      .filter(
+        ([, binding]) =>
+          binding.imported === 'createMfeRuntime' &&
+          HOST_RUNTIME_MODULES.includes(binding.moduleSpecifier),
+      )
+      .map(([local]) => local),
+  )
   const candidates = new Set<string>()
   const local = collectTopLevelBindings(file)
   const collectCandidates = (node: ts.Node): void => {
+    const parent = node.parent
+    if (
+      ts.isIdentifier(node) &&
+      parent &&
+      ((ts.isPropertyAssignment(parent) && parent.name === node) ||
+        (ts.isPropertyAccessExpression(parent) && parent.name === node))
+    )
+      return
     if (ts.isIdentifier(node) && (imports.has(node.text) || local.has(node.text))) {
       if (candidates.has(node.text)) return
       candidates.add(node.text)
@@ -102,12 +174,16 @@ export function transformUserContextSource(
         if (
           ts.isCallExpression(node) &&
           ts.isIdentifier(node.expression) &&
-          factories.has(node.expression.text)
+          (factories.has(node.expression.text) ||
+            (host !== undefined &&
+              hosts.has(node.expression.text) &&
+              isImportedRuntimeCall(node.expression)))
         ) {
           const options = node.arguments[0]
           if (options && ts.isObjectLiteralExpression(options)) {
-            const schema = userContextExpression(options)
-            const reads = userContextExpression(options, 'reads')
+            const isHost = hosts.has(node.expression.text)
+            const schema = userContextExpression(options, 'schema', isHost)
+            const reads = userContextExpression(options, 'reads', isHost)
             if (schema || reads) {
               if (schema) collectCandidates(schema)
               if (reads) collectCandidates(reads)
@@ -118,13 +194,29 @@ export function transformUserContextSource(
                 ts.isStringLiteral(identity.initializer)
                   ? identity.initializer.text
                   : undefined
-              const refs = id === undefined ? undefined : requirements[id]
+              const refs = isHost ? host : id === undefined ? undefined : requirements[id]
               if (!refs) throw new Error(`user-context/missing-contract: ${id ?? filename}`)
-              const properties = options.properties.filter(
-                property =>
-                  propertyName(property) !== 'userContext' &&
-                  propertyName(property) !== '__userContext',
-              )
+              const properties = options.properties.flatMap(property => {
+                if (propertyName(property) === '__userContext') return []
+                if (propertyName(property) !== 'userContext') return [property]
+                if (!isHost) return []
+                const declaration = property as ts.PropertyAssignment
+                const value = unwrapExpression(
+                  declaration.initializer,
+                ) as ts.ObjectLiteralExpression
+                return [
+                  ts.factory.updatePropertyAssignment(
+                    declaration,
+                    declaration.name,
+                    ts.factory.updateObjectLiteralExpression(
+                      value,
+                      value.properties.filter(
+                        member => !['schema', 'reads'].includes(propertyName(member) ?? ''),
+                      ),
+                    ),
+                  ),
+                ]
+              })
               properties.push(
                 ts.factory.createPropertyAssignment('__userContext', jsonExpression(refs)),
               )
@@ -146,7 +238,7 @@ export function transformUserContextSource(
   for (let pass = 0; pass <= candidates.size; pass++) {
     const references = new Set<string>()
     const read = (node: ts.Node): void => {
-      if (ts.isImportDeclaration(node)) return
+      if (ts.isImportDeclaration(node) || ts.isTypeNode(node)) return
       if (ts.isIdentifier(node)) {
         const parent = node.parent
         if (

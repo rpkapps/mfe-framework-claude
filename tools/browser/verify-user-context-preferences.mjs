@@ -22,15 +22,32 @@ export async function verifyUserContextPreferences(browser) {
     await page.context().grantPermissions(['local-network-access'], {
       origin: 'http://localhost:3000',
     })
+    // Identity belongs to the server; even a valid-looking browser-supplied scope is rejected.
+    const forgedRead = await page.request.post('http://localhost:3010/api/user-context/hydrate', {
+      data: { ids: ['shell'], scope: 'another-user' },
+    })
+    expect(forgedRead.status()).toBe(400)
     // Seed a genuine authoritative record so its revision and subsequent CAS writes stay valid.
     const existing = await page.request.post('http://localhost:3010/api/user-context/hydrate', {
-      data: { scope, ids: ['shell'] },
+      data: { ids: ['shell'] },
     })
     expect(existing.ok(), await existing.text()).toBe(true)
     const [record] = await existing.json()
+    const forgedWrite = await page.request.post(
+      'http://localhost:3010/api/user-context/write/shell',
+      {
+        data: {
+          scope: 'another-user',
+          id: 'shell',
+          expectedRevision: record.revision,
+          operationId: `theme-browser-forged:${randomUUID()}`,
+          value: { preferences: { theme: 'dark' } },
+        },
+      },
+    )
+    expect(forgedWrite.status()).toBe(400)
     const seeded = await page.request.post('http://localhost:3010/api/user-context/write/shell', {
       data: {
-        scope,
         id: 'shell',
         expectedRevision: record.revision,
         operationId: `theme-browser-seed:${randomUUID()}`,

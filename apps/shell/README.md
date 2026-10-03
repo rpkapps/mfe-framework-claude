@@ -263,9 +263,12 @@ that names that file.
 
 ### The theme
 
-The shell owns `preferences.theme` in its `userContext.schema`, declared in
-`src/mfe.config.ts`. The preference is `light`, `dark` or `system`. The generated
-`#mfe/user-context` module supplies the typed runtime factory and `useUserContext`.
+The shell owns `preferences.theme` in `userContext.schema`, declared alongside
+`adapter` in the normal `createMfeRuntime` call in `src/boot.tsx`. The factory comes
+from `@company/mfe-react/host`; `src/user-context-adapter.ts` is an ordinary local
+transport module. It sends no user identity or scope: the API uses its authenticated
+session. The preference is `light`, `dark` or `system`. The generated
+`#mfe/user-context` module supplies `useUserContext` and inferred types only.
 Settings select `context.preferences.theme` and save with
 `set('preferences', { theme })`; the account menu, palette and `⌘J` use the same
 persisted theme action. A rejected save leaves the confirmed preference unchanged.

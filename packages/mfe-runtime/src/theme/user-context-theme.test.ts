@@ -146,10 +146,9 @@ it('replaces a cached preference with the default after a confirmed absent recor
 it('ignores delayed hydration across identity changes and never hydrates after sign-out', async () => {
   const { createHostUserContext } = await import('../user-context/host.ts')
   const shellState = new ShellStateStore({ user, groups: [], theme: 'light' })
-  const requests: { scope: string; resolve: (records: readonly StateRecord[]) => void }[] = []
+  const requests: { resolve: (records: readonly StateRecord[]) => void }[] = []
   const hydrate = vi.fn(
-    (scope: string) =>
-      new Promise<readonly StateRecord[]>(resolve => requests.push({ scope, resolve })),
+    () => new Promise<readonly StateRecord[]>(resolve => requests.push({ resolve })),
   )
   const managed = createHostUserContext({
     persistence: {

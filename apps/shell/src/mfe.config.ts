@@ -13,14 +13,6 @@ import { z } from 'zod'
  * or 'cycle' for the next of them on each page load. Built into the page; a deployment can still
  * choose another with SHELL_LOADER.
  */
-export const userContext = {
-  schema: z.object({
-    preferences: z
-      .object({ theme: z.enum(['light', 'dark', 'system']).default('system') })
-      .default({ theme: 'system' }),
-  }),
-}
-
 export const loader = 'drill-bit'
 
 /**

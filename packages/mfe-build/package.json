@@ -29,6 +29,10 @@
       "types": "./dist/testing/index.d.ts",
       "default": "./dist/testing/index.js"
     },
+    "./host-user-context-loader": {
+      "mfe-source": "./src/user-context/host-loader.ts",
+      "default": "./dist/user-context/host-loader.js"
+    },
     "./user-context-loader": {
       "mfe-source": "./src/user-context/loader.ts",
       "default": "./dist/user-context/loader.js"

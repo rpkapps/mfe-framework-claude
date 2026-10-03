@@ -66,7 +66,7 @@ const { runtime } = createMfeRuntime({
   telemetryProvider: createNoopTelemetryProvider(),
   userContext: {
     adapter: {
-      hydrate: (_scope, ids) =>
+      hydrate: ids =>
         Promise.resolve(
           ids.map(id => ({
             id,

@@ -3,11 +3,11 @@ import type { Registry, ShellUser } from '@company/mfe-core'
 import {
   stateCapabilities,
   type StateContract,
-  type UserContextAdapter,
   type UserContextRequirements,
+  type UserContextStore,
 } from '@company/mfe-core/user-context'
 import { ShellStateStore } from '../shell-state/shell-state-store.ts'
-import { createHostUserContext } from './host.ts'
+import { createHostUserContext, type UserContextAdapter } from './host.ts'
 
 const contract: StateContract = {
   formatVersion: 1,
@@ -31,9 +31,11 @@ const requirements: UserContextRequirements = {
 const user = { id: 'one', name: 'One', tenantId: 'tenant' }
 function setup(initial: ShellUser | null = user, registryContract = contract) {
   const shellState = new ShellStateStore({ user: initial, groups: [], theme: 'light' })
-  const hydrate = vi.fn<UserContextAdapter['hydrate']>(async (_scope, ids) =>
-    ids.map(id => ({ id, revision: 0 })),
-  )
+  const hydratedUsers: (string | undefined)[] = []
+  const hydrate = vi.fn<UserContextAdapter['hydrate']>(async ids => {
+    hydratedUsers.push(shellState.getUser()?.id)
+    return ids.map(id => ({ id, revision: 0 }))
+  })
   const write = vi.fn<UserContextAdapter['write']>(async operation => ({
     id: operation.id,
     revision: operation.expectedRevision + 1,
@@ -62,23 +64,26 @@ function setup(initial: ShellUser | null = user, registryContract = contract) {
     registry,
     shellState,
   })
-  return { ...host, shellState, hydrate, write, subscribe, unsubscribe, registry }
+  return { ...host, shellState, hydrate, hydratedUsers, write, subscribe, unsubscribe, registry }
 }
 
 describe('host user context', () => {
-  it('discovers an unmounted owner from registry metadata and derives persistence identity', async () => {
+  it('discovers an unmounted owner and exposes no scope in adapter calls', async () => {
     const host = setup()
     const reader = { ...requirements, ownerId: 'reports' }
     await host.service.prepare(reader)
-    expect(host.hydrate).toHaveBeenCalledWith(
-      '["tenant",null,"one"]',
-      ['operations'],
-      expect.any(AbortSignal),
-    )
+    expect(host.hydrate).toHaveBeenCalledWith(['operations'], expect.any(AbortSignal))
     const store = host.service.bindReadOnly('reports', reader, 'operations')
     expect(store.get('units')).toBe('metric')
     expect(store).not.toHaveProperty('set')
     expect(host.service).not.toHaveProperty('setScope')
+    expect(host.subscribe).toHaveBeenCalledWith(expect.any(Function), expect.any(AbortSignal))
+    await host.service.bind('operations', requirements).set('units', 'imperial')
+    expect(host.write.mock.calls[0]?.[0]).not.toHaveProperty('scope')
+    expect(host.write.mock.calls[0]?.[0]).toMatchObject({
+      id: 'operations',
+      value: { units: 'imperial' },
+    })
     host.dispose()
   })
 
@@ -91,11 +96,8 @@ describe('host user context', () => {
     })
     host.shellState.apply({ user: { ...user, id: 'two' } })
     await host.service.prepare(requirements)
-    expect(host.hydrate).toHaveBeenLastCalledWith(
-      '["tenant",null,"two"]',
-      ['operations'],
-      expect.any(AbortSignal),
-    )
+    expect(host.hydrate).toHaveBeenLastCalledWith(['operations'], expect.any(AbortSignal))
+    expect(host.hydratedUsers).toEqual(['one', 'two'])
     expect(host.unsubscribe).toHaveBeenCalledTimes(1)
     expect(host.service.inspection?.getSnapshot().generation).toBe(1)
     host.dispose()
@@ -172,8 +174,8 @@ it('does not cache synchronous next-user subscription records under the previous
       adapter: {
         hydrate: async () => [{ id: 'operations', revision: 0 }],
         write: vi.fn(),
-        subscribe: (scope, listener) => {
-          if (scope.endsWith(',"two"]'))
+        subscribe: listener => {
+          if (shellState.getUser()?.id === 'two')
             listener({ id: 'operations', revision: 1, value: { units: 'light' } })
           return () => {}
         },
@@ -200,5 +202,69 @@ it('does not cache synchronous next-user subscription records under the previous
     shellState.dispose()
     localStorage.removeItem(themeCacheKey(cacheKey, user))
     localStorage.removeItem(themeCacheKey(cacheKey, nextUser))
+  }
+})
+
+it('blocks an old binding invoked by an earlier identity observer before it reaches the new session adapter', async () => {
+  const shellState = new ShellStateStore({ user, groups: [], theme: 'light' })
+  let oldStore: UserContextStore | undefined
+  let attempted: ReturnType<UserContextStore['set']> | undefined
+  const stopEarlierObserver = shellState.observeTransitions(change => {
+    if (change.transitions.some(transition => transition.kind === 'identity'))
+      attempted = oldStore?.set('units', 'imperial')
+  })
+  const write = vi.fn<UserContextAdapter['write']>(async operation => ({
+    id: operation.id,
+    revision: operation.expectedRevision + 1,
+    value: operation.value,
+  }))
+  const host = createHostUserContext({
+    persistence: { adapter: { hydrate: async () => [{ id: contract.id, revision: 0 }], write } },
+    registry: { entries: new Map(), rejected: [] },
+    shellState,
+    definition: { contract, requirements },
+  })
+  try {
+    await host.service.prepare(requirements)
+    oldStore = host.service.bind(contract.id, requirements)
+    shellState.apply({ user: { ...user, id: 'two' } })
+    expect(await attempted).toMatchObject({
+      ok: false,
+      error: { code: 'user-context/scope-disposed' },
+    })
+    expect(write).not.toHaveBeenCalled()
+  } finally {
+    stopEarlierObserver()
+    host.dispose()
+    shellState.dispose()
+  }
+})
+
+it('blocks stale hydration started by an earlier identity observer', async () => {
+  const shellState = new ShellStateStore({ user, groups: [], theme: 'light' })
+  let attempted: Promise<void> | undefined
+  const stopEarlierObserver = shellState.observeTransitions(change => {
+    if (change.transitions.some(transition => transition.kind === 'identity'))
+      attempted = host.service.prepare(requirements)
+  })
+  const hydrate = vi.fn<UserContextAdapter['hydrate']>(async () => [
+    { id: contract.id, revision: 0 },
+  ])
+  const host = createHostUserContext({
+    persistence: { adapter: { hydrate, write: vi.fn() } },
+    registry: { entries: new Map(), rejected: [] },
+    shellState,
+    definition: { contract, requirements },
+  })
+  try {
+    shellState.apply({ user: { ...user, id: 'two' } })
+    await expect(attempted).rejects.toMatchObject({ code: 'user-context/scope-disposed' })
+    expect(hydrate).not.toHaveBeenCalled()
+    await host.service.prepare(requirements)
+    expect(hydrate).toHaveBeenCalledExactlyOnceWith([contract.id], expect.any(AbortSignal))
+  } finally {
+    stopEarlierObserver()
+    host.dispose()
+    shellState.dispose()
   }
 })

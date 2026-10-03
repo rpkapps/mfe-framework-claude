@@ -10,6 +10,7 @@ import { createRoot } from 'react-dom/client'
 import { RouterProvider } from '@tanstack/react-router'
 import {
   createAuthenticatedFetch,
+  createMfeRuntime,
   createBrowserNavigationBridge,
   createFederationContainerLoader,
   createNoopTelemetryProvider,
@@ -21,7 +22,6 @@ import {
   type TelemetryProvider,
 } from '@company/mfe-react/host'
 import { reactAdapter } from '@company/mfe-react/registry'
-import { createDemoUserContext } from '@example/user-context-demo/browser'
 import { loadRemote, registerRemotes } from '@module-federation/runtime'
 import { toast } from 'sonner'
 
@@ -30,7 +30,8 @@ import { shellSession } from './auth/gate.ts'
 import { installShellChat, LazyShellChat } from './chat/instance.ts'
 import { createFaroProvider } from './shell/faro.ts'
 import { routerNavigation } from './shell/navigation.ts'
-import { createMfeRuntime } from '#mfe/user-context'
+import { z } from 'zod'
+import { userContextAdapter } from './user-context-adapter.ts'
 import { ShellReady } from './shell/ready.tsx'
 import { createShellRouter } from './shell/router.tsx'
 import { createDevSession } from './shell/session.ts'
@@ -94,7 +95,6 @@ installShellAuth({
 const overrideSource = overrideStorage()
 
 const { runtime, activeOverrides } = createMfeRuntime({
-  userContext: createDemoUserContext(),
   theme: { select: context => context.preferences.theme, cacheKey: 'portal:theme' },
   registryEntries: await fetchRegistryEntries(),
   // Every framework this shell serves, each listed: nothing is registered implicitly, and no
@@ -115,6 +115,16 @@ const { runtime, activeOverrides } = createMfeRuntime({
   navigationBridge: createBrowserNavigationBridge(),
   diagnostics,
   ...(overrideSource === undefined ? {} : { overrideStorage: overrideSource }),
+  userContext: {
+    adapter: userContextAdapter,
+    schema: z.object({
+      preferences: z
+        .object({
+          theme: z.enum(['light', 'dark', 'system']).default('system'),
+        })
+        .default({ theme: 'system' }),
+    }),
+  },
   notifyActionDenial: notice => toast.warning(notice.label, { description: notice.reason }),
 })
 
