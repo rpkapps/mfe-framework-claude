@@ -4,6 +4,13 @@
  */
 
 export { MfeStorageStore } from './storage-store.ts'
+export {
+  StorageService,
+  type StorageCaller,
+  type StorageServiceOptions,
+  type StoredBinding,
+} from './service.ts'
+export { UserStorageStore, type UserLoadPhase, type UserRowState } from './user-store.ts'
 
 export type {
   BoundStorageKey,

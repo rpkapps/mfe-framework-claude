@@ -4,13 +4,17 @@ import { resetMfeConfig } from './generated/config.ts'
 import { resetMfeFetch } from './generated/fetch.ts'
 
 export { createInProcessLoader } from './in-process-loader.ts'
-export { createTestSharedStateRepository, createSharedStateBackend } from './shared-state.ts'
 
 export {
   createMemoryRuntime,
   type MemoryRuntime,
   type MemoryRuntimeOptions,
+  type MemoryRuntimeStorageOptions,
+  type SeedCaller,
+  type StoredSeed,
 } from './memory-runtime.ts'
+
+export { createMemoryUserStorage, type MemoryUserStorage } from './memory-user-storage.ts'
 
 export { createMemoryNavigationBridge } from './memory-navigation-bridge.ts'
 

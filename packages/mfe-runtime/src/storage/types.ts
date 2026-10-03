@@ -4,7 +4,7 @@ import type { z } from 'zod'
 
 import type {
   Listener,
-  StorageArea,
+  BrowserStorageArea,
   StorageScopeOptions,
   StorageSnapshot,
   Unsubscribe,
@@ -51,7 +51,7 @@ export interface StorageKeyBinding<T> extends StorageScopeOptions {
   /** Only used for instance scope. Adapters obtain it from the mount's host control property. */
   readonly instanceId?: string
   readonly name: string
-  readonly storage?: StorageArea
+  readonly storage?: BrowserStorageArea
   readonly schema: z.ZodType<T>
   readonly version?: number
   /** Schema-validated at bind time, and never persisted. */
@@ -68,7 +68,7 @@ export interface BoundStorageKey<T> {
   readonly key: string
   readonly definitionId: string
   readonly name: string
-  readonly storage: StorageArea
+  readonly storage: BrowserStorageArea
   readonly version: number
   /** Pure cache read: never touches the browser store. */
   getSnapshot(): StorageSnapshot<T>

@@ -8,6 +8,8 @@
 
 import { createServer } from 'node:http'
 import { fileURLToPath } from 'node:url'
+// TODO(user-storage): replace this shared-state demo backend with the new user-storage example
+// server once it lands; the compiler-based shared-state contracts it was built for are removed.
 import { createDemoBackend, readRequestBody } from '../../examples/shared-state/server.mjs'
 
 /** Exported so `pnpm dev` checks and waits on this port without a second copy of the number. */
@@ -45,6 +47,7 @@ function json(response, status, body) {
   response.end(JSON.stringify(body))
 }
 
+// TODO(user-storage): swap for the user-storage example server's backend.
 const sharedState = createDemoBackend(
   fileURLToPath(new URL('../../.mfe/shared-state-demo/records.json', import.meta.url)),
 )
@@ -59,6 +62,7 @@ const server = createServer(async (request, response) => {
 
   const url = new URL(request.url ?? '/', `http://localhost:${String(DEV_API_PORT)}`)
 
+  // TODO(user-storage): replace these shared-state routes with the user-storage server's routes.
   if (url.pathname === '/api/shared-state/hydrate' || url.pathname === '/api/shared-state/write') {
     if (request.method !== 'POST') {
       json(response, 405, { message: 'Use POST for shared state' })

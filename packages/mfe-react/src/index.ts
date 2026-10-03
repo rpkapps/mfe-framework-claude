@@ -63,7 +63,8 @@ export {
 } from './hooks/use-navigation-block.ts'
 export {
   useStoredState,
-  type StoredStateSetter,
+  type ReadonlyStoredState,
+  type StoredState,
   type UseStoredStateOptions,
 } from './hooks/use-stored-state.ts'
 
@@ -99,14 +100,20 @@ export {
   type Decision,
   type MfeError,
   type MfeErrorCode,
+  type AnyStoredKey,
   type MfeStorage,
-  type MfeStorageKey,
+  type ReadonlyStoredKey,
+  storedKey,
+  type StorageArea,
+  type StorageError,
+  type StorageErrorCode,
+  type StoredKey,
+  type StoredKeyOptions,
+  type StoredStatus,
+  type StoredUpdate,
   type ShellState,
   type ShellTheme,
   type ShellUser,
-  type StorageKeyOptions,
-  type StorageScope,
-  type StorageScopeOptions,
   type OutputSchema,
   type WidgetContract,
   /* The registry shapes are part of the host surface, because a host renders the registry. */
@@ -178,5 +185,3 @@ export {
   type IconNode,
 } from '@company/mfe-core'
 
-export { createSharedStateBindings } from './hooks/shared-state.ts'
-export type { SharedStateStore, SharedStateSetter } from '@company/mfe-core/shared-state'

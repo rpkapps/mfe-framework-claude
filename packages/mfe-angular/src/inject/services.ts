@@ -1,8 +1,8 @@
 /** The mount-bound services, each stable for the mount's life, so reading one never subscribes. */
 
-import type { MfeStorage, MfeTelemetry, StorageArea } from '@company/mfe-core'
+import { HOST_SCOPE, type MfeStorage, type MfeTelemetry } from '@company/mfe-core'
 
-import { injectMfeMount } from './runtime.ts'
+import { injectMfeMount, injectMfeRuntime, injectOptionalMfeMount } from './runtime.ts'
 
 export function injectTelemetry(): MfeTelemetry {
   return injectMfeMount('injectTelemetry()').telemetry
@@ -18,8 +18,12 @@ export function injectBasePath(): string {
   return injectMfeMount('injectBasePath()').basePath
 }
 
-/** The imperative handle: `get()` does not subscribe, so rendered state uses `injectStoredState`. */
-export function injectMfeStorage(area: StorageArea = 'local'): MfeStorage {
-  const mount = injectMfeMount('injectMfeStorage()')
-  return area === 'session' ? mount.storage.session : mount.storage.local
+/**
+ * The imperative handle: reading through it does not subscribe, so rendered state uses
+ * `injectStoredState`. Outside a mount it reaches the host page's values.
+ */
+export function injectMfeStorage(): MfeStorage {
+  const mount = injectOptionalMfeMount()
+  if (mount !== null) return mount.storage
+  return injectMfeRuntime('injectMfeStorage()').storage.forCaller({ owner: HOST_SCOPE })
 }

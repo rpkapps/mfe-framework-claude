@@ -69,8 +69,7 @@ const config: Linter.Config[] = [
       // The documentation site is not an MFE, but it is first-party React in this workspace and
       // the framework preset is the one that holds first-party code to the repository's rules.
       'apps/docs/src/**/*.{ts,tsx}',
-      // Schema ownership and the host adapter are supporting packages, not MFE author code.
-      'examples/shared-state-contracts/src/**/*.ts',
+      // The host adapter is a supporting package, not MFE author code.
       'examples/shared-state/src/**/*.ts',
     ],
     // `rules-of-hooks` reads any call to something named `use` as a hook call, so a bundler
@@ -111,11 +110,7 @@ const config: Linter.Config[] = [
       })
       .map(object => ({
         ...object,
-        ignores: [
-          ...(object.ignores ?? []),
-          'examples/shared-state-contracts/**',
-          'examples/shared-state/**',
-        ],
+        ignores: [...(object.ignores ?? []), 'examples/shared-state/**'],
       })),
   ),
 
@@ -162,7 +157,6 @@ const config: Linter.Config[] = [
         ...mfe.DEFAULT_TOOLING_FILES,
         'apps/docs/source.config.ts',
         'tools/tecton/*.d.mts',
-        'tools/shared-state/*.d.mts',
       ],
     }),
   ),

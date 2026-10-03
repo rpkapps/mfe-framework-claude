@@ -1,56 +1,65 @@
 /**
- * Stored state as a signal, resolved by position: the definition's record inside a mount, the
- * reserved host scope outside one. An unreadable stored value throws rather than falling back to
- * the default, so the failure reaches the `ErrorHandler` instead of looking like missing data.
+ * Stored state as signals, for every area. The key says where its value lives; the result has
+ * the same shape for each: the value (the schema default while loading or after an error), an
+ * awaitable `set`, and the key's status.
  */
 
 import { assertInInjectionContext, computed, DestroyRef, inject, type Signal } from '@angular/core'
-import { withoutUndefined, type StorageArea, type StorageKeyOptions } from '@company/mfe-core'
-import type { StorageUpdater } from '@company/mfe-runtime'
-import type { z } from 'zod'
+import {
+  HOST_SCOPE,
+  type AnyStoredKey,
+  type ReadonlyStoredKey,
+  type StorageError,
+  type StoredKey,
+  type StoredStatus,
+  type StoredUpdate,
+} from '@company/mfe-core'
 
 import { signalFromStore } from '../signals.ts'
 import { injectMfeRuntime, injectOptionalMfeMount } from './runtime.ts'
 
-export interface StoredStateOptions<T> extends StorageKeyOptions<T> {
-  readonly defaultValue: T
-  readonly storage?: StorageArea
+export interface InjectStoredStateOptions<T, R> {
+  /** Narrows what `value` reads; it changes only when the selected part does. */
+  readonly select?: (value: T) => R
 }
 
-export interface StoredState<T> {
-  /** Throws the stored value's error when it could not be read or migrated. */
-  readonly value: Signal<T>
-  set(next: T | StorageUpdater<T>): void
-  remove(): void
+export interface ReadonlyStoredState<R> {
+  readonly value: Signal<R>
+  readonly status: Signal<StoredStatus>
+  readonly error: Signal<StorageError | undefined>
+  /** After a failed load, loads again; after a failed save, sends it again. */
+  retry(): Promise<void>
 }
 
-export function injectStoredState<T>(
-  name: string,
-  schema: z.ZodType<T>,
-  options: StoredStateOptions<T>,
-): StoredState<T> {
+export interface StoredState<T, R = T> extends ReadonlyStoredState<R> {
+  /** Always takes the whole value, even with `select`. Resolves once the value is stored. */
+  set(next: StoredUpdate<T>): Promise<void>
+  /** Removes the stored value, so the key reads its schema default again. */
+  reset(): Promise<void>
+}
+
+export function injectStoredState<T, R = T>(
+  key: StoredKey<T>,
+  options?: InjectStoredStateOptions<T, R>,
+): StoredState<T, R>
+export function injectStoredState<T, R = T>(
+  key: ReadonlyStoredKey<T>,
+  options?: InjectStoredStateOptions<T, R>,
+): ReadonlyStoredState<R>
+export function injectStoredState<T, R = T>(
+  key: AnyStoredKey<T>,
+  options?: InjectStoredStateOptions<T, R>,
+): StoredState<T, R> | ReadonlyStoredState<R> {
   assertInInjectionContext(injectStoredState)
 
   const mount = injectOptionalMfeMount()
   const { storage } = injectMfeRuntime('injectStoredState()')
-
-  const declaration = {
-    name,
-    schema,
-    storage: options.storage ?? 'local',
-    defaultValue: options.defaultValue,
-    ...withoutUndefined({
-      version: options.version,
-      migrate: options.migrate,
-      scope: options.scope,
-      instanceId: mount?.instanceId,
-    }),
-  }
-
-  const binding =
+  const binding = storage.bind(
     mount === null
-      ? storage.bindHost<T>(declaration)
-      : storage.bind<T>(mount.definitionId, declaration)
+      ? { owner: HOST_SCOPE }
+      : { owner: mount.definitionId, instanceId: mount.instanceId, signal: mount.signal },
+    key,
+  )
 
   // Registered first, so its unsubscribe runs before the binding is released.
   const snapshot = signalFromStore(
@@ -61,24 +70,21 @@ export function injectStoredState<T>(
     binding.release()
   })
 
-  // Thrown at creation too, so a component whose stored record is unreadable fails to construct
-  // rather than rendering a default the user never chose.
-  const initial = snapshot()
-  if (initial.status === 'error') throw initial.error
-
-  const value = computed(() => {
-    const current = snapshot()
-    if (current.status === 'error') throw current.error
-    return current.value
-  })
-
-  return {
+  const select = options?.select
+  const value =
+    select === undefined
+      ? computed(() => snapshot().value as unknown as R)
+      : computed(() => select(snapshot().value))
+  const state: ReadonlyStoredState<R> = {
     value,
-    set: next => {
-      binding.set(next)
-    },
-    remove: () => {
-      binding.remove()
-    },
+    status: computed(() => snapshot().status),
+    error: computed(() => snapshot().error),
+    retry: () => binding.retry(),
+  }
+  if (key.owner !== undefined) return state
+  return {
+    ...state,
+    set: next => binding.set(next),
+    reset: () => binding.reset(),
   }
 }

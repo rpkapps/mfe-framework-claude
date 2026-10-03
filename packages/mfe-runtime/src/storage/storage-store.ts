@@ -16,10 +16,7 @@ import {
   toMfeError,
   type Listener,
   type MfeError,
-  type MfeStorage,
-  type MfeStorageKey,
-  type StorageArea,
-  type StorageKeyOptions,
+  type BrowserStorageArea,
   type StorageSnapshot,
   type Unsubscribe,
 } from '@company/mfe-core'
@@ -47,7 +44,7 @@ import type {
 } from './types.ts'
 
 const AREAS = ['local', 'session'] as const
-const DEFAULT_AREA: StorageArea = 'local'
+const DEFAULT_AREA: BrowserStorageArea = 'local'
 
 /** Written once: both the read path and the resolve path report it. */
 const UNAVAILABLE =
@@ -86,7 +83,7 @@ function snapshotsEquivalent(a: StorageSnapshot<unknown>, b: StorageSnapshot<unk
   return a.status === b.status && stableStringify(a.value) === stableStringify(b.value)
 }
 
-function entryKeyFor(area: StorageArea, physicalKey: string): string {
+function entryKeyFor(area: BrowserStorageArea, physicalKey: string): string {
   return `${area}|${physicalKey}`
 }
 
@@ -100,7 +97,7 @@ function defaultEventTarget(): StorageEventTargetLike | null {
 
 interface ResolvedDeclaration {
   readonly name: string
-  readonly area: StorageArea
+  readonly area: BrowserStorageArea
   readonly instanceId?: string
   readonly schema: z.ZodType
   readonly version: number
@@ -113,7 +110,7 @@ interface ResolvedDeclaration {
 interface KeyEntry {
   readonly entryKey: string
   readonly definitionId: string
-  readonly area: StorageArea
+  readonly area: BrowserStorageArea
   readonly name: string
   readonly physicalKey: string
   readonly declaration: ResolvedDeclaration
@@ -206,49 +203,11 @@ export class MfeStorageStore {
     return handle as unknown as BoundStorageKey<T | null>
   }
 
-  /** A write through the imperative surface notifies the key's subscribers. */
-  storageFor(
-    definitionId: string,
-    area: StorageArea = DEFAULT_AREA,
-    instanceId?: string,
-  ): MfeStorage {
-    this.#assertDefinitionScope(definitionId, 'open the storage surface')
-    return this.#storageFor(definitionId, area, instanceId)
-  }
-
-  /** For a host with no component to hang a binding off — a boot script, or a non-React shell. */
-  hostStorage(area: StorageArea = DEFAULT_AREA): MfeStorage {
-    return this.#storageFor(HOST_SCOPE, area)
-  }
-
-  #storageFor(definitionId: string, area: StorageArea, instanceId?: string): MfeStorage {
-    return {
-      key: <T>(
-        name: string,
-        schema: z.ZodType<T>,
-        options?: StorageKeyOptions<T>,
-      ): MfeStorageKey<T> =>
-        this.#imperativeKey(definitionId, area, name, schema, options, instanceId),
-      remove: (name, options): void => {
-        this.#imperativeRemove(
-          definitionId,
-          area,
-          name,
-          this.#resolveInstance(definitionId, area, options?.scope, instanceId),
-        )
-      },
-      clear: options => {
-        const selected = this.#resolveInstance(definitionId, area, options?.scope, instanceId)
-        this.#clearScope(definitionId, area, [storagePrefix(definitionId, selected)])
-      },
-    }
-  }
-
   /**
    * The prefix is exact, so `acme-orders` never touches `acme-orders-legacy:`, the shell's keys,
    * or a third party's.
    */
-  clearDefinition(definitionId: string, area?: StorageArea): number {
+  clearDefinition(definitionId: string, area?: BrowserStorageArea): number {
     this.#assertDefinitionScope(definitionId, 'clear storage')
     return this.#clearScope(definitionId, area, [
       storagePrefix(definitionId),
@@ -258,7 +217,7 @@ export class MfeStorageStore {
 
   #clearScope(
     definitionId: string,
-    area: StorageArea | undefined,
+    area: BrowserStorageArea | undefined,
     prefixes: readonly string[],
   ): number {
     this.#assertUsable('clear storage')
@@ -354,7 +313,7 @@ export class MfeStorageStore {
     })
   }
 
-  #areasForEvent(event: StorageEventLike): readonly StorageArea[] {
+  #areasForEvent(event: StorageEventLike): readonly BrowserStorageArea[] {
     if (event.storageArea === undefined || event.storageArea === null) return AREAS
     for (const area of AREAS) {
       try {
@@ -648,7 +607,7 @@ export class MfeStorageStore {
     this.#publish(entry, entry.defaultSnapshot)
   }
 
-  #removeRaw(definitionId: string, area: StorageArea, name: string, physicalKey: string): void {
+  #removeRaw(definitionId: string, area: BrowserStorageArea, name: string, physicalKey: string): void {
     const store = this.#resolveAreaOrFail(definitionId, area, 'remove', name)
     try {
       store.removeItem(physicalKey)
@@ -677,73 +636,7 @@ export class MfeStorageStore {
     }
   }
 
-  #imperativeKey<T>(
-    definitionId: string,
-    area: StorageArea,
-    name: string,
-    schema: z.ZodType<T>,
-    options: StorageKeyOptions<T> | undefined,
-    instanceId?: string,
-  ): MfeStorageKey<T> {
-    const resolved = this.#resolveDeclaration(definitionId, {
-      name,
-      storage: area,
-      schema,
-      ...(options?.scope === undefined ? {} : { scope: options.scope }),
-      ...(instanceId === undefined ? {} : { instanceId }),
-      ...(options?.version === undefined ? {} : { version: options.version }),
-      ...(options?.migrate === undefined ? {} : { migrate: options.migrate }),
-    })
-
-    return {
-      get: (): T | null =>
-        this.#readValue(
-          this.#workingEntry(definitionId, resolved),
-          true,
-          resolved.declaresDefault,
-        ) as T | null,
-      set: (value: T): void => {
-        this.#setValue(this.#workingEntry(definitionId, resolved), value)
-      },
-      remove: (): void => {
-        this.#removeValue(this.#workingEntry(definitionId, resolved))
-      },
-    }
-  }
-
-  #imperativeRemove(
-    definitionId: string,
-    area: StorageArea,
-    name: string,
-    instanceId?: string,
-  ): void {
-    this.#assertUsable('remove a storage key')
-    const physical = physicalStorageKey(definitionId, name, instanceId)
-    const bound = this.#entries.get(entryKeyFor(area, physical))
-    if (bound !== undefined) {
-      this.#removeValue(bound)
-      return
-    }
-    this.#removeRaw(definitionId, area, name, physical)
-  }
-
-  /**
-   * An imperative operation reuses the active entry when the key is bound, so the write
-   * notifies its subscribers; otherwise it works through a detached entry that caches
-   * nothing.
-   */
-  #workingEntry(definitionId: string, declaration: ResolvedDeclaration): KeyEntry {
-    const physicalKey = physicalStorageKey(definitionId, declaration.name, declaration.instanceId)
-    const entryKey = entryKeyFor(declaration.area, physicalKey)
-    const existing = this.#entries.get(entryKey)
-    if (existing !== undefined) {
-      this.#assertCompatible(existing, declaration, false)
-      return existing
-    }
-    return this.#createEntry(definitionId, declaration, entryKey, physicalKey)
-  }
-
-  #resolveArea(area: StorageArea): StorageAreaLike {
+  #resolveArea(area: BrowserStorageArea): StorageAreaLike {
     const source = area === 'local' ? this.#areas.local : this.#areas.session
     if (typeof source === 'function') return source()
     if (source !== undefined) return source
@@ -761,7 +654,7 @@ export class MfeStorageStore {
 
   #resolveAreaOrFail(
     definitionId: string,
-    area: StorageArea,
+    area: BrowserStorageArea,
     verb: string,
     name: string | null,
   ): StorageAreaLike {
@@ -808,7 +701,7 @@ export class MfeStorageStore {
 
   #fail(
     definitionId: string,
-    area: StorageArea,
+    area: BrowserStorageArea,
     verb: string,
     name: string | null,
     detail: Detail,
@@ -866,7 +759,7 @@ export class MfeStorageStore {
       expected: 'a definition id',
       observed: `the reserved host scope '${HOST_SCOPE}'`,
       repair:
-        'Use bindHost() or hostStorage() for state the host page owns; they reach the same scope deliberately.',
+        'Use bindHost() for state the host page owns; it reaches the same scope deliberately.',
     })
   }
 
@@ -881,7 +774,7 @@ export class MfeStorageStore {
 
   #resolveInstance(
     definitionId: string,
-    area: StorageArea,
+    area: BrowserStorageArea,
     scope: string | undefined,
     instanceId?: string,
     name?: string,

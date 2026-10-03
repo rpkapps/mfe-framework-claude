@@ -1,4 +1,3 @@
-import { SharedStateRuntime, type SharedStateOptions } from '../shared-state/store.ts'
 /**
  * The wiring `createMfeRuntime` and the memory runtime share, so a test runs on a runtime put
  * together exactly as a shell's is: only where the registry, storage, history and loader come
@@ -30,7 +29,7 @@ import { withRuntimeApiCompatibility } from '../loader/runtime-compatibility.ts'
 import { RuntimeMountStore } from '../mount/runtime-mount-store.ts'
 import { BoundaryNavigator } from '../navigation/boundary-navigator.ts'
 import type { ShellStateStore } from '../shell-state/shell-state-store.ts'
-import type { MfeStorageStore } from '../storage/storage-store.ts'
+import type { StorageService } from '../storage/service.ts'
 import type { MfeRuntime } from './create-runtime.ts'
 import { readRuntimeSnapshot } from './runtime-snapshot.ts'
 
@@ -47,13 +46,12 @@ export function reportRejectedEntries(registry: Registry, diagnostics: Diagnosti
 }
 
 export interface RuntimeParts {
-  readonly sharedState?: SharedStateOptions | undefined
   readonly registry: Registry
   /** Wrapped in each entry's adapter's `aroundLoad`, then shared. */
   readonly loader: ContainerLoader
   readonly adapters: readonly MfeAdapter[]
   readonly shellState: ShellStateStore
-  readonly storage: MfeStorageStore
+  readonly storage: StorageService
   readonly navigationBridge: NavigationBridge
   readonly telemetryProvider: TelemetryProvider
   readonly diagnostics: DiagnosticsHub
@@ -116,26 +114,7 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
     readLocation: () => navigator.read(),
   })
 
-  const sharedState =
-    parts.sharedState === undefined
-      ? undefined
-      : new SharedStateRuntime({
-          ...parts.sharedState,
-          onError: (error, id) => {
-            diagnostics.report(
-              toMfeError(error, {
-                code: 'shared-state/persistence-failed',
-                id,
-                operation: 'synchronize shared state',
-                repair:
-                  'Handle the setter rejection or recover invalid data through the shell adapter.',
-              }),
-            )
-            parts.sharedState?.onError?.(error, id)
-          },
-        })
   const runtime: MfeRuntime = {
-    ...withoutUndefined({ sharedState }),
     apiVersion: RUNTIME_API_VERSION,
     registry: parts.registry,
     mounts,
@@ -161,7 +140,6 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
     runtime,
     dispose: () => {
       mounts.dispose()
-      sharedState?.dispose()
       actions.dispose()
       breadcrumbs.dispose()
       agentContext.dispose()

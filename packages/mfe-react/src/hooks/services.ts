@@ -1,8 +1,10 @@
 /** React hooks over the same mount-bound services `context.mfe` gives route callbacks. */
 
-import type { MfeStorage, MfeTelemetry, StorageArea } from '@company/mfe-core'
+import { HOST_SCOPE, type MfeStorage, type MfeTelemetry } from '@company/mfe-core'
+import { useMemo } from 'react'
 
-import { useMfeMount } from '../mount-context.tsx'
+import { useMfeMount, useOptionalMfeMount } from '../mount-context.tsx'
+import { useMfeRuntime } from '../runtime-context.tsx'
 
 /** Stable for the mount's lifetime; emitting telemetry never causes a rerender. */
 export function useTelemetry(): MfeTelemetry {
@@ -19,10 +21,17 @@ export function useBasePath(): string {
   return useMfeMount('useBasePath').basePath
 }
 
-/** The imperative handle: `get()` does not subscribe, so rendered state uses `useStoredState`. */
-export function useMfeStorage(area: StorageArea = 'local'): MfeStorage {
-  const mount = useMfeMount('useMfeStorage')
-  return area === 'session' ? mount.storage.session : mount.storage.local
+/**
+ * The imperative handle, for event handlers and effects: reading through it does not subscribe,
+ * so rendered state uses `useStoredState`. Outside a mount it reaches the host page's values.
+ */
+export function useMfeStorage(): MfeStorage {
+  const mount = useOptionalMfeMount()
+  const { storage } = useMfeRuntime('useMfeStorage()')
+  return useMemo(
+    () => mount?.storage ?? storage.forCaller({ owner: HOST_SCOPE }),
+    [mount, storage],
+  )
 }
 
 /**

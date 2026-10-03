@@ -31,8 +31,9 @@ export {
 } from './inject/services.ts'
 export {
   injectStoredState,
+  type InjectStoredStateOptions,
+  type ReadonlyStoredState,
   type StoredState,
-  type StoredStateOptions,
 } from './inject/stored-state.ts'
 export { injectAction } from './inject/action.ts'
 export {
@@ -81,15 +82,20 @@ export {
   type Decision,
   type MfeError,
   type MfeErrorCode,
+  type AnyStoredKey,
   type MfeStorage,
-  type MfeStorageKey,
+  type ReadonlyStoredKey,
+  storedKey,
+  type StorageError,
+  type StorageErrorCode,
+  type StoredKey,
+  type StoredKeyOptions,
+  type StoredStatus,
+  type StoredUpdate,
   type ShellState,
   type ShellTheme,
   type ShellUser,
   type StorageArea,
-  type StorageKeyOptions,
-  type StorageScope,
-  type StorageScopeOptions,
   type OutputSchema,
   type WidgetContract,
   /* The registry shapes are part of the host surface, because a host renders the registry. */
@@ -160,5 +166,3 @@ export {
 /** Re-exported from the core because a host depends on this package, not on the core. */
 export { HOST_SCOPE, type CapabilityName, type IconData, type IconNode } from '@company/mfe-core'
 
-export { createSharedStateBindings } from './inject/shared-state.ts'
-export type { SharedStateStore, SharedStateSetter } from '@company/mfe-core/shared-state'

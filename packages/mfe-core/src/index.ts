@@ -103,19 +103,36 @@ export {
 } from './telemetry.ts'
 
 export {
+  createStorageError,
   DEFAULT_SCHEMA_VERSION,
   isStorageEnvelope,
+  isStoredKey,
   instanceStoragePrefix,
   physicalStorageKey,
   storagePrefix,
+  storedKey,
+  type AnyStoredKey,
+  type BrowserStorageArea,
   type MfeStorage,
-  type MfeStorageKey,
+  type ReadonlyStoredKey,
   type StorageArea,
   type StorageEnvelope,
+  type StorageError,
+  type StorageErrorCode,
   type StorageKeyOptions,
   type StorageScope,
   type StorageScopeOptions,
   type StorageSnapshot,
+  type StoredKey,
+  type StoredKeyOptions,
+  type StoredRow,
+  type StoredSnapshot,
+  type StoredStatus,
+  type StoredUpdate,
+  type StoredValue,
+  type UserStorageAdapter,
+  type UserStorageHandle,
+  type UserStorageState,
 } from './storage.ts'
 
 export {

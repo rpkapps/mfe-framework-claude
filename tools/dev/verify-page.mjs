@@ -22,6 +22,9 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
+// TODO(user-storage): the shared-state browser checks and the /lab/shared-state and
+// /fieldwork/shared-state pages below exercise the removed compiler-based shared state; replace
+// them with checks against the new user-storage example server.
 import { verifySharedStateDevtools } from '../browser/verify-shared-state-devtools.mjs'
 import { verifySharedStateScale } from '../browser/verify-shared-state-scale.mjs'
 
@@ -65,6 +68,7 @@ const PAGES = [
     nested: [{ parent: 'lab', child: 'alert-panel', contains: 'Alert a-1001' }],
   },
   {
+    // TODO(user-storage): rewrite against the user-storage example once it replaces shared state.
     // Hydration and updates cross the real API and federation boundaries in both directions.
     url: '/lab/shared-state',
     mounts: ['lab'],
@@ -865,6 +869,7 @@ async function main() {
   }
 
   if (values.url === undefined) {
+    // TODO(user-storage): replace with the user-storage browser checks.
     await verifySharedStateDevtools(browser)
     await verifySharedStateScale(browser)
   }
