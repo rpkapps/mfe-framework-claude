@@ -87,18 +87,6 @@ describe('resolveDefinition', () => {
     ).toMatchObject({ code: 'user-context/unauthorized-owner' })
   })
 
-  it('refuses forged user-context ownership before preparing any slice', async () => {
-    const definition = {
-      ...REPORTS,
-      __userContext: { protocolVersion: 1, ownerId: 'other-owner', contracts: [] },
-    }
-    const load = vi.fn(async () => loadedOf(definition))
-    const runtime = runtimeWith([REPORTS], { load })
-    expect(
-      await rejection(resolveDefinition(runtime, 'reports', 'app', liveSignal())),
-    ).toMatchObject({ code: 'user-context/unauthorized-owner' })
-  })
-
   it.each([
     ['1.0.0', '>=1.1.0 <2.0.0', false],
     ['1.3.0', '>=1.1.0 <2.0.0', true],

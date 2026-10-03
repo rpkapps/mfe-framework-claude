@@ -10,8 +10,10 @@ import { injectMfeMount } from './runtime.ts'
 
 export type {
   UserContextReader,
+  UserContextReadsOf,
   UserContextStore,
   UserContextSetter,
+  UserContextValuesOf,
 } from '@company/mfe-core/user-context'
 
 export type ReadonlyUserContextSelection<T> = {
@@ -49,9 +51,9 @@ export function createUserContextBindings<
       (ownerId !== undefined && !mount.resolveUserContext)
     )
       throw new UserContextError(
-        'unsupported-contract',
+        'undeclared',
         definitionId,
-        'Use the generated binding and a selector for this mounted definition',
+        'Use the generated binding with a selector, inside the definition it was generated for',
       )
     const store = (
       ownerId === undefined ? mount.userContext : mount.resolveUserContext?.(ownerId)

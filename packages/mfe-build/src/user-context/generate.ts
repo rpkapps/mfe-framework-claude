@@ -1,117 +1,60 @@
 import type { DiscoveredDefinition } from '../discovery/definitions.ts'
-import type { StateContract, StateNode, UserContextManifest } from '@company/mfe-core/user-context'
-import { banner, generatedPath, jsonFile, type GeneratedFile } from '../generate/emit.ts'
+import { banner, generatedPath, type GeneratedFile } from '../generate/emit.ts'
 import type { GenerateContext } from '../generate/modules.ts'
-import { requirementsFor } from './compiler.ts'
+import { userContextDeclarationModule, type UserContextSource } from './declaration.ts'
 
-export function stateType(node: StateNode): string {
-  switch (node.kind) {
-    case 'string':
-    case 'number':
-    case 'boolean':
-    case 'null':
-      return node.kind
-    case 'literal':
-      return JSON.stringify(node.value)
-    case 'enum':
-      return node.values.map(value => JSON.stringify(value)).join(' | ')
-    case 'array':
-      return `(${stateType(node.item)})[]`
-    case 'nullable':
-      return `${stateType(node.inner)} | null`
-    case 'optional':
-      return `${stateType(node.inner)} | undefined`
-    case 'default':
-      return `Exclude<${stateType(node.inner)}, undefined>`
-    case 'object':
-      return `{ ${Object.entries(node.fields)
-        .map(
-          ([key, field]) =>
-            `${JSON.stringify(key)}${canBeOmitted(field) ? '?' : ''}: ${stateType(field)}`,
-        )
-        .join('; ')} }`
-  }
-}
-function canBeOmitted(node: StateNode): boolean {
-  return node.kind === 'optional' || (node.kind === 'nullable' && canBeOmitted(node.inner))
-}
-/** The owner's own slice and its declared foreign reads, as generated binding type arguments. */
-export function bindingTypes(
-  contracts: readonly StateContract[],
-  ownerId: string,
-): { readonly values: string; readonly reads: string } {
-  const owner = contracts.find(contract => contract.id === ownerId)
-  const reads = contracts
-    .filter(contract => contract.id !== ownerId)
-    .map(contract => `${JSON.stringify(contract.id)}: ${stateType(contract.node)}`)
-  return {
-    values: owner ? stateType(owner.node) : 'Record<string, never>',
-    reads: `{ ${reads.join('; ')} }`,
-  }
-}
+/** One typed binding per declaring definition, `#mfe/user-context/<id>`. */
 export function userContextFiles(context: GenerateContext): readonly GeneratedFile[] {
   const definitions = context.discovery.definitions.filter(
-    (definition): definition is DiscoveredDefinition & { userContext: UserContextManifest } =>
+    (definition): definition is DiscoveredDefinition & { userContext: UserContextSource } =>
       definition.userContext !== undefined,
   )
   if (!definitions.length) return []
-  if (!['react', 'angular'].includes(context.profile.framework))
+  const framework = context.profile.framework
+  if (framework !== 'react' && framework !== 'angular')
     throw new Error('User-context bindings require a supported framework profile')
-  const files: GeneratedFile[] = []
-  const references = Object.fromEntries(
-    definitions.map(definition => [
-      definition.id,
-      requirementsFor(definition.userContext, definition.id),
-    ]),
-  )
-  files.push({
-    path: generatedPath(context.options.generatedDir, 'user-context.references.json'),
-    contents: jsonFile(references),
-  })
-  const emitted = new Set<string>()
-  for (const definition of definitions) {
-    const manifest = definition.userContext
-    const { values, reads } = bindingTypes(manifest.contracts, definition.id)
-    const react = context.profile.framework === 'react'
-    files.push({
-      path: generatedPath(context.options.generatedDir, `user-context/${definition.id}.ts`),
-      contents: [
-        banner(context.profile.generator, `#mfe/user-context/${definition.id}`),
-        `import { createUserContextBindings } from '@company/mfe-${context.profile.framework}/user-context'`,
-        `export type UserContextValues = ${values}`,
-        `export type UserContextReads = ${reads}`,
-        `export type { UserContextReader, UserContextStore, UserContextSetter } from '@company/mfe-${context.profile.framework}/user-context'`,
-        ...(react
-          ? [
-              `export type AppRouterOptions = import('@company/mfe-react').AppRouterOptions<UserContextValues>`,
-              `export type MfeRouterContext = import('@company/mfe-react').MfeRouterContext<UserContextValues>`,
-            ]
-          : []),
-        `export const { ${react ? 'useUserContext' : 'injectUserContext'} } = createUserContextBindings<UserContextValues, UserContextReads>(${JSON.stringify(definition.id)})`,
-        '',
-      ].join('\n'),
-    })
-    for (const contract of manifest.contracts) {
-      if (emitted.has(contract.revision)) continue
-      emitted.add(contract.revision)
-      files.push({
-        path: generatedPath(
-          context.options.generatedDir,
-          `user-context/contracts/${contract.revision}.json`,
+  const react = framework === 'react'
+  return definitions.flatMap(definition => {
+    const declaration = generatedPath(
+      context.options.generatedDir,
+      `user-context/${definition.id}.declaration.ts`,
+    )
+    return [
+      {
+        path: declaration,
+        contents: userContextDeclarationModule(
+          definition.userContext,
+          declaration,
+          context.profile.generator,
         ),
-        contents: jsonFile(contract),
-        asset: `user-context/${contract.revision}.json`,
-      })
-    }
-  }
-  files.push({
-    path: generatedPath(context.options.generatedDir, 'user-context.manifest.json'),
-    contents: jsonFile({
-      formatVersion: 1,
-      definitions: references,
-      artifacts: [...emitted].sort().map(revision => `user-context/${revision}.json`),
-    }),
-    asset: 'user-context.manifest.json',
+      },
+      {
+        path: generatedPath(context.options.generatedDir, `user-context/${definition.id}.ts`),
+        contents: [
+          banner(context.profile.generator, `#mfe/user-context/${definition.id}`),
+          `import { createUserContextBindings } from '@company/mfe-${framework}/user-context'`,
+          ...bindingTypes(framework, `./${definition.id}.declaration.ts`),
+          `export type { UserContextReader, UserContextStore, UserContextSetter } from '@company/mfe-${framework}/user-context'`,
+          ...(react
+            ? [
+                `export type AppRouterOptions = import('@company/mfe-react').AppRouterOptions<UserContextValues>`,
+                `export type MfeRouterContext = import('@company/mfe-react').MfeRouterContext<UserContextValues>`,
+              ]
+            : []),
+          `export const { ${react ? 'useUserContext' : 'injectUserContext'} } = createUserContextBindings<UserContextValues, UserContextReads>(${JSON.stringify(definition.id)})`,
+          '',
+        ].join('\n'),
+      },
+    ]
   })
-  return files
+}
+
+/** The binding's type arguments, inferred from the copied declaration. */
+export function bindingTypes(framework: string, declaration: string): readonly string[] {
+  return [
+    `import type { UserContextReadsOf, UserContextValuesOf } from '@company/mfe-${framework}/user-context'`,
+    `import type { declaration } from '${declaration}'`,
+    'export type UserContextValues = UserContextValuesOf<typeof declaration>',
+    'export type UserContextReads = UserContextReadsOf<typeof declaration>',
+  ]
 }

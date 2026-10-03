@@ -1,6 +1,8 @@
-import type { UserContextManifest } from '@company/mfe-core/user-context'
-import { compileUserContext, compileUserContextReads } from '../user-context/compiler.ts'
-import { userContextExpression } from '../user-context/transform.ts'
+import {
+  readUserContextSource,
+  userContextExpression,
+  type UserContextSource,
+} from '../user-context/declaration.ts'
 /** Everything is read from syntax: no module is evaluated and no render function is called. */
 
 import {
@@ -54,7 +56,8 @@ const FACTORY_KINDS: ReadonlyMap<string, DefinitionKind> = new Map([
 ])
 
 export interface DiscoveredDefinition {
-  readonly userContext?: UserContextManifest
+  /** The `userContext` declaration, copied to type the generated binding. */
+  readonly userContext?: UserContextSource
   readonly id: string
   readonly kind: DefinitionKind
   readonly version?: string
@@ -271,11 +274,7 @@ function readDefinition(
   const version = readVersion(sourceFile, factory, id, imports, sources)
   const schema = userContextExpression(factory.options)
   const reads = userContextExpression(factory.options, 'reads')
-  const contracts =
-    schema === undefined ? [] : [...compileUserContext(id, schema, sourceFile, sources).contracts]
-  if (reads) contracts.push(...compileUserContextReads(id, reads, sourceFile, sources))
-  const userContext: UserContextManifest | undefined =
-    schema || reads ? { formatVersion: 1, contracts } : undefined
+  const userContext = schema || reads ? readUserContextSource(sourceFile, schema, reads) : undefined
   const contract =
     factory.kind === 'app'
       ? null

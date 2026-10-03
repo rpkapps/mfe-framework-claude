@@ -1,11 +1,9 @@
-import { isValidDefinitionId } from '@company/mfe-core/definition'
 /** Reference server protocol. The repository must transact and commit durably before resolving. */
+import { isValidDefinitionId } from '@company/mfe-core/definition'
 import {
-  mergeStateValue,
-  isObject,
   assertJson,
+  isObject,
   UserContextError,
-  stableJson,
   type Json,
   type StateRecord,
   type StateWrite,
@@ -14,10 +12,6 @@ import {
 export interface StoredState {
   readonly revision: number
   readonly value: Json
-  /** Idempotency receipts retained by the backend for its documented retry window. */
-  readonly receipts: Readonly<
-    Record<string, { readonly request: string; readonly record: StateRecord }>
-  >
 }
 export interface UserContextRepository {
   read(scope: string, id: string, signal: AbortSignal): Promise<StoredState | undefined>
@@ -29,13 +23,25 @@ export interface UserContextRepository {
   ): Promise<StoredState>
 }
 export interface UserContextBackendOptions {
-  /** Trusted authenticated request identity, independent of all submitted owner/scope fields. */
+  /** The owner the authenticated request may write, independent of the submitted record ID. */
   readonly resolveOwner: (scope: string, signal: AbortSignal) => Promise<string>
   readonly repository: UserContextRepository
-  /** Resolve identity from the authenticated request, never from client-supplied scope alone. */
   readonly authorize: (scope: string, id: string, operation: 'read' | 'write') => Promise<void>
 }
-export function createUserContextBackend(options: UserContextBackendOptions) {
+export interface UserContextBackend {
+  hydrate(
+    scope: string,
+    ids: readonly string[],
+    signal: AbortSignal,
+  ): Promise<readonly StateRecord[]>
+  write(scope: string, write: StateWrite, signal: AbortSignal): Promise<StateRecord>
+}
+/**
+ * Every call takes the user's scope from the server's own authenticated request, never from the
+ * browser. A write replaces the keys it submits in the stored record and bumps the revision; the last write
+ * of a key wins.
+ */
+export function createUserContextBackend(options: UserContextBackendOptions): UserContextBackend {
   if (
     typeof options.resolveOwner !== 'function' ||
     typeof options.authorize !== 'function' ||
@@ -48,13 +54,9 @@ export function createUserContextBackend(options: UserContextBackendOptions) {
       'Supply trusted owner resolution, authorization, and a transactional repository',
     )
   return {
-    async hydrate(
-      scope: string,
-      ids: readonly string[],
-      signal: AbortSignal,
-    ): Promise<readonly StateRecord[]> {
+    async hydrate(scope, ids, signal) {
       assertScope(scope)
-      if (!validOwnerIds(ids))
+      if (!Array.isArray(ids) || !ids.every((id: unknown) => isValidDefinitionId(id)))
         throw new UserContextError('invalid-value', '<owners>', 'Supply valid owner IDs')
       signal.throwIfAborted()
       return await Promise.all(
@@ -67,8 +69,8 @@ export function createUserContextBackend(options: UserContextBackendOptions) {
         }),
       )
     },
-    async write(operation: StateWrite, signal: AbortSignal): Promise<StateRecord> {
-      const { scope, id, expectedRevision, operationId, value } = operation
+    async write(scope, write, signal) {
+      const { id, value } = write
       assertScope(scope)
       signal.throwIfAborted()
       const ownerId = await options.resolveOwner(scope, signal)
@@ -79,62 +81,22 @@ export function createUserContextBackend(options: UserContextBackendOptions) {
           'Only the authenticated owner may write this slice',
         )
       await options.authorize(scope, id, 'write')
-      if (
-        typeof operationId !== 'string' ||
-        !operationId ||
-        !Number.isSafeInteger(expectedRevision) ||
-        expectedRevision < 0 ||
-        expectedRevision >= Number.MAX_SAFE_INTEGER
-      )
-        throw new UserContextError('invalid-value', id, 'Invalid write envelope')
-      assertOwnerValue(value, id)
+      assertObject(value, id)
       const patch = structuredClone(value)
-      const request = stableJson(operation)
       const stored = await options.repository.transact(
         scope,
         id,
         current => {
           if (current) assertStored(current, id)
-          const receipt =
-            current && Object.hasOwn(current.receipts, operationId)
-              ? current.receipts[operationId]
-              : undefined
-          if (receipt && current) {
-            if (receipt.request !== request)
-              throw new UserContextError(
-                'invalid-value',
-                id,
-                'Operation ID reused for a different intention',
-              )
-            return current
-          }
-          if ((current?.revision ?? 0) !== expectedRevision)
-            throw new UserContextError(
-              'conflict',
-              id,
-              'Record changed since this intention was formed; refresh and choose again',
-            )
-          const next = mergeStateValue(current?.value, patch)
-          const record = { id, revision: expectedRevision + 1, value: next }
           return {
-            revision: record.revision,
-            value: next,
-            receipts: { ...current?.receipts, [operationId]: { request, record } },
+            revision: (current?.revision ?? 0) + 1,
+            // Each submitted key replaces the stored one; keys it leaves out stay as they were.
+            value: { ...(isObject(current?.value) ? current.value : {}), ...patch },
           }
         },
         signal,
       )
-      // A retried operation returns its original acceptance, not a newer operation's record.
-      const receipt = Object.hasOwn(stored.receipts, operationId)
-        ? stored.receipts[operationId]
-        : undefined
-      if (!receipt)
-        throw new UserContextError(
-          'persistence-failed',
-          id,
-          'Repository did not commit the operation receipt',
-        )
-      return structuredClone(receipt.record)
+      return { id, revision: stored.revision, value: structuredClone(stored.value) }
     },
   }
 }
@@ -148,19 +110,15 @@ function assertScope(scope: string): void {
     )
 }
 
-/** Persistence validates the JSON envelope only; each client owns its domain schema. */
-function assertOwnerValue(value: unknown, id: string): asserts value is Record<string, Json> {
+/** Persistence validates the JSON shape only; each client validates with its own schema. */
+function assertObject(value: unknown, id: string): asserts value is Record<string, Json> {
   assertJson(value, id)
   if (!isObject(value))
     throw new UserContextError('invalid-value', id, 'An owner value must be a JSON object')
 }
 
 function assertStored(stored: StoredState, id: string): void {
-  if (!Number.isSafeInteger(stored.revision) || stored.revision < 1 || !isObject(stored.receipts))
+  if (!Number.isSafeInteger(stored.revision) || stored.revision < 1)
     throw new UserContextError('invalid-value', id, 'Invalid stored record metadata')
-  assertOwnerValue(stored.value, id)
-}
-
-function validOwnerIds(value: unknown): value is readonly string[] {
-  return Array.isArray(value) && value.every((id: unknown) => isValidDefinitionId(id))
+  assertObject(stored.value, id)
 }

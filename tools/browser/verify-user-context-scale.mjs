@@ -95,7 +95,7 @@ export async function verifyUserContextScale(browser) {
     await input.fill('well-selection')
     await page.getByRole('option', { name: 'well-selection', exact: true }).click()
     await expect(page.locator('[data-slot="combobox-content"]')).toHaveCount(0)
-    await expect(page.getByLabel('current value of well-selection', { exact: true })).toContainText(
+    await expect(page.getByLabel('value of well-selection', { exact: true })).toContainText(
       'well-42',
     )
     await expect(picker).toBeFocused()
@@ -110,15 +110,15 @@ export async function verifyUserContextScale(browser) {
     await panel.getByText('30 owners · Read only').click()
 
     await page.setViewportSize({ width: 390, height: 844 })
-    await expect(page.getByLabel('current value of well-selection', { exact: true })).toBeVisible()
+    await expect(page.getByLabel('value of well-selection', { exact: true })).toBeVisible()
     await checkTabStrip()
     await panel.screenshot({ path: `${shots}user-context-30-owners-mobile.png` })
     expect(await panel.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
     // A very short narrow dock still lets the detail body scroll independently.
     await page.setViewportSize({ width: 800, height: 360 })
-    await page.getByRole('tab', { name: 'Contract', exact: true }).click()
+    await page.getByRole('tab', { name: 'Schema', exact: true }).click()
     await checkTabStrip()
-    const body = panel.getByRole('tabpanel', { name: 'Contract', exact: true })
+    const body = panel.getByRole('tabpanel', { name: 'Schema', exact: true })
     expect(await body.evaluate(element => element.scrollHeight > element.clientHeight)).toBe(true)
     await panel.screenshot({ path: `${shots}user-context-30-owners-short-dock.png` })
     expect(errors).toEqual([])

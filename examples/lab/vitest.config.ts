@@ -1,7 +1,6 @@
 import { fileURLToPath } from 'node:url'
 
 import { defineConfig } from 'vitest/config'
-import { userContextDeclarationsForTests } from '../../tools/user-context/vitest.mjs'
 
 import { tectonResolveForTests, tectonServerForTests } from '../../tools/tecton/vitest.mjs'
 
@@ -11,7 +10,6 @@ import { tectonResolveForTests, tectonServerForTests } from '../../tools/tecton/
  * inside the example — which is what an MFE's own repository would have.
  */
 export default defineConfig({
-  plugins: [userContextDeclarationsForTests],
   resolve: {
     ...tectonResolveForTests,
     alias: [

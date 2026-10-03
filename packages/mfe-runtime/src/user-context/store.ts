@@ -1,87 +1,65 @@
+import type { z } from 'zod'
 import { isValidDefinitionId } from '@company/mfe-core/definition'
 import { isMfeError } from '@company/mfe-core/errors'
 import {
-  applyStateWrite,
-  assertStateContract,
   assertJson,
-  isObject,
   immutable,
-  normalize,
-  UserContextError,
+  isObject,
+  mergeStateValue,
   stableJson,
-  stateCapabilities,
-  userContextReadCapabilities,
+  UserContextError,
   type Json,
-  type UserContextAdapter,
-  type UserContextManifest,
-  type UserContextRequirements,
-  type UserContextService,
-  type UserContextInspection,
-  type UserContextInspectionSnapshot,
-  type UserContextStore,
-  type UserContextReader,
-  type StateContract,
   type StateRecord,
   type StateValues,
+  type UserContextAdapter,
+  type UserContextInspection,
+  type UserContextInspectionSnapshot,
+  type UserContextOwner,
+  type UserContextReader,
+  type UserContextService,
+  type UserContextStatus,
+  type UserContextStore,
 } from '@company/mfe-core/user-context'
 
 export interface UserContextOptions {
-  readonly scope: string
-  /** Latest compiled schema; compatibility history stays in build/release tooling. */
-  readonly schema: UserContextManifest | readonly UserContextManifest[]
   readonly adapter: UserContextAdapter
+  /** The shell's own declaration, if it has one. */
+  readonly host?: UserContextOwner | undefined
   readonly onError?: (error: unknown, id: string) => void
 }
-interface Pending {
-  readonly expectedRevision: number
-  readonly operationId: string
-  readonly value: Json
-  readonly resolve: (value: Json) => void
-  readonly reject: (error: unknown) => void
-}
 interface Entry {
-  readonly canonical: StateContract
-  status: 'absent' | 'hydrating' | 'ready' | 'invalid' | 'persistence-failed'
-  recordRevision: number
-  confirmed: Json | undefined
-  /** Raw accepted data distinguishes absent default branches from persisted unknown fields. */
-  persisted: Json | undefined
-  effective: Json | undefined
+  readonly id: string
+  status: UserContextStatus
+  revision: number
+  /** The stored record; each binding parses it with the schema it declared. */
+  value: Json | undefined
   error?: unknown
-  readonly views: Map<
-    string,
-    { readonly json: string; readonly value: unknown; readonly source: Json | undefined }
-  >
-  readonly listeners: Set<() => void>
-  readonly pending: Pending[]
-  notifiedJson?: string
-  notifiedInvalid?: boolean
   hydration?: Promise<void>
+  /** An owner's writes go out one at a time, so the server merges them in the order they were made. */
+  writes: Promise<unknown>
+  readonly listeners: Set<() => void>
+  readonly views: WeakMap<z.ZodType, { readonly source: Json | undefined; readonly value: unknown }>
 }
 
-/** Shell-owned, independent of module identity. Bindings capture a scope generation. */
+/**
+ * Shell-owned, one per signed-in user: `reset()` starts over when the user changes, and every
+ * binding, request and subscription of the previous user fails closed through the generation and
+ * the abort signal it captured.
+ */
 export class UserContextRuntime implements UserContextService {
-  readonly protocolVersion = 1
+  readonly host: UserContextOwner | undefined
   readonly #options: UserContextOptions
-  readonly #contracts = new Map<string, StateContract>()
   readonly #entries = new Map<string, Entry>()
-  readonly #sending = new Set<Entry>()
-  readonly #inflight = new Set<Pending>()
-  readonly #capabilities = new Map<
-    string,
-    { readonly owned: ReadonlySet<string>; readonly read: ReadonlySet<string> }
-  >()
-  #scope: string
+  /** Owner schemas this page has seen, which validate their records whoever reads them. */
+  readonly #schemas = new Map<string, z.ZodObject>()
+  readonly #jsonSchemas = new WeakMap<z.ZodType, Json | undefined>()
   #generation = 0
   #controller = new AbortController()
   #unsubscribe: (() => void) | undefined
   #disposed = false
-  #operation = 0
-  readonly #clientId = crypto.randomUUID()
   readonly #inspectionListeners = new Set<() => void>()
   #inspectionSnapshot: UserContextInspectionSnapshot | undefined
 
-  /** Snapshots are built on demand and share already immutable values, never consumer bindings. */
   readonly inspection: UserContextInspection = {
     getSnapshot: () => {
       this.#inspectionSnapshot ??= Object.freeze({
@@ -90,12 +68,11 @@ export class UserContextRuntime implements UserContextService {
         entries: Object.freeze(
           [...this.#entries.values()].map(entry =>
             Object.freeze({
-              contract: entry.canonical,
+              id: entry.id,
               status: entry.status,
-              recordRevision: entry.recordRevision,
-              pendingWrites: entry.pending.length,
-              confirmed: entry.confirmed,
-              effective: entry.effective,
+              revision: entry.revision,
+              value: entry.value,
+              schema: this.#jsonSchema(entry.id),
               error: entry.error === undefined ? undefined : asError(entry.error).message,
             }),
           ),
@@ -114,139 +91,120 @@ export class UserContextRuntime implements UserContextService {
 
   constructor(options: UserContextOptions) {
     this.#options = options
-    this.#scope = options.scope
-    const manifests: readonly UserContextManifest[] = Array.isArray(options.schema)
-      ? options.schema
-      : [options.schema as UserContextManifest]
-    if (!options.scope || manifests.some(manifest => manifest.formatVersion !== 1))
-      throw new UserContextError(
-        'unsupported-contract',
-        '<schema>',
-        'Configure a nonempty opaque scope and contract format 1',
-      )
-    for (const contract of manifests.flatMap(manifest => manifest.contracts)) {
-      assertStateContract(contract)
-      if (this.#contracts.has(contract.id) || !objectNode(contract.node))
-        throw new UserContextError(
-          'unsupported-contract',
-          contract.id,
-          'Schema needs one current contract per owner ID',
-        )
-      this.#contracts.set(contract.id, immutable(structuredClone(contract)))
-      const capabilities = stateCapabilities(contract.node)
-      this.#capabilities.set(contract.id, {
-        owned: new Set(capabilities),
-        read: new Set(userContextReadCapabilities(capabilities)),
-      })
-    }
-    this.#resetEntries()
-    this.#listen()
-    this.#notifyInspection()
+    this.host = options.host
   }
 
-  async prepare(requirements: UserContextRequirements, signal?: AbortSignal): Promise<void> {
+  async prepare(owner: UserContextOwner, signal?: AbortSignal): Promise<void> {
     const generation = this.#generation
-    this.#check(requirements)
-    const hydration = Promise.all(
-      requirements.contracts.map(({ id }) => this.#hydrate(this.#entry(id), generation)),
-    )
-    await abortable(hydration, signal)
+    this.#assertGeneration(generation)
+    const declaration = owner.userContext
+    const ids = Object.keys(declaration?.reads ?? {})
+    for (const id of ids)
+      if (!isValidDefinitionId(id) || id === owner.id)
+        throw new UserContextError(
+          'undeclared',
+          owner.id,
+          `userContext.reads names '${id}'; read other definitions by their ID and your own slice through schema`,
+        )
+    if (declaration?.schema) {
+      this.#schemas.set(owner.id, declaration.schema)
+      ids.push(owner.id)
+    }
+    if (!ids.length) return
+    this.#listen()
+    await abortable(Promise.all(ids.map(id => this.#hydrate(this.#entry(id), generation))), signal)
     this.#assertGeneration(generation)
   }
 
-  bind<V = StateValues>(
-    definitionId: string,
-    requirements: UserContextRequirements,
-    signal?: AbortSignal,
-  ): UserContextStore<V> {
-    return this.#bind<V>(
-      definitionId,
-      requirements,
-      definitionId,
-      signal,
-      true,
-    ) as UserContextStore<V>
+  bind<V = StateValues>(owner: UserContextOwner, signal?: AbortSignal): UserContextStore<V> {
+    const schema = owner.userContext?.schema
+    if (!schema)
+      throw new UserContextError(
+        'undeclared',
+        owner.id,
+        'Declare userContext.schema before reading or writing your own slice',
+      )
+    return this.#bind<V>(owner.id, schema, signal, true) as UserContextStore<V>
   }
 
   bindReadOnly<V = StateValues>(
-    definitionId: string,
-    requirements: UserContextRequirements,
+    owner: UserContextOwner,
     ownerId: string,
     signal?: AbortSignal,
   ): UserContextReader<V> {
-    return this.#bind<V>(definitionId, requirements, ownerId, signal, false)
+    const reads = owner.userContext?.reads
+    const schema = reads && Object.hasOwn(reads, ownerId) ? reads[ownerId] : undefined
+    if (!schema || ownerId === owner.id)
+      throw new UserContextError(
+        'undeclared',
+        ownerId,
+        `${owner.id} did not declare userContext.reads['${ownerId}']; declare the fields it reads`,
+      )
+    return this.#bind<V>(ownerId, schema, signal, false)
+  }
+
+  /** The shell calls this when the signed-in user changes, then remounts what it shows. */
+  reset(): void {
+    if (this.#disposed) return
+    this.#closeGeneration()
+    this.#controller = new AbortController()
+    this.#notifyInspection()
+  }
+
+  dispose(): void {
+    if (this.#disposed) return
+    this.#disposed = true
+    this.#closeGeneration()
+    this.#notifyInspection()
+    this.#inspectionListeners.clear()
   }
 
   #bind<V>(
-    definitionId: string,
-    requirements: UserContextRequirements,
     ownerId: string,
+    schema: z.ZodObject,
     signal: AbortSignal | undefined,
     writable: boolean,
   ): UserContextReader<V> | UserContextStore<V> {
-    const contracts = this.#check(requirements)
-    if (definitionId !== requirements.ownerId)
-      throw new UserContextError(
-        'unauthorized-owner',
-        definitionId,
-        'Mounted definition does not match the declared owner',
-      )
-    if (!writable && !contracts.has(ownerId))
-      throw new UserContextError(
-        'unsupported-contract',
-        ownerId,
-        'This definition did not declare this owner slice',
-      )
+    this.#assertGeneration(this.#generation)
     const generation = this.#generation
     const scopeSignal = this.#controller.signal
-    const check = (): { entry: Entry; contract: StateContract } => {
+    const check = (): Entry => {
       this.#assertGeneration(generation)
       if (signal?.aborted)
         throw new UserContextError('scope-disposed', ownerId, 'The mount has been disposed')
-      const contract = contracts.get(ownerId)
-      if (!contract)
-        throw new UserContextError(
-          'unsupported-contract',
-          ownerId,
-          'This definition did not declare this owner slice',
-        )
-      const entry = this.#entry(ownerId)
-      if (entry.status === 'invalid') throw entry.error
-      if (entry.status === 'absent' || entry.status === 'hydrating')
+      const entry = this.#entries.get(ownerId)
+      if (entry?.status === 'invalid') throw entry.error
+      if (entry?.status !== 'ready')
         throw new UserContextError(
           'not-ready',
           ownerId,
           'Await user-context preparation before reading or writing',
         )
-      return { entry, contract }
+      return entry
     }
     const snapshot = (): Readonly<V> => {
-      const { entry, contract } = check()
-      const cached = entry.views.get(contract.revision)
-      if (cached && cached.source === entry.confirmed) return cached.value as Readonly<V>
-      const value = normalize(contract.node, entry.confirmed, ownerId, true)
-      const json = stableJson(value)
-      if (cached?.json === json) {
-        entry.views.set(contract.revision, { ...cached, source: entry.confirmed })
-        return cached.value as Readonly<V>
-      }
-      const result = immutable(value)
-      entry.views.set(contract.revision, { json, value: result, source: entry.confirmed })
-      return result as Readonly<V>
+      const entry = check()
+      const cached = entry.views.get(schema)
+      if (cached && cached.source === entry.value) return cached.value as Readonly<V>
+      const value = parse(schema, entry.value ?? {}, ownerId, READ_REPAIR)
+      // A record that changed elsewhere can leave this binding's fields as they were.
+      const kept =
+        cached && stableJson(cached.value) === stableJson(value) ? cached.value : immutable(value)
+      entry.views.set(schema, { source: entry.value, value: kept })
+      return kept as Readonly<V>
     }
     const field = (key: string): Entry => {
-      const { entry, contract } = check()
-      const node = objectNode(contract.node)
-      if (!node || !Object.hasOwn(node.fields, key))
+      const entry = check()
+      if (!Object.hasOwn(schema.shape, key))
         throw new UserContextError(
-          'unsupported-contract',
+          'undeclared',
           ownerId,
-          `Undeclared user-context field: ${key}`,
+          `'${key}' is not a field of the declared schema; add it to the schema first`,
         )
       return entry
     }
     const observe = (listener: () => void): (() => void) => {
-      const { entry } = check()
+      const entry = check()
       entry.listeners.add(listener)
       const unsubscribe = (): void => {
         entry.listeners.delete(listener)
@@ -266,23 +224,16 @@ export class UserContextRuntime implements UserContextService {
       observe,
       subscribe: (key, listener) => {
         field(key)
-        let previous = stableJson(snapshot()[key])
-        let invalid = false
+        let previous: string | undefined = stableJson(snapshot()[key])
         return observe(() => {
-          if (generation !== this.#generation || this.#disposed) {
-            listener()
-            return
-          }
-          let next: string
+          let next: string | undefined
           try {
             next = stableJson(snapshot()[key])
           } catch {
-            invalid = true
-            listener()
-            return
+            // A reset or an invalid record: the listener reads again and meets the error.
+            next = undefined
           }
-          if (invalid || next !== previous) {
-            invalid = false
+          if (next === undefined || next !== previous) {
             previous = next
             listener()
           }
@@ -296,23 +247,17 @@ export class UserContextRuntime implements UserContextService {
         try {
           const entry = field(key)
           assertJson(value, ownerId)
-          const patch = { [key]: value }
-          applyStateWrite(entry.canonical, entry.effective, patch)
-          const accepted = new Promise<Json>((resolve, reject) => {
-            entry.pending.push({
-              expectedRevision: entry.recordRevision + entry.pending.length,
-              operationId: `${this.#clientId}:${++this.#operation}`,
-              value: immutable(structuredClone(patch)),
-              resolve,
-              reject,
-            })
-          })
-          // effective is private queue validation state; readers and notifications use confirmed only.
-          this.#replay(entry)
-          this.#notifyInspection()
-          void this.#flush(entry, generation)
-          const canonical = await accepted
-          return { ok: true, value: (canonical as Record<string, unknown>)[key] as V[typeof key] }
+          // A nested update fills in the rest of the key from what this tab reads, so the key is
+          // sent whole and the server can replace it: the last write of a key wins.
+          const patch = { [key]: mergeStateValue(snapshot()[key], value) }
+          parse(
+            schema,
+            { ...(isObject(entry.value) ? entry.value : {}), ...patch },
+            ownerId,
+            WRITE_REPAIR,
+          )
+          await this.#write(entry, patch, generation)
+          return { ok: true, value: snapshot()[key] }
         } catch (error) {
           return {
             ok: false,
@@ -327,344 +272,167 @@ export class UserContextRuntime implements UserContextService {
     }
   }
 
-  /** The shell remounts affected definitions on identity/workspace changes. Old bindings fail closed. */
-  setScope(scope: string): void {
-    if (!scope || this.#disposed)
-      throw new UserContextError(
-        'scope-disposed',
-        '<scope>',
-        'A live runtime and nonempty scope are required',
-      )
-    if (scope === this.#scope) return
-    this.#closeGeneration()
-    this.#scope = scope
-    this.#controller = new AbortController()
-    this.#resetEntries()
-    this.#listen()
-    this.#notifyInspection()
-  }
-  dispose(): void {
-    if (!this.#disposed) {
-      this.#disposed = true
-      this.#closeGeneration()
-      this.#entries.clear()
-      this.#notifyInspection()
-      this.#inspectionListeners.clear()
+  #write(entry: Entry, patch: Record<string, Json>, generation: number): Promise<void> {
+    const send = async (): Promise<void> => {
+      this.#assertGeneration(generation)
+      try {
+        const record = await abortable(
+          this.#options.adapter.write({ id: entry.id, value: patch }, this.#controller.signal),
+          this.#controller.signal,
+        )
+        this.#assertGeneration(generation)
+        if (record.id !== entry.id || record.revision < 1 || record.value === undefined)
+          throw new UserContextError(
+            'persistence-failed',
+            entry.id,
+            'A write must resolve with the stored record and its new revision',
+          )
+        this.#accept(entry, record)
+      } catch (error) {
+        if (generation === this.#generation && !this.#disposed) {
+          this.#report(error, entry.id)
+          // The server may hold something other than what this tab last saw, so read it again.
+          void this.#load(entry, generation).catch((failure: unknown) => {
+            if (generation === this.#generation && !this.#disposed) this.#invalid(entry, failure)
+          })
+        }
+        throw error
+      }
     }
+    const written = entry.writes.then(send, send)
+    entry.writes = written.catch(() => undefined)
+    return written
   }
+
+  #listen(): void {
+    if (this.#unsubscribe) return
+    const generation = this.#generation
+    this.#unsubscribe =
+      this.#options.adapter.subscribe?.(record => {
+        if (this.#disposed || generation !== this.#generation) return
+        const entry = this.#entries.get(record.id)
+        if (!entry) return
+        try {
+          this.#accept(entry, record)
+        } catch (error) {
+          this.#invalid(entry, error)
+        }
+      }, this.#controller.signal) ?? (() => {})
+  }
+
   #closeGeneration(): void {
     ++this.#generation
     this.#unsubscribe?.()
     this.#unsubscribe = undefined
-    for (const entry of this.#entries.values()) {
-      for (const pending of entry.pending)
-        pending.reject(
-          new UserContextError(
-            'scope-disposed',
-            entry.canonical.id,
-            'Scope changed during persistence',
-          ),
-        )
-      entry.pending.length = 0
-      // Diagnostics publish only after the new scope is fully installed.
-      this.#notify(entry, false, true)
-      entry.listeners.clear()
-      entry.views.clear()
-    }
-    this.#controller.abort(
-      new UserContextError('scope-disposed', '<scope>', 'Scope changed or runtime disposed'),
-    )
-  }
-  #resetEntries(): void {
+    const entries = [...this.#entries.values()]
     this.#entries.clear()
-    for (const canonical of this.#contracts.values())
-      this.#entries.set(canonical.id, {
-        canonical,
-        status: 'absent',
-        recordRevision: 0,
-        confirmed: undefined,
-        persisted: undefined,
-        effective: undefined,
-        views: new Map(),
-        listeners: new Set(),
-        pending: [],
-      })
-  }
-  #listen(): void {
-    const generation = this.#generation
-    this.#unsubscribe = this.#options.adapter.subscribe?.(
-      this.#scope,
-      record => {
-        if (this.#disposed || generation !== this.#generation) return
-        const entry = this.#entries.get(record.id)
-        if (!entry || record.revision <= entry.recordRevision) return
-        try {
-          this.#accept(entry, record)
-          this.#replay(entry)
-          this.#notify(entry)
-        } catch (error) {
-          this.#invalid(entry, error)
-        }
-      },
-      this.#controller.signal,
+    // Listeners read again and meet scope-disposed, so nothing keeps the previous user's data.
+    for (const entry of entries) this.#notify(entry)
+    this.#controller.abort(
+      new UserContextError('scope-disposed', '<user>', 'The signed-in user changed'),
     )
   }
-  #check(requirements: UserContextRequirements): Map<string, StateContract> {
-    this.#assertGeneration(this.#generation)
-    if (!isRequirements(requirements))
-      throw new UserContextError(
-        'unsupported-contract',
-        '<requirements>',
-        'Shell must support user-context protocol 1',
-      )
-    const contracts = new Map<string, StateContract>()
-    for (const requested of requirements.contracts) {
-      if (
-        !requested ||
-        !isValidDefinitionId(requested.id) ||
-        typeof requested.revision !== 'string' ||
-        !requested.revision
-      )
-        throw new UserContextError(
-          'unsupported-contract',
-          '<requirements>',
-          'Contract references need a valid owner ID and nonempty revision',
-        )
-      const contract = this.#contracts.get(requested.id)
-      const capabilities = this.#capabilities.get(requested.id)
-      if (!contract || !capabilities || contracts.has(requested.id))
-        throw new UserContextError(
-          'unsupported-contract',
-          requested.id,
-          'Owner is unavailable in deployment contracts or declared more than once',
-        )
-      const owned = requested.id === requirements.ownerId
-      const declared: unknown = requested.capabilities
-      const required =
-        Array.isArray(declared) && declared.every(capability => typeof capability === 'string')
-          ? owned
-            ? declared
-            : userContextReadCapabilities(declared)
-          : []
-      const available = owned ? capabilities.owned : capabilities.read
-      if (!required.length || required.some(capability => !available.has(capability)))
-        throw new UserContextError(
-          'unsupported-contract',
-          requested.id,
-          'Deployment contract lacks required consumer fields or constraints; reload after upgrading the owner',
-        )
-      contracts.set(requested.id, contract)
-    }
-    return contracts
-  }
+
   #entry(id: string): Entry {
-    const entry = this.#entries.get(id)
-    if (!entry)
-      throw new UserContextError(
-        'unsupported-contract',
+    let entry = this.#entries.get(id)
+    if (!entry) {
+      entry = {
         id,
-        'No canonical owner contract in deployment metadata',
-      )
+        status: 'hydrating',
+        revision: 0,
+        value: undefined,
+        writes: Promise.resolve(),
+        listeners: new Set(),
+        views: new WeakMap(),
+      }
+      this.#entries.set(id, entry)
+    }
     return entry
   }
+
   #assertGeneration(generation: number): void {
     if (this.#disposed || generation !== this.#generation)
       throw new UserContextError(
         'scope-disposed',
-        '<scope>',
-        'This binding belongs to a disposed scope',
+        '<user>',
+        'This binding belongs to a previous signed-in user or a disposed runtime',
       )
   }
+
   #hydrate(entry: Entry, generation: number): Promise<void> {
-    if (entry.status === 'ready' || entry.status === 'persistence-failed') return Promise.resolve()
-    if (entry.hydration) return entry.hydration
-    entry.status = 'hydrating'
-    this.#notifyInspection()
-    entry.hydration = (async () => {
-      try {
-        const records = await abortable(
-          this.#options.adapter.hydrate(this.#scope, [entry.canonical.id], this.#controller.signal),
-          this.#controller.signal,
-        )
-        this.#assertGeneration(generation)
-        if (records.length !== 1 || records[0]?.id !== entry.canonical.id)
-          throw new UserContextError(
-            'invalid-value',
-            entry.canonical.id,
-            'Hydration must return one explicit present/absent record per requested ID',
-          )
-        const record = records[0]
-        // A subscription may already have delivered a newer record while hydrate was pending.
-        if (entry.confirmed === undefined || record.revision > entry.recordRevision)
-          this.#accept(entry, record)
-        this.#replay(entry)
-        entry.status = 'ready'
-        this.#notify(entry)
-      } catch (error) {
+    if (entry.status !== 'hydrating') return Promise.resolve()
+    entry.hydration ??= this.#load(entry, generation)
+      .catch((error: unknown) => {
         if (generation === this.#generation && !this.#disposed) this.#invalid(entry, error)
         throw error
-      } finally {
+      })
+      .finally(() => {
         delete entry.hydration
-      }
-    })()
+      })
     return entry.hydration
   }
-  #accept(entry: Entry, record: StateRecord): void {
+
+  async #load(entry: Entry, generation: number): Promise<void> {
+    const records = await abortable(
+      this.#options.adapter.hydrate([entry.id], this.#controller.signal),
+      this.#controller.signal,
+    )
+    this.#assertGeneration(generation)
+    const record = records[0]
+    if (records.length !== 1 || record?.id !== entry.id)
+      throw new UserContextError(
+        'persistence-failed',
+        entry.id,
+        'Hydration must return one record per requested ID, with revision 0 when it is absent',
+      )
+    this.#accept(entry, record, true)
+  }
+
+  /**
+   * Only a newer revision replaces what is held, so a late response cannot move it back. Throws
+   * when the record is malformed or the owner's schema rejects it.
+   */
+  #accept(entry: Entry, record: StateRecord, hydrating = false): void {
+    if (record.revision < entry.revision || (record.revision === entry.revision && !hydrating))
+      return
     if (
-      record.id !== entry.canonical.id ||
       !Number.isSafeInteger(record.revision) ||
       record.revision < 0 ||
       (record.revision === 0) !== (record.value === undefined)
     )
-      throw new UserContextError(
-        'invalid-value',
-        entry.canonical.id,
-        'Invalid authoritative record envelope',
-      )
-    if (record.value !== undefined) assertJson(record.value, record.id)
-    const value = normalize(entry.canonical.node, record.value, record.id)
-    if (value === undefined)
-      throw new UserContextError(
-        'invalid-value',
-        record.id,
-        'Absent record needs a deterministic default; invalid data must be recovered explicitly',
-      )
-    if (record.revision < entry.recordRevision) return
-    entry.confirmed = immutable(value)
-    entry.persisted = immutable(structuredClone(record.value))
-    entry.recordRevision = record.revision
+      throw new UserContextError('invalid-value', entry.id, 'Invalid stored record envelope')
+    if (record.value !== undefined) {
+      assertJson(record.value, entry.id)
+      if (!isObject(record.value))
+        throw new UserContextError('invalid-value', entry.id, 'A stored record must be an object')
+    }
+    const schema = this.#schemas.get(entry.id)
+    if (schema) parse(schema, record.value ?? {}, entry.id, READ_REPAIR)
+    const changed = entry.status !== 'ready' || stableJson(entry.value) !== stableJson(record.value)
+    entry.value = record.value === undefined ? undefined : immutable(structuredClone(record.value))
+    entry.revision = record.revision
     entry.status = 'ready'
     delete entry.error
+    if (changed) this.#notify(entry)
+    else this.#notifyInspection()
   }
-  #replay(entry: Entry): void {
-    let value = entry.confirmed
-    try {
-      for (const pending of entry.pending)
-        value = applyStateWrite(entry.canonical, value, pending.value)
-    } catch (cause) {
-      const failure = new UserContextError(
-        'conflict',
-        entry.canonical.id,
-        'State changed and queued updates no longer have a valid base; refresh and choose again',
-        { cause },
-      )
-      // A request already sent may have committed. Its own response settles that promise.
-      const retained = entry.pending.filter(pending => this.#inflight.has(pending))
-      for (const pending of entry.pending) if (!this.#inflight.has(pending)) pending.reject(failure)
-      entry.pending.splice(0, entry.pending.length, ...retained)
-      value = entry.confirmed
-      this.#report(failure, entry.canonical.id)
-    }
-    entry.effective = immutable(value)
-  }
-  async #flush(entry: Entry, generation: number): Promise<void> {
-    if (this.#sending.has(entry)) return
-    this.#sending.add(entry)
-    try {
-      while (entry.pending.length && generation === this.#generation && !this.#disposed) {
-        const pending = entry.pending[0]
-        if (!pending) break
-        if (pending.expectedRevision < entry.recordRevision) {
-          // A newer record (a recovery or another writer) landed after this intention was formed.
-          // The server would reject it as a conflict, so settle it locally with everything queued
-          // behind it instead of spending a request and a second recovery.
-          const stale = new UserContextError(
-            'conflict',
-            entry.canonical.id,
-            'State changed before this update was sent; refresh and choose again',
-          )
-          for (const queued of entry.pending.splice(0)) queued.reject(stale)
-          entry.effective = entry.confirmed
-          this.#notifyInspection()
-          break
-        }
-        try {
-          this.#inflight.add(pending)
-          const expectedRevision = pending.expectedRevision
-          const record = await abortable(
-            this.#options.adapter.write(
-              {
-                scope: this.#scope,
-                id: entry.canonical.id,
-                expectedRevision,
-                operationId: pending.operationId,
-                value: persistencePatch(
-                  entry.persisted,
-                  applyStateWrite(entry.canonical, entry.confirmed, pending.value),
-                  pending.value,
-                ),
-              },
-              this.#controller.signal,
-            ),
-            this.#controller.signal,
-          )
-          this.#assertGeneration(generation)
-          if (record.revision <= expectedRevision)
-            throw new UserContextError(
-              'invalid-value',
-              record.id,
-              'Persistence acceptance must advance the record revision',
-            )
-          this.#accept(entry, record)
-          this.#inflight.delete(pending)
-          entry.pending.shift()
-          this.#replay(entry)
-          this.#notify(entry)
-          pending.resolve(
-            immutable(normalize(entry.canonical.node, record.value, record.id) as Json),
-          )
-        } catch (error) {
-          this.#inflight.delete(pending)
-          if (generation !== this.#generation || this.#disposed) return
-          entry.pending.shift()
-          pending.reject(error)
-          // Every queued revision was formed assuming this intention succeeded. Never rebase
-          // it onto a recovered state that may have changed under a different writer.
-          const dependencyFailure = new UserContextError(
-            'conflict',
-            entry.canonical.id,
-            'An earlier queued intention failed; refresh and choose the update again',
-            { cause: error },
-          )
-          for (const queued of entry.pending.splice(0)) queued.reject(dependencyFailure)
-          entry.effective = entry.confirmed
-          entry.status = 'persistence-failed'
-          entry.error = error
-          this.#notifyInspection()
-          this.#report(error, entry.canonical.id)
-          // Refresh after rejection, including CAS conflicts; never retry this user intention.
-          try {
-            const records = await abortable(
-              this.#options.adapter.hydrate(
-                this.#scope,
-                [entry.canonical.id],
-                this.#controller.signal,
-              ),
-              this.#controller.signal,
-            )
-            this.#assertGeneration(generation)
-            if (records.length !== 1 || !records[0])
-              throw new UserContextError(
-                'invalid-value',
-                entry.canonical.id,
-                'Recovery hydration returned no record',
-              )
-            this.#accept(entry, records[0])
-            this.#replay(entry)
-            this.#notify(entry)
-          } catch (recovery) {
-            if (generation !== this.#generation || this.#disposed) return
-            // Reject queued intentions if their base cannot be validated/refreshed.
-            for (const queued of entry.pending.splice(0)) queued.reject(recovery)
-            this.#invalid(entry, recovery)
-            return
-          }
-        }
+
+  #jsonSchema(id: string): Json | undefined {
+    const schema = this.#schemas.get(id)
+    if (!schema) return undefined
+    if (!this.#jsonSchemas.has(schema)) {
+      let json: Json | undefined
+      try {
+        // The schema's own method, so a container's schema is read by the Zod that made it.
+        json = immutable(schema.toJSONSchema({ io: 'input', unrepresentable: 'any' }) as Json)
+      } catch {
+        json = undefined
       }
-    } finally {
-      this.#sending.delete(entry)
+      this.#jsonSchemas.set(schema, json)
     }
+    return this.#jsonSchemas.get(schema)
   }
+
   #notifyInspection(): void {
     this.#inspectionSnapshot = undefined
     for (const listener of [...this.#inspectionListeners]) {
@@ -675,39 +443,58 @@ export class UserContextRuntime implements UserContextService {
       }
     }
   }
-  #notify(entry: Entry, inspection = true, force = false): void {
-    if (inspection) this.#notifyInspection()
-    const json = stableJson(entry.confirmed)
-    const invalid = entry.status === 'invalid'
-    if (!force && entry.notifiedJson === json && entry.notifiedInvalid === invalid) return
-    entry.notifiedJson = json
-    entry.notifiedInvalid = invalid
+
+  #notify(entry: Entry): void {
+    this.#notifyInspection()
     for (const listener of [...entry.listeners]) {
       try {
         listener()
       } catch (error) {
-        this.#report(error, entry.canonical.id)
+        this.#report(error, entry.id)
       }
     }
   }
+
   #report(error: unknown, id: string): void {
     try {
       this.#options.onError?.(error, id)
     } catch {
-      /* Reporting must not strand pending intentions. */
+      /* Reporting must not strand a write. */
     }
   }
+
   #invalid(entry: Entry, error: unknown): void {
     entry.status = 'invalid'
     entry.error = isMfeError(error)
       ? error
-      : new UserContextError('persistence-failed', entry.canonical.id, asError(error).message, {
+      : new UserContextError('persistence-failed', entry.id, asError(error).message, {
           cause: error,
         })
-    this.#report(entry.error, entry.canonical.id)
+    this.#report(entry.error, entry.id)
     this.#notify(entry)
   }
 }
+
+const READ_REPAIR =
+  'Give a field the owner may not have written yet a default, or make it optional or nullable'
+const WRITE_REPAIR = 'Pass a value the owner schema accepts'
+
+/** Parse with a declared schema; the result must stay JSON, so a transform to `Date` is refused. */
+function parse(schema: z.ZodType, value: unknown, id: string, repair: string): unknown {
+  const result = schema.safeParse(value)
+  if (!result.success)
+    throw new UserContextError(
+      'invalid-value',
+      id,
+      `${result.error.issues
+        .map(issue => `${issue.path.join('.') || '<root>'}: ${issue.message}`)
+        .join('; ')}. ${repair}`,
+      { cause: result.error },
+    )
+  assertJson(result.data, id)
+  return result.data
+}
+
 export function abortable<T>(work: Promise<T>, signal?: AbortSignal): Promise<T> {
   if (!signal) return work
   if (signal.aborted) return Promise.reject(asError(signal.reason))
@@ -715,7 +502,7 @@ export function abortable<T>(work: Promise<T>, signal?: AbortSignal): Promise<T>
     const abort = (): void => {
       reject(
         asError(
-          signal.reason ?? new UserContextError('scope-disposed', '<scope>', 'Operation aborted'),
+          signal.reason ?? new UserContextError('scope-disposed', '<user>', 'Operation aborted'),
         ),
       )
     }
@@ -729,49 +516,6 @@ export function abortable<T>(work: Promise<T>, signal?: AbortSignal): Promise<T>
   })
 }
 
-function isRequirements(value: UserContextRequirements): boolean {
-  return (
-    !!value &&
-    value.protocolVersion === 1 &&
-    isValidDefinitionId(value.ownerId) &&
-    Array.isArray(value.contracts)
-  )
-}
 function asError(value: unknown): Error {
   return value instanceof Error ? value : new Error(String(value), { cause: value })
-}
-
-function objectNode(
-  node: StateContract['node'],
-): Extract<StateContract['node'], { kind: 'object' }> | undefined {
-  if (node.kind === 'default') return objectNode(node.inner)
-  return node.kind === 'object' ? node : undefined
-}
-
-/**
- * A schema-free backend cannot materialize defaults. Seed only missing branches that the client
- * validated from defaults; keep existing branches narrow so newer, unknown fields stay intact.
- * Called at send time, after earlier queued writes have established their accepted raw records.
- */
-function persistencePatch(persisted: unknown, validated: Json, supplied: Json): Json {
-  if (!isObject(supplied)) return structuredClone(validated)
-  if (!isObject(persisted)) return structuredClone(validated)
-  const next = validated as Record<string, Json>
-  const patch: Record<string, Json> = {}
-  for (const [key, value] of Object.entries(supplied)) {
-    const selected = Object.hasOwn(next, key) ? next[key] : undefined
-    // Domain validation may strip an undeclared key. It is never a persisted client intention.
-    if (selected === undefined) continue
-    Object.defineProperty(patch, key, {
-      value: persistencePatch(
-        Object.hasOwn(persisted, key) ? persisted[key] : undefined,
-        selected,
-        value,
-      ),
-      enumerable: true,
-      configurable: true,
-      writable: true,
-    })
-  }
-  return patch
 }

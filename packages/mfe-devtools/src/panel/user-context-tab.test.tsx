@@ -1,48 +1,27 @@
 import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 
-import { stateCapabilities } from '@company/mfe-core/user-context'
 import type {
-  UserContextScopeService,
-  UserContextResult,
-  StateContract,
+  Json,
   StateRecord,
+  UserContextOwner,
+  UserContextResult,
 } from '@company/mfe-core/user-context'
 import { UserContextRuntime } from '@company/mfe-runtime/user-context'
 
 import { UserContextTab } from './user-context-tab.tsx'
 
 const context = vi.hoisted(() => ({
-  userContext: undefined as UserContextScopeService | undefined,
+  userContext: undefined as UserContextRuntime | undefined,
 }))
 vi.mock('@company/mfe-react', () => ({ useMfeRuntime: () => context }))
-const contract: StateContract = {
-  formatVersion: 1,
+const units: UserContextOwner = {
   id: 'units',
-  revision: 'units-v1',
-  node: {
-    kind: 'object',
-    strict: true,
-    fields: {
-      system: {
-        kind: 'default',
-        value: 'metric',
-        inner: { kind: 'enum', values: ['metric', 'imperial'] },
-      },
-    },
+  userContext: {
+    schema: z.strictObject({ system: z.enum(['metric', 'imperial']).default('metric') }),
   },
-}
-const requirements = {
-  protocolVersion: 1 as const,
-  ownerId: 'units',
-  contracts: [
-    {
-      id: contract.id,
-      revision: contract.revision,
-      capabilities: stateCapabilities(contract.node),
-    },
-  ],
 }
 afterEach(() => {
   context.userContext?.dispose()
@@ -50,23 +29,31 @@ afterEach(() => {
 })
 
 function setup(
+  stored: Readonly<Record<string, Json>> = {},
   write: () => Promise<StateRecord> = async () => ({
     id: 'units',
     revision: 1,
     value: { system: 'imperial' },
   }),
-  contracts: readonly StateContract[] = [contract],
 ) {
-  const hydrate = vi.fn(async (_scope: string, ids: readonly string[]) =>
-    ids.map(id => ({ id, revision: 0 })),
+  const hydrate = vi.fn(async (ids: readonly string[]): Promise<readonly StateRecord[]> =>
+    ids.map(id => (id in stored ? { id, revision: 1, value: stored[id]! } : { id, revision: 0 })),
   )
-  const runtime = new UserContextRuntime({
-    scope: 'private-scope',
-    schema: { formatVersion: 1, contracts },
-    adapter: { hydrate, write },
-  })
+  const runtime = new UserContextRuntime({ adapter: { hydrate, write } })
   context.userContext = runtime
   return { runtime, hydrate }
+}
+function owners(count: number): Promise<void> {
+  return act(async () => {
+    await Promise.all(
+      Array.from({ length: count }, (_, index) =>
+        context.userContext!.prepare({
+          ...units,
+          id: `owner-${String(index + 1).padStart(2, '0')}`,
+        }),
+      ),
+    )
+  })
 }
 
 describe('User Context tab', () => {
@@ -89,84 +76,66 @@ describe('User Context tab', () => {
     view.unmount()
     expect(unsubscribe).toHaveBeenCalledTimes(1)
   })
-  it('searches contracts and observes hydration without initiating it', async () => {
-    const { runtime, hydrate } = setup()
+  it('lists an owner once a page loads it, searches owners and shows its schema', async () => {
+    const { runtime, hydrate } = setup({ units: { system: 'imperial' } })
     const user = userEvent.setup()
     render(<UserContextTab />)
+    expect(screen.getByText('No user-context owners loaded')).toBeTruthy()
     expect(hydrate).not.toHaveBeenCalled()
-    expect(screen.getByText('Value has not been loaded')).toBeTruthy()
     await act(async () => {
-      await runtime.prepare(requirements)
+      await runtime.prepare(units)
     })
-    expect(screen.getByLabelText('current value of units').textContent).toContain('"metric"')
+    expect(screen.getByLabelText('value of units').textContent).toContain('"imperial"')
+    expect(screen.getByText('Record revision 1')).toBeTruthy()
     await user.type(screen.getByLabelText('Search user-context owners'), 'missing')
     expect(screen.getByText('No owners match your search')).toBeTruthy()
     await user.clear(screen.getByLabelText('Search user-context owners'))
     expect(screen.getByRole('button', { name: 'Inspect units' }).getAttribute('aria-pressed')).toBe(
       'true',
     )
-    await user.click(screen.getByRole('tab', { name: 'Contract' }))
-    expect(screen.getByLabelText('contract for units').textContent).toContain('units-v1')
+    await user.click(screen.getByRole('tab', { name: 'Schema' }))
+    const schema = JSON.parse(screen.getByLabelText('schema for units').textContent) as {
+      properties: Record<string, unknown>
+    }
+    expect(schema.properties['system']).toMatchObject({ enum: ['metric', 'imperial'] })
   })
-  it('groups local keys into one owner slice and excludes the authenticated scope', async () => {
-    const owner: StateContract = {
-      ...contract,
+  it('lists the schema fields and stored keys of an owner, and says which are not stored', async () => {
+    const operations: UserContextOwner = {
       id: 'operations',
-      node: {
-        kind: 'object',
-        strict: true,
-        fields: {
-          units: { kind: 'default', value: 'metric', inner: { kind: 'string' } },
-          selectedWell: {
-            kind: 'default',
-            value: null,
-            inner: { kind: 'nullable', inner: { kind: 'string' } },
-          },
-        },
+      userContext: {
+        schema: z.object({
+          units: z.string().default('metric'),
+          selectedWell: z.string().nullable().default(null),
+        }),
       },
     }
-    const { runtime, hydrate } = setup(undefined, [owner])
-    const view = render(<UserContextTab />)
-    expect(screen.getAllByRole('button', { name: /^Inspect / })).toHaveLength(1)
-    expect(screen.getByRole('button', { name: 'Inspect operations' })).toBeTruthy()
-    expect(hydrate).not.toHaveBeenCalled()
-    await act(async () => {
-      await runtime.prepare({
-        protocolVersion: 1,
-        ownerId: owner.id,
-        contracts: [
-          { id: owner.id, revision: owner.revision, capabilities: stateCapabilities(owner.node) },
-        ],
-      })
-    })
-    expect(JSON.parse(screen.getByLabelText('current value of operations').textContent)).toEqual({
-      units: 'metric',
-      selectedWell: null,
-    })
-    expect(view.container.textContent).not.toContain('private-scope')
+    const { runtime } = setup({ operations: { units: 'imperial', retired: true } })
+    const user = userEvent.setup()
+    await runtime.prepare(operations)
+    render(<UserContextTab />)
+    await user.click(screen.getByRole('tab', { name: 'Keys' }))
+    expect(
+      screen.getAllByRole('button', { name: /^operations:/ }).map(button => button.textContent),
+    ).toEqual(['operations:retired', 'operations:selectedWell', 'operations:units'])
+    await user.click(screen.getByRole('button', { name: 'operations:units' }))
+    expect(screen.getByLabelText('value of operations:units').textContent).toBe('"imperial"')
+    await user.click(screen.getByRole('button', { name: 'operations:selectedWell' }))
+    expect(screen.getByText('Value is not stored')).toBeTruthy()
   })
-  it('finds namespaced keys before hydration and inspects only the committed nested value', async () => {
-    const owner: StateContract = {
-      ...contract,
+  it('finds an owner by a namespaced key and inspects the nested stored value', async () => {
+    const lab: UserContextOwner = {
       id: 'lab',
-      node: {
-        kind: 'object',
-        strict: true,
-        fields: {
-          'well-selection': {
-            kind: 'default',
-            value: { wellId: 'well-42' },
-            inner: {
-              kind: 'object',
-              strict: true,
-              fields: { wellId: { kind: 'string' } },
-            },
-          },
-          note: { kind: 'optional', inner: { kind: 'string' } },
-        },
+      userContext: {
+        schema: z.strictObject({
+          'well-selection': z.strictObject({ wellId: z.string() }).nullable().default(null),
+          note: z.string().optional(),
+        }),
       },
     }
-    const { runtime, hydrate } = setup(undefined, [owner, contract])
+    const { runtime } = setup({ lab: { 'well-selection': { wellId: 'well-42' } } })
+    await act(async () => {
+      await Promise.all([runtime.prepare(lab), runtime.prepare(units)])
+    })
     const user = userEvent.setup()
     render(<UserContextTab />)
     await user.type(screen.getByLabelText('Search user-context owners'), 'lab:well-selection')
@@ -174,87 +143,64 @@ describe('User Context tab', () => {
     expect(screen.queryByRole('button', { name: 'Inspect units' })).toBeNull()
     await user.click(screen.getByRole('tab', { name: 'Keys' }))
     await user.click(screen.getByRole('button', { name: 'lab:well-selection' }))
-    expect(screen.getByText('Value has not been loaded')).toBeTruthy()
-    expect(hydrate).not.toHaveBeenCalled()
-    await act(async () => {
-      await runtime.prepare({
-        protocolVersion: 1,
-        ownerId: owner.id,
-        contracts: [
-          { id: owner.id, revision: owner.revision, capabilities: stateCapabilities(owner.node) },
-        ],
-      })
+    expect(JSON.parse(screen.getByLabelText('value of lab:well-selection').textContent)).toEqual({
+      wellId: 'well-42',
     })
-    expect(
-      JSON.parse(screen.getByLabelText('current value of lab:well-selection').textContent),
-    ).toEqual({ wellId: 'well-42' })
-    await user.click(screen.getByRole('button', { name: 'lab:note' }))
-    expect(screen.getByText('Optional value is not set')).toBeTruthy()
   })
-  it('shows persistence errors without replacing the committed local key value', async () => {
-    const { runtime, hydrate } = setup(async () => {
+  it('shows a record the owner schema rejects as invalid, with the reason', async () => {
+    const { runtime } = setup({ units: { system: 'nautical' } })
+    await expect(runtime.prepare(units)).rejects.toMatchObject({
+      code: 'user-context/invalid-value',
+    })
+    render(<UserContextTab />)
+    expect(screen.getAllByText('Invalid')).toHaveLength(2)
+    expect(screen.getByRole('alert').textContent).toContain('system')
+  })
+  it('keeps the stored value when a write fails and reads the owner again', async () => {
+    const { runtime, hydrate } = setup({}, async () => {
       throw new Error('Storage is unavailable')
     })
-    await runtime.prepare(requirements)
-    let recover!: (records: { id: string; revision: number }[]) => void
-    hydrate.mockImplementationOnce(
-      () =>
-        new Promise(resolve => {
-          recover = resolve
-        }),
-    )
-    const user = userEvent.setup()
+    await runtime.prepare(units)
     render(<UserContextTab />)
-    await user.click(screen.getByRole('tab', { name: 'Keys' }))
-    await user.click(screen.getByRole('button', { name: 'units:system' }))
     await act(async () => {
-      const result = await runtime.bind('units', requirements).set('system', 'imperial')
+      const result = await runtime.bind(units).set('system', 'imperial')
       expect(result.ok).toBe(false)
     })
-    expect(screen.getAllByText('Write failed')).toHaveLength(2)
-    expect(screen.getByRole('alert').textContent).toContain('Storage is unavailable')
-    expect(screen.getByLabelText('current value of units:system').textContent).toBe('"metric"')
-    await act(async () => recover([{ id: 'units', revision: 0 }]))
-    expect(screen.queryByRole('alert')).toBeNull()
+    await waitFor(() => expect(hydrate).toHaveBeenCalledTimes(2))
     expect(screen.getAllByText('Ready')).toHaveLength(2)
+    expect(screen.getByText('No stored value')).toBeTruthy()
   })
-  it('shows pending writes only in the current value until commit and clears values on scope changes', async () => {
+  it('shows a write only once the server accepts it, and clears every value on a reset', async () => {
     let accept!: (record: StateRecord) => void
     const { runtime } = setup(
+      { units: { system: 'metric' } },
       () =>
         new Promise(resolve => {
           accept = resolve
         }),
     )
-    await runtime.prepare(requirements)
-    const user = userEvent.setup()
+    await runtime.prepare(units)
     const view = render(<UserContextTab />)
     let write!: Promise<UserContextResult<unknown>>
     act(() => {
-      write = runtime.bind('units', requirements).set('system', 'imperial')
+      write = runtime.bind(units).set('system', 'imperial')
     })
-    expect(screen.getByLabelText('current value of units').textContent).toContain('"imperial"')
-    expect(screen.getAllByText('Pending')).toHaveLength(2)
-    await user.click(screen.getByRole('tab', { name: 'Confirmed' }))
-    expect(screen.getByLabelText('confirmed value of units').textContent).toContain('"metric"')
+    await waitFor(() => expect(accept).toBeTypeOf('function'))
+    expect(screen.getByLabelText('value of units').textContent).toContain('"metric"')
     await act(async () => {
-      accept({ id: 'units', revision: 1, value: { system: 'imperial' } })
+      accept({ id: 'units', revision: 2, value: { system: 'imperial' } })
       await write
     })
-    expect(screen.getByLabelText('confirmed value of units').textContent).toContain('"imperial"')
-    act(() => runtime.setScope('other-scope'))
-    expect(screen.getByText('Value has not been loaded')).toBeTruthy()
+    expect(screen.getByLabelText('value of units').textContent).toContain('"imperial"')
+    expect(screen.getByText('Record revision 2')).toBeTruthy()
+    act(() => runtime.reset())
+    expect(screen.getByText('No user-context owners loaded')).toBeTruthy()
     expect(view.container.textContent).not.toContain('imperial')
     view.unmount()
   })
   it('makes the entire row clickable and supports arrow, Home and End navigation across 30 owners', async () => {
-    setup(
-      undefined,
-      Array.from({ length: 30 }, (_, index) => ({
-        ...contract,
-        id: `owner-${String(index + 1).padStart(2, '0')}`,
-      })),
-    )
+    setup()
+    await owners(30)
     const user = userEvent.setup()
     render(<UserContextTab />)
     const first = screen.getByRole('button', { name: 'Inspect owner-01' })
@@ -279,13 +225,8 @@ describe('User Context tab', () => {
     expect(screen.getByText('owner-29', { selector: 'h2' })).toBeTruthy()
   })
   it('selects an owner from the searchable narrow-dock picker without displaying a stacked list', async () => {
-    setup(
-      undefined,
-      Array.from({ length: 30 }, (_, index) => ({
-        ...contract,
-        id: `owner-${String(index + 1).padStart(2, '0')}`,
-      })),
-    )
+    setup()
+    await owners(30)
     const user = userEvent.setup()
     render(<UserContextTab />)
     await user.click(screen.getByRole('combobox', { name: 'Choose user-context owner' }))

@@ -12,7 +12,7 @@ import { summarizeSchema } from '../config/zod-static.ts'
 import { resolveOptions, type ContainerOptions } from '../options.ts'
 import {
   discoverHostUserContext,
-  hostUserContextFile,
+  hostUserContextFiles,
   type HostUserContextPlan,
 } from '../user-context/host.ts'
 import { envExampleFile, gitignoreFile, runtimeConfigSchemaFile } from './artifacts.ts'
@@ -82,15 +82,14 @@ export function planHostConfig(options: HostConfigOptions): HostConfigPlan | nul
     'root',
   )
   const configSource = readConfigSource(resolved.containerRoot, options.envModules)
-  const id = options.id ?? resolved.packageName.replace(/^@[^/]+\//, '')
-  const userContext = discoverHostUserContext(resolved.containerRoot, id, options.entries)
+  const userContext = discoverHostUserContext(resolved.containerRoot, options.entries)
   if (configSource === undefined && userContext === undefined) return null
 
   const context: HostConfigContext = {
     options: resolved,
     configSource,
     profile: { generator: options.generator, envModules: options.envModules },
-    host: { id },
+    host: { id: options.id ?? resolved.packageName.replace(/^@[^/]+\//, '') },
     checkModule: options.checkModule,
   }
 
@@ -104,7 +103,7 @@ export function planHostConfig(options: HostConfigOptions): HostConfigPlan | nul
     runtimeConfigScriptFile(context),
   ].filter((file): file is GeneratedFile => file !== null)
   if (userContext)
-    files.push(hostUserContextFile(userContext, resolved.generatedDir, options.generator))
+    files.push(...hostUserContextFiles(userContext, resolved.generatedDir, options.generator))
   files.push(inventoryFile(resolved.generatedDir, files))
 
   return {

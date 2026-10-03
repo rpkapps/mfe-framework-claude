@@ -1,4 +1,4 @@
-import type { UserContextOptions } from '../user-context/store.ts'
+import type { HostUserContextOptions } from '../user-context/host.ts'
 /**
  * A complete runtime with nothing behind it but memory: the stores a shell would build, a
  * recording telemetry provider, a memory navigation bridge and a loader resolving the definitions
@@ -33,7 +33,8 @@ import {
 } from './recording-provider.ts'
 
 export interface MemoryRuntimeOptions {
-  readonly userContext?: UserContextOptions
+  /** Persistence as a shell configures it; `scopedUserContextAdapter` binds a test backend. */
+  readonly userContext?: HostUserContextOptions
   /** Merged over a signed-in test user in the `testers` group, on the light theme. */
   readonly shellState?: ShellStatePatch
   /**
@@ -132,7 +133,7 @@ export function createMemoryRuntime(options: MemoryRuntimeOptions = {}): MemoryR
 
   const assembled = assembleRuntime({
     registry,
-    testUserContext: options.userContext,
+    userContext: options.userContext,
     loader: createInProcessLoader(loadable),
     adapters,
     shellState,

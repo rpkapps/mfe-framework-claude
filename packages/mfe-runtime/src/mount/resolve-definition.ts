@@ -66,20 +66,14 @@ export async function resolveDefinition(
       id,
       'Loaded definition identity differs from the registry mount identity',
     )
-  if (definition.__userContext) {
-    if (definition.__userContext.ownerId !== id)
-      throw new UserContextError(
-        'unauthorized-owner',
-        id,
-        'User-context requirements differ from the mounted owner',
-      )
+  if (definition.userContext) {
     if (!runtime.userContext)
       throw new UserContextError(
-        'unsupported-contract',
+        'not-ready',
         id,
-        'Shell requires user-context protocol 1 and a configured persistence adapter',
+        'The shell has no user-context persistence. Pass userContext.adapter to createMfeRuntime',
       )
-    await runtime.userContext.prepare(definition.__userContext, signal)
+    await runtime.userContext.prepare(definition, signal)
   }
   return definition
 }

@@ -2,42 +2,29 @@ import { runInInjectionContext } from '@angular/core'
 import { Router } from '@angular/router'
 import {
   createUserContextBackend,
-  type MemoryRuntimeOptions,
   createTestUserContextRepository,
   mountApp,
   mountWidget,
+  scopedUserContextAdapter,
 } from '@company/mfe-angular/testing'
-import labRegistry from '../../lab/.mfe/mfe-registry.json'
-import fieldworkRegistry from '../.mfe/mfe-registry.json'
 import { expect, it } from 'vitest'
 import { injectUserContext } from '#mfe/user-context/well-inspection'
 import { fieldwork as app, wellInspection } from './mfe'
 
-// Canonical contracts come from the same generated registry artifacts deployed by each owner.
-const generatedSchema = {
-  formatVersion: 1,
-  contracts: [...labRegistry.definitions, ...fieldworkRegistry.definitions].flatMap(definition =>
-    'userContextContract' in definition ? [definition.userContextContract] : [],
-  ),
-}
-const schema = generatedSchema as NonNullable<MemoryRuntimeOptions['userContext']>['schema']
-
 async function state() {
   const { repository } = createTestUserContextRepository()
   const backend = (owner: string) =>
-    createUserContextBackend({
-      repository,
-      resolveOwner: async () => owner,
-      authorize: async () => undefined,
-    })
-  const lab = backend('lab')
-  const adapter = backend('well-inspection')
-  await lab.write(
+    scopedUserContextAdapter(
+      createUserContextBackend({
+        repository,
+        resolveOwner: async () => owner,
+        authorize: async () => undefined,
+      }),
+      'test',
+    )
+  await backend('lab').write(
     {
-      scope: 'test',
       id: 'lab',
-      expectedRevision: 0,
-      operationId: 'react-selection',
       value: {
         units: 'imperial',
         'well-selection': { wellId: 'well-42', runId: 'run-8', comparisonMode: 'overlay' },
@@ -45,7 +32,7 @@ async function state() {
     },
     new AbortController().signal,
   )
-  return { schema, scope: 'test', adapter }
+  return { adapter: backend('well-inspection') }
 }
 
 it('reads Lab without a setter and persists its own inspection brief across mounts', async () => {
@@ -69,7 +56,6 @@ it('reads Lab without a setter and persists its own inspection brief across moun
     })
     .toContain('Inspect North Ridge 42 at North Ridge pad, using October survey at 8,038 ft.')
   const saved = await userContext.adapter.hydrate(
-    'test',
     ['lab', 'well-inspection'],
     new AbortController().signal,
   )
@@ -122,7 +108,6 @@ it('reports a rejected brief save without displaying uncommitted context', async
   const context = await state()
   const mounted = await mountWidget(wellInspection, {
     userContext: {
-      ...context,
       adapter: {
         ...context.adapter,
         write: async () => {

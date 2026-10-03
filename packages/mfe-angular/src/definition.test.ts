@@ -167,21 +167,5 @@ describe('consolidated Angular user-context declarations', () => {
     })
     expect(app.userContext).toBe(userContext)
     expect(widget.userContext).toBe(userContext)
-    expect(app.__userContext).toBeUndefined()
-    expect(widget.__userContext).toBeUndefined()
-  })
-
-  it('keeps compiled widget requirements under its own owner identity', () => {
-    const requirements = { protocolVersion: 1 as const, ownerId: 'widget-owner', contracts: [] }
-    const widget = createWidget({
-      id: 'widget-owner',
-      inputSchema: z.object({}),
-      outputSchema: z.object({}),
-      component: BadgeComponent,
-      __userContext: requirements,
-    })
-    expect(widget.id).toBe(requirements.ownerId)
-    expect(widget.__userContext).toBe(requirements)
-    expect(widget).not.toHaveProperty('userContext')
   })
 })

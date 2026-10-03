@@ -1,6 +1,7 @@
 export { UserContextRuntime, type UserContextOptions } from './store.ts'
 export {
   createUserContextBackend,
+  type UserContextBackend,
   type UserContextBackendOptions,
   type UserContextRepository,
   type StoredState,
@@ -12,7 +13,4 @@ export {
 } from './mount.ts'
 export * from '@company/mfe-core/user-context'
 
-export type { HostUserContextOptions, HostUserContextDefinition } from './host.ts'
-
-/** Public browser adapter; the core scoped transport remains an internal server/test protocol. */
-export type { UserContextAdapter, StateWrite } from './host.ts'
+export { HOST_USER_CONTEXT_ID, type HostUserContextOptions } from './host.ts'

@@ -1,26 +1,15 @@
 import '@angular/compiler'
 import {
   createUserContextBackend,
-  type MemoryRuntimeOptions,
   createTestUserContextRepository,
   mountApp,
+  scopedUserContextAdapter,
 } from '@company/mfe-react/testing'
-import labRegistry from '../.mfe/mfe-registry.json'
-import fieldworkRegistry from '../../fieldwork/.mfe/mfe-registry.json'
 import { fireEvent, waitFor, within } from '@testing-library/react'
 import { expect, it } from 'vitest'
 
 import app from './mfe.ts'
 import { wellInspection } from '../../fieldwork/src/mfe.ts'
-
-// Canonical contracts come from the same generated registry artifacts deployed by each owner.
-const generatedSchema = {
-  formatVersion: 1,
-  contracts: [...labRegistry.definitions, ...fieldworkRegistry.definitions].flatMap(definition =>
-    'userContextContract' in definition ? [definition.userContextContract] : [],
-  ),
-}
-const schema = generatedSchema as NonNullable<MemoryRuntimeOptions['userContext']>['schema']
 
 it('reads Lab context in Angular and restores the durable selection after remount', async () => {
   const { repository } = createTestUserContextRepository()
@@ -30,19 +19,19 @@ it('reads Lab context in Angular and restores the durable selection after remoun
       resolveOwner: async () => owner,
       authorize: async () => undefined,
     })
-  const lab = backend('lab')
-  const widget = backend('well-inspection')
+  const lab = scopedUserContextAdapter(backend('lab'), 'test')
+  const widget = scopedUserContextAdapter(backend('well-inspection'), 'test')
   // The fixture selects the fixed-owner backend used by each demo endpoint.
   const adapter = {
     hydrate: lab.hydrate,
-    write: (operation: Parameters<typeof lab.write>[0], signal: AbortSignal) =>
-      (operation.id === 'well-inspection' ? widget : lab).write(operation, signal),
+    write: (write: Parameters<typeof lab.write>[0], signal: AbortSignal) =>
+      (write.id === 'well-inspection' ? widget : lab).write(write, signal),
   }
   const options = {
     basePath: '/lab',
     initialEntries: ['/lab/user-context'],
     definitions: [wellInspection],
-    userContext: { schema, scope: 'test', adapter },
+    userContext: { adapter },
   }
   const mounted = await mountApp(app, options)
   const page = within(mounted.element)
@@ -73,7 +62,7 @@ it('reads Lab context in Angular and restores the durable selection after remoun
   expect(await inspection.findByRole('region', { name: 'Inspection brief' })).toHaveTextContent(
     'Baseline survey',
   )
-  const records = await adapter.hydrate('test', ['lab'], new AbortController().signal)
+  const records = await adapter.hydrate(['lab'], new AbortController().signal)
   expect(records[0]?.value).toEqual({
     units: 'imperial',
     'well-selection': { wellId: 'well-42', runId: 'run-7', comparisonMode: 'overlay' },
@@ -94,11 +83,14 @@ it('reads Lab context in Angular and restores the durable selection after remoun
 
 it('keeps the committed selection visible while saving and reports a rejected write', async () => {
   const { repository } = createTestUserContextRepository()
-  const backend = createUserContextBackend({
-    repository,
-    resolveOwner: async () => 'lab',
-    authorize: async () => undefined,
-  })
+  const backend = scopedUserContextAdapter(
+    createUserContextBackend({
+      repository,
+      resolveOwner: async () => 'lab',
+      authorize: async () => undefined,
+    }),
+    'test',
+  )
   let release!: () => void
   const acknowledgement = new Promise<void>(resolve => {
     release = resolve
@@ -109,14 +101,12 @@ it('keeps the committed selection visible while saving and reports a rejected wr
     initialEntries: ['/lab/user-context'],
     definitions: [wellInspection],
     userContext: {
-      schema,
-      scope: 'test',
       adapter: {
         hydrate: backend.hydrate,
-        async write(operation, signal) {
+        async write(write, signal) {
           if (rejectWrite) throw new Error('Storage is unavailable')
           await acknowledgement
-          return await backend.write(operation, signal)
+          return await backend.write(write, signal)
         },
       },
     },

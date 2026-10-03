@@ -158,7 +158,6 @@ const config: Linter.Config[] = [
         ...mfe.DEFAULT_TOOLING_FILES,
         'apps/docs/source.config.ts',
         'tools/tecton/*.d.mts',
-        'tools/user-context/*.d.mts',
       ],
     }),
   ),

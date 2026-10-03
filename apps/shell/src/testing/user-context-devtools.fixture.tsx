@@ -1,9 +1,9 @@
 /** Browser-only scale fixture. This entry is never part of the shell's production build. */
 import { createRoot } from 'react-dom/client'
 import { devtools, MfeDevtools } from '@company/mfe-devtools'
-import type { RegistryEntry } from '@company/mfe-react'
 import { reactAdapter } from '@company/mfe-react/registry'
 import { createMfeRuntime, createNoopTelemetryProvider, MfeProvider } from '@company/mfe-react/host'
+import { z } from 'zod'
 import '../styles/app.css'
 
 const keys = [
@@ -38,26 +38,10 @@ const keys = [
   'workspace:preferences',
   'workspace:preferences:inspection:default-survey-and-comparison-settings',
 ]
-const contracts: readonly NonNullable<RegistryEntry['userContextContract']>[] = keys.map(key => ({
-  formatVersion: 1,
-  id: key.replaceAll(':', '-'),
-  revision: 'browser-fixture-v1',
-  node: {
-    kind: 'object',
-    strict: true,
-    fields: { key: { kind: 'string' }, wellId: { kind: 'string' }, units: { kind: 'string' } },
-  },
-}))
+const schema = z.strictObject({ key: z.string(), wellId: z.string(), units: z.string() })
+const owners = keys.map(key => ({ id: key.replaceAll(':', '-'), userContext: { schema } }))
 const { runtime } = createMfeRuntime({
-  registryEntries: contracts.map(contract => ({
-    id: contract.id,
-    kind: 'app',
-    mfe: { framework: 'react' },
-    manifestUrl: `https://fixture.invalid/${contract.id}/mf-manifest.json`,
-    container: contract.id,
-    requiresRuntime: '>=1.2.0 <2.0.0',
-    userContextContract: contract,
-  })),
+  registryEntries: [],
   adapters: [reactAdapter],
   loader: {
     load: () => Promise.reject(new Error('The scale fixture loads no containers')),
@@ -74,25 +58,14 @@ const { runtime } = createMfeRuntime({
             value: { key: id, wellId: 'well-42', units: 'metric' },
           })),
         ),
-      write: operation =>
-        Promise.resolve({
-          id: operation.id,
-          revision: operation.expectedRevision + 1,
-          value: operation.value,
-        }),
+      write: write => Promise.resolve({ id: write.id, revision: 13, value: { ...write.value } }),
     },
   },
 })
-// A consumer requires the canonical object shape; the inspector itself never hydrates.
-await runtime.userContext?.prepare({
-  protocolVersion: 1,
-  ownerId: 'browser-fixture',
-  contracts: contracts.map(({ id, revision }) => ({
-    id,
-    revision,
-    capabilities: [':{"kind":"object","strict":true}'],
-  })),
-})
+// Each owner loads as its definition would; the inspector itself never hydrates.
+const service = runtime.userContext
+if (service === undefined) throw new Error('The fixture configures user context')
+await Promise.all(owners.map(owner => service.prepare(owner)))
 devtools.open('user-context')
 devtools.setSide('bottom')
 devtools.setSize(600)

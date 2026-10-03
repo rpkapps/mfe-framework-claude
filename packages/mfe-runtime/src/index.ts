@@ -252,14 +252,14 @@ export {
   type UserContextThemeOptions,
 } from './theme/user-context-theme.ts'
 
-export type { HostUserContextOptions, HostUserContextDefinition } from './user-context/host.ts'
+export { HOST_USER_CONTEXT_ID, type HostUserContextOptions } from './user-context/host.ts'
 
 /** Browser persistence adapters use the same public host entry as createMfeRuntime. */
 export {
   USER_CONTEXT_ERROR_CODES,
   UserContextError,
+  type UserContextAdapter,
   type UserContextErrorCode,
   type StateRecord,
+  type StateWrite,
 } from '@company/mfe-core/user-context'
-
-export type { UserContextAdapter, StateWrite } from './user-context/host.ts'

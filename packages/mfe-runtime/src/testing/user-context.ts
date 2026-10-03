@@ -1,5 +1,10 @@
 /** Test-only storage. It deliberately makes no durable/offline persistence guarantee. */
-import type { UserContextRepository, StoredState } from '../user-context/backend.ts'
+import type { UserContextAdapter } from '@company/mfe-core/user-context'
+import type {
+  StoredState,
+  UserContextBackend,
+  UserContextRepository,
+} from '../user-context/backend.ts'
 export { createUserContextBackend } from '../user-context/backend.ts'
 export function createTestUserContextRepository() {
   const records = new Map<string, StoredState>()
@@ -15,4 +20,14 @@ export function createTestUserContextRepository() {
     },
   }
   return { repository, records }
+}
+/** A browser adapter over a backend, for the one user a server would authenticate. */
+export function scopedUserContextAdapter(
+  backend: UserContextBackend,
+  scope: string,
+): UserContextAdapter {
+  return {
+    hydrate: (ids, signal) => backend.hydrate(scope, ids, signal),
+    write: (write, signal) => backend.write(scope, write, signal),
+  }
 }

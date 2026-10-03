@@ -10,7 +10,6 @@ import type { Compiler, WebpackError, WebpackPluginInstance } from 'webpack'
 
 import {
   applyContainerCompilation,
-  userContextTransformRule,
   buildFederationOptions,
   isMfeBuildError,
   type ContainerPlan,
@@ -52,8 +51,6 @@ export class MfeWebpackPlugin implements WebpackPluginInstance {
     const plan = replan()
 
     applyContainerShape(compiler, plan)
-    const contextRule = userContextTransformRule(plan, 'post')
-    if (contextRule) compiler.options.module.rules.push(contextRule)
     new ModuleFederationPlugin(buildFederationOptions(plan)).apply(compiler)
 
     const currentPlan = applyContainerCompilation(compiler, {

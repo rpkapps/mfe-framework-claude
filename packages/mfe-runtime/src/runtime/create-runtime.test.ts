@@ -16,9 +16,6 @@ import {
   type RegistryEntry,
 } from '@company/mfe-core'
 
-import { stateCapabilities, type StateContract } from '@company/mfe-core/user-context'
-import { createFederatedAdapter } from '../registry/federated-entry.ts'
-
 import { DEFAULT_DEADLINES } from '../deadline.ts'
 import { DiagnosticsHub } from '../diagnostics.ts'
 import { OVERRIDES_STORAGE_KEY } from '../overrides/dev-overrides.ts'
@@ -538,69 +535,25 @@ describe('auditing action runs', () => {
   })
 })
 
-describe('automatic user-context discovery', () => {
-  it('boots with only a persistence adapter and reads a registry owner before mounting it', async () => {
-    const contract: StateContract = {
-      formatVersion: 1,
-      id: 'operations',
-      revision: 'one',
-      node: {
-        kind: 'object',
-        strict: true,
-        fields: {
-          units: { kind: 'default', inner: { kind: 'string' }, value: 'metric' },
-        },
-      },
-    }
+describe('user context on the host factory', () => {
+  it('boots with only a persistence adapter and reads an owner before mounting it', async () => {
     const hydrate = vi.fn(async () => [{ id: 'operations', revision: 0 }])
-    const { runtime } = create({
-      adapters: [createFederatedAdapter({ kind: 'react' })],
-      registryEntries: [
-        {
-          id: 'operations',
-          kind: 'app',
-          mfe: { framework: 'react' },
-          manifestUrl: 'https://example.test/mf-manifest.json',
-          container: 'operations',
-          requiresRuntime: '>=1.1.0 <2.0.0',
-          userContextContract: contract,
-        },
-      ],
-      userContext: { adapter: { hydrate, write: vi.fn() } },
-    })
-    const requirements = {
-      protocolVersion: 1 as const,
-      ownerId: 'reports',
-      contracts: [
-        {
-          id: contract.id,
-          revision: contract.revision,
-          capabilities: stateCapabilities(contract.node),
-        },
-      ],
+    const { runtime } = create({ userContext: { adapter: { hydrate, write: vi.fn() } } })
+    const reports = {
+      id: 'reports',
+      userContext: { reads: { operations: z.object({ units: z.string().default('metric') }) } },
     }
-    await runtime.userContext?.prepare(requirements)
-    expect(
-      runtime.userContext?.bindReadOnly('reports', requirements, 'operations').get('units'),
-    ).toBe('metric')
+    await runtime.userContext?.prepare(reports)
+    expect(runtime.userContext?.bindReadOnly(reports, 'operations').get('units')).toBe('metric')
     expect(hydrate).toHaveBeenCalledWith(['operations'], expect.any(AbortSignal))
     runtime.shellState.apply({ user: null })
-    await expect(runtime.userContext?.prepare(requirements)).rejects.toThrow('Sign in')
+    await expect(runtime.userContext?.prepare(reports)).rejects.toThrow('Sign in')
     expect(hydrate).toHaveBeenCalledTimes(1)
   })
-})
 
-describe('theme configuration validation', () => {
-  it.each(['missing-generated-owner', 'missing-adapter', 'read-only-shell'] as const)(
-    'rejects %s before registering diagnostics or starting persistence',
+  it.each(['missing-schema', 'missing-adapter'] as const)(
+    'rejects a theme with a %s before registering diagnostics or starting persistence',
     missing => {
-      const contract: StateContract = {
-        formatVersion: 1,
-        id: 'shell',
-        revision: 'one',
-        node: { kind: 'object', strict: true, fields: {} },
-      }
-      const requirements = { protocolVersion: 1 as const, ownerId: 'shell', contracts: [] }
       const subscribe = vi.fn(() => vi.fn())
       const diagnostics = new DiagnosticsHub()
       const add = vi.spyOn(diagnostics, 'add')
@@ -610,64 +563,42 @@ describe('theme configuration validation', () => {
         theme: { cacheKey: 'test:theme', select: () => 'dark' },
         ...(missing === 'missing-adapter'
           ? {}
-          : {
-              userContext: { adapter: { hydrate: vi.fn(), write: vi.fn(), subscribe } },
-            }),
-        ...(missing === 'missing-generated-owner'
-          ? {}
-          : {
-              __userContext:
-                missing === 'read-only-shell' ? { requirements } : { contract, requirements },
-            }),
+          : { userContext: { adapter: { hydrate: vi.fn(), write: vi.fn(), subscribe } } }),
       }
-      expect(() => createMfeRuntime(options)).toThrow('generated shell owner contract')
+      expect(() => createMfeRuntime(options)).toThrow('a shell userContext.schema')
       expect(subscribe).not.toHaveBeenCalled()
       expect(add).not.toHaveBeenCalled()
     },
   )
-})
 
-describe('normal host factory declarations', () => {
-  it('infers schema output for the theme selector and rejects uncompiled author metadata', () => {
-    const adapter = { hydrate: vi.fn(), write: vi.fn() }
-    const configure = () =>
-      createMfeRuntime({
-        ...baseOptions(),
-        shellState: { user: null, groups: [] },
-        userContext: {
-          schema: z.object({
-            preferences: z.object({ theme: z.enum(['light', 'dark', 'system']).default('system') }),
-          }),
-          adapter,
+  it('infers schema output for the theme selector', async () => {
+    const hydrate = vi.fn(async (ids: readonly string[]) =>
+      ids.map(id => ({ id, revision: 1, value: { preferences: { theme: 'dark' } } })),
+    )
+    const created = createMfeRuntime({
+      ...baseOptions(),
+      userContext: {
+        schema: z.object({
+          preferences: z.object({ theme: z.enum(['light', 'dark', 'system']).default('system') }),
+        }),
+        adapter: { hydrate, write: vi.fn() },
+      },
+      theme: {
+        cacheKey: 'test:theme',
+        select: context => {
+          expectTypeOf(context.preferences.theme).toEqualTypeOf<'light' | 'dark' | 'system'>()
+          // @ts-expect-error: the selector is constrained to the owner's declared output
+          void context.notDeclared
+          // @ts-expect-error: nested unknown fields are rejected too
+          void context.preferences.other
+          return context.preferences.theme
         },
-        theme: {
-          cacheKey: 'test:theme',
-          select: context => {
-            expectTypeOf(context.preferences.theme).toEqualTypeOf<'light' | 'dark' | 'system'>()
-            // @ts-expect-error: the selector is constrained to the owner's declared output
-            void context.notDeclared
-            // @ts-expect-error: nested unknown fields are rejected too
-            void context.preferences.other
-            return context.preferences.theme
-          },
-        },
-      })
-    expect(configure).toThrow('compiled by the host builder')
-    expect(adapter.hydrate).not.toHaveBeenCalled()
-  })
-
-  it('rejects uncompiled reads without contacting persistence', () => {
-    const adapter = { hydrate: vi.fn(), write: vi.fn() }
-    expect(() =>
-      createMfeRuntime({
-        ...baseOptions(),
-        userContext: {
-          reads: { lab: z.object({ units: z.enum(['metric', 'imperial']) }) },
-          adapter,
-        },
-      }),
-    ).toThrow('author schema or read declarations reached the runtime')
-    expect(adapter.hydrate).not.toHaveBeenCalled()
+      },
+    })
+    expect(created.runtime.userContext?.host?.id).toBe('shell')
+    await vi.waitFor(() => expect(created.runtime.shellState.getTheme()).toBe('dark'))
+    expect(hydrate).toHaveBeenCalledWith(['shell'], expect.any(AbortSignal))
+    created.dispose()
   })
 
   it('supports a host without context or an explicit initial theme', () => {
@@ -676,60 +607,27 @@ describe('normal host factory declarations', () => {
       shellState: { user: null, groups: [] },
     })
     expect(withoutTheme.runtime.shellState.getTheme()).toBe('light')
+    expect(withoutTheme.runtime.userContext).toBeUndefined()
     withoutTheme.dispose()
   })
-  it('supports a compiled reads-only shell without creating an owned slice', async () => {
-    const contract: StateContract = {
-      formatVersion: 1,
-      id: 'operations',
-      revision: 'one',
-      node: {
-        kind: 'object',
-        strict: false,
-        fields: { units: { kind: 'default', inner: { kind: 'string' }, value: 'metric' } },
-      },
-    }
-    const requirements = {
-      protocolVersion: 1 as const,
-      ownerId: 'shell',
-      contracts: [
-        {
-          id: contract.id,
-          revision: contract.revision,
-          capabilities: stateCapabilities(contract.node),
-        },
-      ],
-    }
+
+  it('supports a reads-only shell without creating an owned slice', async () => {
     const created = createMfeRuntime({
       ...baseOptions(),
-      adapters: [createFederatedAdapter({ kind: 'react' })],
-      registryEntries: [
-        {
-          id: 'operations',
-          kind: 'app',
-          mfe: { framework: 'react' },
-          requiresRuntime: '>=1.1.0 <2.0.0',
-          container: 'ops',
-          manifestUrl: 'https://example.com/manifest.json',
-          expose: './operations',
-          userContextContract: contract,
-        },
-      ],
       userContext: {
+        reads: { operations: z.object({ units: z.string().default('metric') }) },
         adapter: { hydrate: async () => [{ id: 'operations', revision: 0 }], write: vi.fn() },
       },
-      __userContext: { requirements },
     })
-    await created.runtime.userContext?.prepare(requirements)
-    const read = created.runtime.userContext?.bindReadOnly<{ units: string }>(
-      'shell',
-      requirements,
-      'operations',
-    )
+    const host = created.runtime.userContext?.host
+    if (!host) throw new Error('expected the shell declaration')
+    await created.runtime.userContext?.prepare(host)
+    const read = created.runtime.userContext?.bindReadOnly<{ units: string }>(host, 'operations')
     expect(read?.getSnapshot()).toEqual({ units: 'metric' })
     expect(read).not.toHaveProperty('set')
+    expect(() => created.runtime.userContext?.bind(host)).toThrow('Declare userContext.schema')
     expect(
-      created.runtime.userContext?.inspection.getSnapshot().entries.map(entry => entry.contract.id),
+      created.runtime.userContext?.inspection.getSnapshot().entries.map(entry => entry.id),
     ).toEqual(['operations'])
     created.dispose()
   })

@@ -35,22 +35,22 @@ export async function verifyUserContextDevtools(browser) {
     const survey = page.getByRole('region', { name: 'React survey app', exact: true })
     await survey.getByLabel('Well', { exact: true }).selectOption('well-42')
     await open()
-    await expect(page.getByLabel('current value of lab', { exact: true })).toContainText('well-42')
+    await expect(page.getByLabel('value of lab', { exact: true })).toContainText('well-42')
     await expect(panel.getByRole('button', { name: 'Inspect lab', exact: true })).toContainText(
       'Ready',
     )
-    await screenshot('user-context-current')
+    await screenshot('user-context-value')
     await page.getByRole('tab', { name: 'Keys', exact: true }).click()
     await expect(page.getByRole('button', { name: 'lab:units', exact: true })).toBeVisible()
     await page.getByRole('button', { name: 'lab:well-selection', exact: true }).click()
-    const nestedValue = page.getByLabel('current value of lab:well-selection', { exact: true })
+    const nestedValue = page.getByLabel('value of lab:well-selection', { exact: true })
     await expect(nestedValue).toBeVisible()
     await expect(nestedValue).toContainText('well-42')
     await expect.poll(async () => (await nestedValue.boundingBox())?.height ?? 0).toBeGreaterThan(0)
     await screenshot('user-context-keys')
-    await page.getByRole('tab', { name: 'Current value', exact: true }).click()
+    await page.getByRole('tab', { name: 'Value', exact: true }).click()
 
-    // Hold persistence: consumers keep the durable value until acknowledgement; Current value shows the pending write.
+    // Hold persistence: consumers and the inspector keep the stored value until the server answers.
     const pendingWrite = new Promise(resolve => {
       heldWrite = resolve
     })
@@ -61,30 +61,17 @@ export async function verifyUserContextDevtools(browser) {
     await survey.getByLabel('Well', { exact: true }).selectOption('well-17')
     const route = await pendingWrite
     await open()
-    await expect(page.getByLabel('current value of lab', { exact: true })).toContainText('well-17')
+    await expect(page.getByLabel('value of lab', { exact: true })).toContainText('well-42')
     await expect(survey.getByLabel('Well', { exact: true })).toHaveValue('well-42')
-    await expect(panel.getByRole('button', { name: 'Inspect lab', exact: true })).toContainText(
-      'Pending',
-    )
-    await screenshot('user-context-pending')
-    await page.getByRole('tab', { name: 'Confirmed', exact: true }).click()
-    await expect(page.getByLabel('confirmed value of lab', { exact: true })).toContainText(
-      'well-42',
-    )
-    await screenshot('user-context-confirmed')
     await route.continue()
     await page.unroute('**/api/user-context/write/lab')
-    await expect(panel.getByText('Pending', { exact: true })).toHaveCount(0)
     await expect(survey.getByLabel('Well', { exact: true })).toHaveValue('well-17')
-    await expect(page.getByLabel('confirmed value of lab', { exact: true })).toContainText(
-      'well-17',
-    )
+    await expect(page.getByLabel('value of lab', { exact: true })).toContainText('well-17')
+    await screenshot('user-context-saved')
 
-    await page.getByRole('tab', { name: 'Contract', exact: true }).click()
-    await expect(page.getByLabel('contract for lab', { exact: true })).toContainText(
-      'comparisonMode',
-    )
-    await screenshot('user-context-contract')
+    await page.getByRole('tab', { name: 'Schema', exact: true }).click()
+    await expect(page.getByLabel('schema for lab', { exact: true })).toContainText('comparisonMode')
+    await screenshot('user-context-schema')
     await page.getByLabel('Search user-context owners', { exact: true }).fill('no-such-owner')
     await expect(page.getByText('No owners match your search')).toBeVisible()
     await page.getByLabel('Search user-context owners', { exact: true }).fill('')
@@ -101,11 +88,11 @@ export async function verifyUserContextDevtools(browser) {
     )
     await page.setViewportSize({ width: 390, height: 844 })
     await selectOwner()
-    await expect(page.getByRole('tab', { name: 'Current value', exact: true })).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Value', exact: true })).toBeVisible()
     await screenshot('user-context-mobile')
     expect(await panel.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
     console.log(
-      'User Context devtools: namespaced keys, nested values, pending persistence, confirmed values, schema, search, docking and mobile verified.',
+      'User Context devtools: namespaced keys, nested values, held persistence, schema, search, docking and mobile verified.',
     )
   } finally {
     await page.close()

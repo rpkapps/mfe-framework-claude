@@ -2,12 +2,7 @@ import {
   attachUserContextTheme,
   type UserContextThemeOptions,
 } from '../theme/user-context-theme.ts'
-import { UserContextRuntime, type UserContextOptions } from '../user-context/store.ts'
-import {
-  createHostUserContext,
-  type HostUserContextOptions,
-  type HostUserContextDefinition,
-} from '../user-context/host.ts'
+import { createHostUserContext, type HostUserContextOptions } from '../user-context/host.ts'
 /**
  * The wiring `createMfeRuntime` and the memory runtime share, so a test runs on a runtime put
  * together exactly as a shell's is: only where the registry, storage, history and loader come
@@ -58,9 +53,6 @@ export function reportRejectedEntries(registry: Registry, diagnostics: Diagnosti
 export interface RuntimeParts {
   readonly theme?: UserContextThemeOptions<unknown> | undefined
   readonly userContext?: HostUserContextOptions | undefined
-  /** Explicit injection for low-level test fixtures; never accepted by createMfeRuntime. */
-  readonly testUserContext?: UserContextOptions | undefined
-  readonly __userContext?: HostUserContextDefinition | undefined
   readonly registry: Registry
   /** Wrapped in each entry's adapter's `aroundLoad`, then shared. */
   readonly loader: ContainerLoader
@@ -129,38 +121,30 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
     readLocation: () => navigator.read(),
   })
 
-  const configured = parts.testUserContext ?? parts.userContext
   const reportContextError = (error: unknown, id: string): void => {
     diagnostics.report(
       toMfeError(error, {
         code: 'user-context/persistence-failed',
         id,
         operation: 'synchronize user context',
-        repair: 'Handle the setter rejection or recover invalid data through the shell adapter.',
+        repair: 'Handle the setter result or fix the stored record through the shell adapter.',
       }),
     )
-    configured?.onError?.(error, id)
+    parts.userContext?.onError?.(error, id)
   }
-  // The explicit schema/scope form is reserved for the low-level memory test harness.
-  const explicit =
-    parts.testUserContext === undefined
-      ? undefined
-      : new UserContextRuntime({ ...parts.testUserContext, onError: reportContextError })
   const managed =
-    parts.userContext === undefined || explicit !== undefined
+    parts.userContext === undefined
       ? undefined
       : createHostUserContext({
           persistence: { ...parts.userContext, onError: reportContextError },
-          registry: parts.registry,
           shellState,
-          definition: parts.__userContext,
         })
-  const userContext = explicit ?? managed?.service
+  const userContext = managed?.service
   const stopTheme =
-    parts.theme && parts.__userContext && userContext
+    parts.theme && userContext?.host
       ? attachUserContextTheme({
           service: userContext,
-          requirements: parts.__userContext.requirements,
+          owner: userContext.host,
           shellState,
           theme: parts.theme,
         })
@@ -193,7 +177,6 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
     dispose: () => {
       stopTheme?.()
       mounts.dispose()
-      explicit?.dispose()
       managed?.dispose()
       actions.dispose()
       breadcrumbs.dispose()

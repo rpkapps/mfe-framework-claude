@@ -2,7 +2,6 @@ import { fileURLToPath } from 'node:url'
 
 import angular from '@analogjs/vite-plugin-angular'
 import { defineConfig } from 'vitest/config'
-import { userContextDeclarationsForTests } from '../../tools/user-context/vitest.mjs'
 
 /**
  * JIT, not AOT: Vitest never runs the webpack build, so the compiler transform has to run
@@ -10,10 +9,7 @@ import { userContextDeclarationsForTests } from '../../tools/user-context/vitest
  * to work under Vitest at all.
  */
 export default defineConfig({
-  plugins: [
-    angular({ jit: true, tsconfig: './tsconfig.spec.json' }),
-    userContextDeclarationsForTests,
-  ],
+  plugins: [angular({ jit: true, tsconfig: './tsconfig.spec.json' })],
   resolve: {
     alias: {
       // The real #mfe/config fetches runtime-config.json in a top-level await, and the real

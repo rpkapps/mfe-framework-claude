@@ -54,6 +54,7 @@ describe('a React host', () => {
     })
     const summary = generateHost(root, ['client/start.ts'])
     expect(summary.paths).toContain('.mfe/user-context.ts')
+    expect(summary.paths).toContain('.mfe/user-context.declaration.ts')
     expect(existsSync(join(root, '.mfe/runtime-config.json'))).toBe(false)
     expect(readFileSync(join(root, '.mfe/user-context.ts'), 'utf8')).not.toContain(
       'createMfeRuntime',

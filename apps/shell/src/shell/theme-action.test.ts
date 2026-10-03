@@ -4,17 +4,12 @@ import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import { MfeProvider } from '@company/mfe-react'
 import { createHostUserContextBindings } from '@company/mfe-react/user-context'
-import {
-  createMfeRuntime,
-  type HostUserContextDefinition,
-  type HostUserContextOptions,
-} from '@company/mfe-react/host'
+import { createMfeRuntime, type HostUserContextOptions } from '@company/mfe-react/host'
 import {
   createMemoryNavigationBridge,
   createRecordingTelemetryProvider,
 } from '@company/mfe-react/testing'
-type StateContract = NonNullable<HostUserContextDefinition['contract']>
-type UserContextRequirements = HostUserContextDefinition['requirements']
+import { z } from 'zod'
 type UserContextAdapter = HostUserContextOptions['adapter']
 type StateRecord = Awaited<ReturnType<UserContextAdapter['write']>>
 import { toast } from 'sonner'
@@ -26,46 +21,13 @@ vi.mock('#mfe/user-context', () => ({
   useUserContext: (selector: (value: Values) => unknown) => bindings.useUserContext(selector),
 }))
 
-type Values = { preferences: { theme: 'light' | 'dark' | 'system' } }
-const contract: StateContract = {
-  id: 'shell',
-  formatVersion: 1,
-  revision: 'theme-test',
-  node: {
-    kind: 'object',
-    strict: true,
-    fields: {
-      preferences: {
-        kind: 'default',
-        value: { theme: 'light' },
-        inner: {
-          kind: 'object',
-          strict: true,
-          fields: {
-            theme: { kind: 'enum', values: ['light', 'dark', 'system'] },
-          },
-        },
-      },
-    },
-  },
-}
-const requirements: UserContextRequirements = {
-  protocolVersion: 1,
-  ownerId: 'shell',
-  contracts: [
-    {
-      id: 'shell',
-      revision: contract.revision,
-      capabilities: [
-        ':{"kind":"object","strict":true}',
-        '/f:preferences:{"kind":"default","value":{"theme":"light"}}',
-        '/f:preferences/i:{"kind":"object","strict":true}',
-        '/f:preferences/i/f:theme:{"kind":"enum","values":["light","dark","system"]}',
-      ],
-    },
-  ],
-}
-const bindings = createHostUserContextBindings<Values>(requirements)
+const schema = z.strictObject({
+  preferences: z
+    .strictObject({ theme: z.enum(['light', 'dark', 'system']) })
+    .default({ theme: 'light' }),
+})
+type Values = z.output<typeof schema>
+const bindings = createHostUserContextBindings<Values>()
 const disposals: (() => void)[] = []
 const roots: Root[] = []
 beforeAll(() => {
@@ -96,8 +58,7 @@ function setup() {
     shellState: { user: { id: 'first', name: 'First' }, groups: [], theme: 'light' },
     telemetryProvider: createRecordingTelemetryProvider(),
     navigationBridge: createMemoryNavigationBridge(['/']),
-    userContext: { adapter: { hydrate, write } },
-    __userContext: { contract, requirements },
+    userContext: { schema, adapter: { hydrate, write } },
     theme: { select: value => (value as Values).preferences.theme, cacheKey: 'theme-action-test' },
   })
   disposals.push(handle.dispose)

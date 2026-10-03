@@ -13,7 +13,7 @@ async function request<T>(path: string, body: unknown, signal: AbortSignal): Pro
     signal,
   })
   if (!response.ok) {
-    // A proxy or crash can answer with a body that is not JSON; the status still classifies it.
+    // A proxy or crash can answer with a body that is not JSON; that is a persistence failure.
     const failure = (await response.json().catch(() => ({}))) as {
       code?: string
       id?: string
@@ -23,7 +23,7 @@ async function request<T>(path: string, body: unknown, signal: AbortSignal): Pro
       candidate => failure.code === `user-context/${candidate}`,
     )
     throw new UserContextError(
-      code ?? (response.status === 409 ? 'conflict' : 'persistence-failed'),
+      code ?? 'persistence-failed',
       failure.id ?? '<demo>',
       failure.message ?? `Example API returned ${String(response.status)}`,
     )
@@ -33,6 +33,6 @@ async function request<T>(path: string, body: unknown, signal: AbortSignal): Pro
 
 export const userContextAdapter: UserContextAdapter = {
   hydrate: (ids, signal) => request<readonly StateRecord[]>('hydrate', { ids }, signal),
-  write: (operation, signal) =>
-    request<StateRecord>(`write/${encodeURIComponent(operation.id)}`, operation, signal),
+  write: (write, signal) =>
+    request<StateRecord>(`write/${encodeURIComponent(write.id)}`, write, signal),
 }

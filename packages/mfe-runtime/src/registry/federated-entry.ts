@@ -20,7 +20,6 @@ import {
   type PublishedRoute,
   type RegistryEntry,
 } from '@company/mfe-core'
-import { assertStateContract, type StateContract } from '@company/mfe-core/user-context'
 import { z } from 'zod'
 
 import type { FederatedRegistryEntry } from '../loader/federation-loader.ts'
@@ -166,18 +165,6 @@ const frameworkMarker = z.object(
   { error: 'an object such as { "framework": "react" }' },
 )
 
-const userContextContract = z.custom<StateContract>(
-  value => {
-    try {
-      assertStateContract(value)
-      return true
-    } catch {
-      return false
-    }
-  },
-  { error: 'a compiled user-context owner contract' },
-)
-
 const entrySchema = z
   .object({
     id: nonEmptyString('a non-empty definition id'),
@@ -197,7 +184,6 @@ const entrySchema = z
     capabilities: capabilities.optional(),
     routes: routes.optional(),
     contract: publishedContract.optional(),
-    userContextContract: userContextContract.optional(),
     hidden: z.unknown().optional(),
     title: z.string({ error: 'a title string' }).optional(),
     description: z.string({ error: 'a description string' }).optional(),
@@ -206,13 +192,6 @@ const entrySchema = z
     build: build.optional(),
   })
   .loose()
-  .refine(
-    value => value.userContextContract === undefined || value.userContextContract.id === value.id,
-    {
-      path: ['userContextContract', 'id'],
-      error: 'a user-context contract owned by this registry entry id',
-    },
-  )
   // A Widget publishes what it takes and what it raises; an App has neither.
   .refine(value => !(value.contract !== undefined && value.kind === 'app'), {
     path: ['contract'],
@@ -283,7 +262,6 @@ export function parseFederatedEntry<K extends string>(
       capabilities: parsed.capabilities,
       routes: parsed.routes,
       contract: parsed.contract,
-      userContextContract: parsed.userContextContract,
       build: parsed.build,
       hidden: parsed.hidden === true ? true : undefined,
       title: parsed.title,

@@ -1,6 +1,5 @@
 /** Real API persistence and deterministic delayed hydration, while verify:page serves the shell. */
 import { expect } from '@playwright/test'
-import { randomUUID } from 'node:crypto'
 
 export async function verifyUserContextPreferences(browser) {
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
@@ -27,20 +26,12 @@ export async function verifyUserContextPreferences(browser) {
       data: { ids: ['shell'], scope: 'another-user' },
     })
     expect(forgedRead.status()).toBe(400)
-    // Seed a genuine authoritative record so its revision and subsequent CAS writes stay valid.
-    const existing = await page.request.post('http://localhost:3010/api/user-context/hydrate', {
-      data: { ids: ['shell'] },
-    })
-    expect(existing.ok(), await existing.text()).toBe(true)
-    const [record] = await existing.json()
     const forgedWrite = await page.request.post(
       'http://localhost:3010/api/user-context/write/shell',
       {
         data: {
           scope: 'another-user',
           id: 'shell',
-          expectedRevision: record.revision,
-          operationId: `theme-browser-forged:${randomUUID()}`,
           value: { preferences: { theme: 'dark' } },
         },
       },
@@ -49,8 +40,6 @@ export async function verifyUserContextPreferences(browser) {
     const seeded = await page.request.post('http://localhost:3010/api/user-context/write/shell', {
       data: {
         id: 'shell',
-        expectedRevision: record.revision,
-        operationId: `theme-browser-seed:${randomUUID()}`,
         value: { preferences: { theme: 'light' } },
       },
     })

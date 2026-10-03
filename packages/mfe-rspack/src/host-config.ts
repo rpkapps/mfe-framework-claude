@@ -76,7 +76,6 @@ export function pluginMfeHostConfig(options: HostConfigOptions = {}): RsbuildPlu
                 ),
                 options: {
                   root: plan.options.containerRoot,
-                  id: host.registration.requirements.ownerId,
                   entries: hostOptions.entries,
                   generatedDir: plan.options.generatedDir,
                   generator: '@company/mfe-rspack',

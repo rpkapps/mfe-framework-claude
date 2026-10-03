@@ -1,7 +1,5 @@
 /** The registry entry every adapter produces, and the adapter interface the host reads it through. */
 
-import type { StateContract } from './user-context/index.ts'
-
 import type {
   BuildProvenance,
   CapabilityDescriptor,
@@ -17,8 +15,6 @@ import type {
  */
 export interface RegistryEntry {
   readonly id: string
-  /** Generated canonical contract owned by this definition; available before mounting. */
-  readonly userContextContract?: StateContract
   readonly definitionKind: DefinitionKind
   /** The `kind` of the adapter that parsed the entry, so a view can name it without asking. */
   readonly adapter: string

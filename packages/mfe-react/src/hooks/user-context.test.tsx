@@ -1,4 +1,3 @@
-import { applyStateWrite, normalize, stateCapabilities } from '@company/mfe-core/user-context'
 import { act, render, renderHook, waitFor } from '@testing-library/react'
 import {
   createMemoryHistory,
@@ -8,10 +7,12 @@ import {
 } from '@tanstack/react-router'
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { Component, StrictMode, Suspense, useMemo, useEffect, type ReactNode } from 'react'
+import { z } from 'zod'
 import type {
+  Json,
+  StateRecord,
   UserContextAdapter,
-  UserContextScopeService,
-  StateContract,
+  UserContextStore,
 } from '@company/mfe-core/user-context'
 import { createMountContext } from '@company/mfe-runtime'
 import { createMemoryRuntime } from '@company/mfe-runtime/testing'
@@ -22,91 +23,44 @@ import { MfeMountProvider } from '../mount-context.tsx'
 import type { AppRouterOptions, MfeRouterContext } from '../router-contract.ts'
 import { withQueryClient } from '../runtime.ts'
 import { mountApp } from '../testing/index.tsx'
-import { createHostUserContextBindings, createUserContextBindings } from './user-context.ts'
+import {
+  createHostUserContextBindings,
+  createUserContextBindings,
+  type UserContextValuesOf,
+} from './user-context.ts'
 import { MfeProvider } from '../runtime-context.tsx'
 
-type Values = {
-  units: 'metric' | 'imperial'
-  preferences: { appearance: { theme: string; fontSize: number } }
-}
-const contract: StateContract = {
-  formatVersion: 1,
-  id: 'reader',
-  revision: 'reader-v1',
-  node: {
-    kind: 'object',
-    strict: true,
-    fields: {
-      preferences: {
-        kind: 'default',
-        inner: {
-          kind: 'object',
-          strict: true,
-          fields: {
-            appearance: {
-              kind: 'object',
-              strict: true,
-              fields: {
-                theme: { kind: 'string' },
-                fontSize: { kind: 'number' },
-              },
-            },
-          },
-        },
-        value: { appearance: { theme: 'light', fontSize: 14 } },
-      },
-      units: {
-        kind: 'default',
-        inner: { kind: 'enum', values: ['metric', 'imperial'] },
-        value: 'metric',
-      },
-    },
-  },
-}
-const requirements = {
-  protocolVersion: 1 as const,
-  ownerId: 'reader',
-  contracts: [
-    {
-      id: contract.id,
-      revision: contract.revision,
-      capabilities: stateCapabilities(contract.node),
-    },
-  ],
-}
+const schema = z.strictObject({
+  preferences: z
+    .strictObject({
+      appearance: z.strictObject({ theme: z.string(), fontSize: z.number() }),
+    })
+    .default({ appearance: { theme: 'light', fontSize: 14 } }),
+  units: z.enum(['metric', 'imperial']).default('metric'),
+})
+type Values = UserContextValuesOf<{ schema: typeof schema }>
 const bindings = createUserContextBindings<Values>('reader')
-function adapter(): UserContextAdapter {
-  let record: {
-    id: string
-    revision: number
-    value?: Values
-  } = { id: 'reader', revision: 0 }
+
+/** A server that merges each patch into the owner's record, per signed-in user. */
+function adapter(user: () => string = () => 'test-user'): UserContextAdapter {
+  const records = new Map<string, StateRecord>()
+  const read = (id: string): StateRecord => records.get(`${user()}/${id}`) ?? { id, revision: 0 }
   return {
-    hydrate: () => Promise.resolve([record]),
-    write: operation => {
-      if (operation.expectedRevision !== record.revision)
-        return Promise.reject(new Error('conflict'))
-      record = {
-        id: 'reader',
-        revision: record.revision + 1,
-        value: applyStateWrite(
-          contract,
-          normalize(contract.node, record.value, contract.id),
-          operation.value,
-        ) as unknown as Values,
+    hydrate: ids => Promise.resolve(ids.map(read)),
+    write: ({ id, value }) => {
+      const current = read(id)
+      const next = {
+        id,
+        revision: current.revision + 1,
+        value: { ...(current.value as Record<string, Json> | undefined), ...value },
       }
-      return Promise.resolve(record)
+      records.set(`${user()}/${id}`, next)
+      return Promise.resolve(next)
     },
   }
 }
 async function setup(persistence: UserContextAdapter = adapter()) {
-  const memory = createMemoryRuntime({
-    userContext: {
-      scope: 'user/workspace',
-      schema: { formatVersion: 1, contracts: [contract] },
-      adapter: persistence,
-    },
-  })
+  const memory = createMemoryRuntime({ userContext: { adapter: persistence } })
   const context = createMountContext({
     runtime: memory.runtime,
     definitionId: 'reader',
@@ -114,7 +68,7 @@ async function setup(persistence: UserContextAdapter = adapter()) {
     basePath: '/',
   })
   const prepared = await prepareUserContextMount(
-    { id: 'reader', __userContext: requirements },
+    { id: 'reader', userContext: { schema } },
     context.context,
   )
   const mount = withQueryClient(prepared)
@@ -261,7 +215,7 @@ describe('definition-bound React user context and routers', () => {
       basePath: '/',
     })
     const prepared = await prepareUserContextMount(
-      { id: 'observer', __userContext: { ...requirements, ownerId: 'observer' } },
+      { id: 'observer', userContext: { reads: { reader: schema } } },
       observerContext.context,
     )
     const observerMount = withQueryClient(prepared)
@@ -337,7 +291,7 @@ describe('definition-bound React user context and routers', () => {
     consumer.unmount()
     await environment.dispose()
   })
-  it('replaces the old scope display with an error boundary when the identity changes', async () => {
+  it('replaces the previous user display with an error boundary when the identity changes', async () => {
     const environment = await setup()
     class Boundary extends Component<{ children: ReactNode }, { error: Error | null }> {
       override state = { error: null as Error | null }
@@ -361,12 +315,10 @@ describe('definition-bound React user context and routers', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
     try {
       act(() => {
-        ;(environment.memory.runtime.userContext as UserContextScopeService).setScope(
-          'another-user',
-        )
+        environment.memory.setShellState({ user: { id: 'another-user', name: 'Another' } })
       })
       expect(view.container.textContent).not.toContain('metric')
-      expect(view.container.textContent).toContain('scope')
+      expect(view.container.textContent).toContain('previous signed-in user')
     } finally {
       consoleError.mockRestore()
       view.unmount()
@@ -404,14 +356,8 @@ describe('definition-bound React user context and routers', () => {
         routeTree: createRootRouteWithContext<MfeRouterContext<Values>>()({}).addChildren([]),
       })
     })
-    const definition = createApp({ id: 'reader', __userContext: requirements, router: factory })
-    const mounted = await mountApp(definition, {
-      userContext: {
-        scope: 'user/workspace',
-        schema: { formatVersion: 1, contracts: [contract] },
-        adapter: adapter(),
-      },
-    })
+    const definition = createApp({ id: 'reader', userContext: { schema }, router: factory })
+    const mounted = await mountApp(definition, { userContext: { adapter: adapter() } })
     expect(factory).toHaveBeenCalled()
     await mounted.dispose()
     await expect(mountApp(definition)).rejects.toThrow('user-context')
@@ -446,8 +392,9 @@ void TypeContracts
 
 describe('generated React shell user-context binding', () => {
   it('hydrates automatically, selects narrowly, and cleans subscriptions on unmount', async () => {
-    const environment = await setup()
-    const host = createHostUserContextBindings<Values>(requirements)
+    // The shell owns the `shell` record; a mount of the same schema under that ID writes it here.
+    const environment = await setupShell()
+    const host = createHostUserContextBindings<Values>()
     const rendered = vi.fn()
     function Consumer() {
       const [theme] = host.useUserContext(value => value.preferences.appearance.theme)
@@ -479,10 +426,10 @@ describe('generated React shell user-context binding', () => {
   })
 
   it('routes hydration failures to a local boundary while the surrounding shell stays mounted', async () => {
-    const environment = await setup()
+    const environment = await setupShell()
     const service = environment.memory.runtime.userContext!
     vi.spyOn(service, 'prepare').mockRejectedValue(new Error('Preferences API unavailable'))
-    const host = createHostUserContextBindings<Values>(requirements)
+    const host = createHostUserContextBindings<Values>()
     class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
       override state = { failed: false }
       static getDerivedStateFromError() {
@@ -518,19 +465,12 @@ describe('generated React shell user-context binding', () => {
     }
   })
 
-  it('rebinds after user scope changes and never keeps the previous user value', async () => {
-    const persistence = adapter()
-    const environment = await setup({
-      ...persistence,
-      hydrate: (scope, ids, signal) =>
-        scope === 'next-user'
-          ? Promise.resolve([{ id: 'reader', revision: 0 }])
-          : persistence.hydrate(scope, ids, signal),
-    })
+  it('rebinds after the signed-in user changes and never keeps the previous user value', async () => {
+    let user = 'test-user'
+    const environment = await setupShell(adapter(() => user))
     await environment.mount.userContext!.set('units', 'imperial')
-    const service = environment.memory.runtime.userContext as UserContextScopeService
-    const host = createHostUserContextBindings<Values>(requirements)
-    let latest: ReturnType<typeof service.bind<Values>>['set'] | undefined
+    const host = createHostUserContextBindings<Values>()
+    let latest: UserContextStore<Values>['set'] | undefined
     function Consumer() {
       const [units, set] = host.useUserContext(value => value.units)
       useEffect(() => {
@@ -548,7 +488,8 @@ describe('generated React shell user-context binding', () => {
     await waitFor(() => expect(component.getByText('imperial')).toBeTruthy())
     const oldSet = latest!
     await act(async () => {
-      service.setScope('next-user')
+      user = 'next-user'
+      environment.memory.setShellState({ user: { id: 'next-user', name: 'Next' } })
     })
     await waitFor(() => expect(component.getByText('metric')).toBeTruthy())
     expect(latest).not.toBe(oldSet)
@@ -560,3 +501,26 @@ describe('generated React shell user-context binding', () => {
     await environment.dispose()
   })
 })
+
+/** The shell declares the schema under `shell`; a mount bound to that owner drives its writes. */
+async function setupShell(persistence: UserContextAdapter = adapter()) {
+  const memory = createMemoryRuntime({ userContext: { adapter: persistence, schema } })
+  const context = createMountContext({
+    runtime: memory.runtime,
+    definitionId: 'shell',
+    kind: 'app',
+    basePath: '/',
+  })
+  const prepared = await prepareUserContextMount(
+    { id: 'shell', userContext: { schema } },
+    context.context,
+  )
+  return {
+    memory,
+    mount: prepared,
+    dispose: async () => {
+      await context.dispose()
+      memory.dispose()
+    },
+  }
+}

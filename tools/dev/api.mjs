@@ -86,10 +86,10 @@ const server = createServer(async (request, response) => {
         ? await userContext.hydrate(DEMO_SCOPE, body.ids, controller.signal)
         : await contextWriters
             .get(url.pathname)
-            .write({ ...body, scope: DEMO_SCOPE }, controller.signal)
+            .write(DEMO_SCOPE, { id: body.id, value: body.value }, controller.signal)
       json(response, 200, record)
     } catch (error) {
-      json(response, error.code === 'user-context/conflict' ? 409 : 400, {
+      json(response, 400, {
         code: error.code ?? 'user-context/persistence-failed',
         id: error.id,
         message: error.message,

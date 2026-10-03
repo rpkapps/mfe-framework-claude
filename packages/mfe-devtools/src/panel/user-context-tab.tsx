@@ -39,7 +39,7 @@ import {
 import { DatabaseIcon, SearchIcon, TriangleAlertIcon } from 'lucide-react'
 
 import type {
-  StateNode,
+  Json,
   UserContextInspectionEntry,
   UserContextStatus,
 } from '@company/mfe-core/user-context'
@@ -53,11 +53,9 @@ const STATUS: Readonly<
     { readonly label: string; readonly variant: 'secondary' | 'info' | 'success' | 'destructive' }
   >
 > = {
-  absent: { label: 'Not loaded', variant: 'secondary' },
   hydrating: { label: 'Hydrating', variant: 'info' },
   ready: { label: 'Ready', variant: 'success' },
   invalid: { label: 'Invalid', variant: 'destructive' },
-  'persistence-failed': { label: 'Write failed', variant: 'destructive' },
 }
 
 export function UserContextTab(): ReactNode {
@@ -67,28 +65,26 @@ export function UserContextTab(): ReactNode {
   const [selection, setSelection] = useState<string>()
   const navigation = useRef<HTMLElement>(null)
   const allEntries = useMemo(
-    () => [...snapshot.entries].sort((a, b) => a.contract.id.localeCompare(b.contract.id)),
+    () => [...snapshot.entries].sort((a, b) => a.id.localeCompare(b.id)),
     [snapshot.entries],
   )
   const entries = useMemo(() => {
     const term = query.trim().toLowerCase()
     return allEntries.filter(
       entry =>
-        entry.contract.id.toLowerCase().includes(term) ||
-        localKeys(entry.contract.node).some(key =>
-          `${entry.contract.id}:${key}`.toLowerCase().includes(term),
-        ),
+        entry.id.toLowerCase().includes(term) ||
+        localKeys(entry).some(key => `${entry.id}:${key}`.toLowerCase().includes(term)),
     )
   }, [allEntries, query])
-  const keys = useMemo(() => allEntries.map(entry => entry.contract.id), [allEntries])
-  const selected = allEntries.find(entry => entry.contract.id === selection) ?? allEntries[0]
+  const keys = useMemo(() => allEntries.map(entry => entry.id), [allEntries])
+  const selected = allEntries.find(entry => entry.id === selection) ?? allEntries[0]
   const tabStop = entries.find(entry => entry === selected) ?? entries[0]
 
   if (!userContext)
     return (
       <StateEmpty
         title="User Context is not configured"
-        description="Configure userContext on the shell runtime to inspect its contracts and values."
+        description="Configure userContext on the shell runtime to inspect its owners and values."
       />
     )
   if (snapshot.disposed)
@@ -101,8 +97,8 @@ export function UserContextTab(): ReactNode {
   if (snapshot.entries.length === 0)
     return (
       <StateEmpty
-        title="No user-context contracts"
-        description="Declare userContext.schema on an app, widget, or shell and include its generated metadata in the deployment."
+        title="No user-context owners loaded"
+        description="Open an app or widget that declares userContext. An owner appears once its record loads."
       />
     )
 
@@ -120,7 +116,7 @@ export function UserContextTab(): ReactNode {
         <div className="shrink-0 border-b border-border p-2 @3xl:hidden">
           <Combobox
             items={keys}
-            value={selected.contract.id}
+            value={selected.id}
             onValueChange={value => {
               if (value !== null) setSelection(value)
             }}
@@ -181,15 +177,15 @@ export function UserContextTab(): ReactNode {
             >
               {entries.map((entry, index) => (
                 <Button
-                  key={entry.contract.id}
+                  key={entry.id}
                   variant={entry === selected ? 'secondary' : 'ghost'}
                   size="sm"
                   className="w-full min-w-0 justify-between"
                   aria-pressed={entry === selected}
-                  aria-label={`Inspect ${entry.contract.id}`}
-                  title={entry.contract.id}
+                  aria-label={`Inspect ${entry.id}`}
+                  title={entry.id}
                   tabIndex={entry === tabStop ? 0 : -1}
-                  onClick={() => setSelection(entry.contract.id)}
+                  onClick={() => setSelection(entry.id)}
                   onKeyDown={event => {
                     const target =
                       event.key === 'ArrowDown'
@@ -204,11 +200,11 @@ export function UserContextTab(): ReactNode {
                     const next = target === undefined ? undefined : entries[target]
                     if (next === undefined) return
                     event.preventDefault()
-                    setSelection(next.contract.id)
+                    setSelection(next.id)
                     navigation.current?.querySelectorAll('button')[target ?? 0]?.focus()
                   }}
                 >
-                  <span className="min-w-0 truncate">{entry.contract.id}</span>
+                  <span className="min-w-0 truncate">{entry.id}</span>
                   <StateStatus entry={entry} />
                 </Button>
               ))}
@@ -216,7 +212,7 @@ export function UserContextTab(): ReactNode {
           )}
         </aside>
         {selected === undefined ? null : (
-          <StateDetail key={`${snapshot.generation}:${selected.contract.id}`} entry={selected} />
+          <StateDetail key={`${snapshot.generation}:${selected.id}`} entry={selected} />
         )}
       </div>
     </div>
@@ -226,11 +222,8 @@ export function UserContextTab(): ReactNode {
 function StateStatus({ entry }: { readonly entry: UserContextInspectionEntry }): ReactNode {
   const status = STATUS[entry.status]
   return (
-    <Badge
-      variant={entry.pendingWrites > 0 && entry.status === 'ready' ? 'warning' : status.variant}
-      appearance="outline"
-    >
-      {entry.pendingWrites > 0 && entry.status === 'ready' ? 'Pending' : status.label}
+    <Badge variant={status.variant} appearance="outline">
+      {status.label}
     </Badge>
   )
 }
@@ -240,10 +233,8 @@ function StateDetail({ entry }: { readonly entry: UserContextInspectionEntry }):
     <Panel variant="flat" size="sm" className="min-w-0">
       <PanelHeader>
         <div className="min-w-0 flex-1">
-          <PanelTitle title={entry.contract.id}>{entry.contract.id}</PanelTitle>
-          <PanelDescription>
-            Record revision {entry.recordRevision} · {entry.pendingWrites} pending writes
-          </PanelDescription>
+          <PanelTitle title={entry.id}>{entry.id}</PanelTitle>
+          <PanelDescription>Record revision {entry.revision}</PanelDescription>
         </div>
         <PanelActions>
           <StateStatus entry={entry} />
@@ -257,47 +248,38 @@ function StateDetail({ entry }: { readonly entry: UserContextInspectionEntry }):
             <AlertDescription className="break-words">{entry.error}</AlertDescription>
           </Alert>
         )}
-        <Tabs defaultValue="effective" className="min-h-0 flex-1">
+        <Tabs defaultValue="value" className="min-h-0 flex-1">
           {/* The line indicator extends below the list; reserve its space inside the scrollport. */}
           <div className="min-w-0 shrink-0 overflow-x-auto overflow-y-hidden pb-1.5">
-            <TabsList
-              variant="line"
-              aria-label={`Inspect ${entry.contract.id} data`}
-              className="w-max"
-            >
-              <TabsTrigger value="effective">Current value</TabsTrigger>
+            <TabsList variant="line" aria-label={`Inspect ${entry.id} data`} className="w-max">
+              <TabsTrigger value="value">Value</TabsTrigger>
               <TabsTrigger value="keys">Keys</TabsTrigger>
-              <TabsTrigger value="confirmed">Confirmed</TabsTrigger>
-              <TabsTrigger value="contract">Contract</TabsTrigger>
+              <TabsTrigger value="schema">Schema</TabsTrigger>
             </TabsList>
           </div>
-          <TabsContent value="effective" className="min-h-0 overflow-auto">
+          <TabsContent value="value" className="min-h-0 overflow-auto">
             <JsonValue
-              value={entry.effective}
-              label={`current value of ${entry.contract.id}`}
-              description={
-                entry.pendingWrites > 0
-                  ? 'Includes pending writes storage has not accepted yet. Consumers still read the Confirmed value.'
-                  : 'The committed value visible to consumers of this owner slice.'
-              }
+              value={entry.value}
+              label={`value of ${entry.id}`}
+              description="The stored record as the server returned it. Each consumer reads it through its own schema, which fills in defaults."
             />
           </TabsContent>
           <TabsContent value="keys" className="min-h-0 overflow-auto">
             <OwnerKeys entry={entry} />
           </TabsContent>
-          <TabsContent value="confirmed" className="min-h-0 overflow-auto">
-            <JsonValue
-              value={entry.confirmed}
-              label={`confirmed value of ${entry.contract.id}`}
-              description="Last authoritative value accepted by the runtime; revision 0 uses the contract default."
-            />
-          </TabsContent>
-          <TabsContent value="contract" className="min-h-0 overflow-auto">
-            <JsonValue
-              value={entry.contract}
-              label={`contract for ${entry.contract.id}`}
-              description="Canonical schema and contract fingerprint. This fingerprint is independent of the record revision."
-            />
+          <TabsContent value="schema" className="min-h-0 overflow-auto">
+            {entry.schema === undefined ? (
+              <StateEmpty
+                title="No owner schema on this page"
+                description="Only definitions that read this owner are loaded. Open the owner to see the schema it validates with."
+              />
+            ) : (
+              <JsonValue
+                value={entry.schema}
+                label={`schema for ${entry.id}`}
+                description="The owner's Zod schema as JSON Schema. It validates the owner's writes and every record it loads."
+              />
+            )}
           </TabsContent>
         </Tabs>
       </PanelContent>
@@ -305,30 +287,32 @@ function StateDetail({ entry }: { readonly entry: UserContextInspectionEntry }):
   )
 }
 
-/** Owner schemas can wrap the object in defaults or optional/nullable nodes. */
-function localKeys(node: StateNode): readonly string[] {
-  if (node.kind === 'default' || node.kind === 'optional' || node.kind === 'nullable')
-    return localKeys(node.inner)
-  return node.kind === 'object' ? Object.keys(node.fields).sort() : []
+/** The owner schema's fields when this page knows it, and any stored keys besides. */
+function localKeys(entry: UserContextInspectionEntry): readonly string[] {
+  const keys = new Set(Object.keys(objectOf(objectOf(entry.schema)?.['properties']) ?? {}))
+  for (const key of Object.keys(objectOf(entry.value) ?? {})) keys.add(key)
+  return [...keys].sort()
+}
+
+function objectOf(value: Json | undefined): Readonly<Record<string, Json>> | undefined {
+  return value !== null && typeof value === 'object' && !Array.isArray(value) ? value : undefined
 }
 
 function OwnerKeys({ entry }: { readonly entry: UserContextInspectionEntry }): ReactNode {
-  const keys = localKeys(entry.contract.node)
-  const value = entry.confirmed
-  const record =
-    value !== null && typeof value === 'object' && !Array.isArray(value) ? value : undefined
+  const keys = localKeys(entry)
+  const record = objectOf(entry.value)
   return (
     <div className="flex min-w-0 flex-col gap-2">
       <p className="text-xs text-muted-foreground">
-        Addresses use owner:localKey. Only {entry.contract.id} can write these values; other apps
-        and widgets read their declared fields. This inspector is read only.
+        Addresses use owner:localKey. Only {entry.id} can write these values; other apps and widgets
+        read their declared fields. This inspector is read only.
       </p>
       {keys.length === 0 ? (
         <StateEmpty title="No local keys" description="This owner declares no context fields." />
       ) : (
         <Accordion multiple>
           {keys.map(key => {
-            const address = `${entry.contract.id}:${key}`
+            const address = `${entry.id}:${key}`
             return (
               <AccordionItem key={key} value={key}>
                 <AccordionTrigger>
@@ -337,14 +321,14 @@ function OwnerKeys({ entry }: { readonly entry: UserContextInspectionEntry }): R
                 <AccordionContent>
                   {record !== undefined && !Object.hasOwn(record, key) ? (
                     <StateEmpty
-                      title="Optional value is not set"
-                      description="This key is declared by the owner but has no committed value."
+                      title="Value is not stored"
+                      description="The owner has not written this key; its schema supplies the default."
                     />
                   ) : (
                     <JsonValue
                       value={record?.[key]}
-                      label={`current value of ${address}`}
-                      description="Committed value, including nested fields. Pending writes are not shown."
+                      label={`value of ${address}`}
+                      description="Stored value, including nested fields."
                     />
                   )}
                 </AccordionContent>
@@ -374,8 +358,8 @@ function JsonValue({
   if (json === undefined)
     return (
       <StateEmpty
-        title="Value has not been loaded"
-        description="Open a micro-frontend that consumes this contract. Inspecting it does not trigger hydration."
+        title="No stored value"
+        description="The owner has not written a value yet, or its record is still loading. Readers see their schema defaults."
       />
     )
   const limit = 20000

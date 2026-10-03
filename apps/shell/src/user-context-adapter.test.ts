@@ -5,14 +5,9 @@ afterEach(() => vi.unstubAllGlobals())
 
 it.each([
   { status: 400, code: 'unauthorized-owner' },
-  { status: 409, code: 'conflict' },
+  { status: 400, code: 'invalid-value' },
 ])('preserves the backend $code failure', async ({ status, code }) => {
-  const operation = {
-    id: 'well-inspection',
-    expectedRevision: 0,
-    operationId: 'forbidden',
-    value: { brief: null },
-  }
+  const operation = { id: 'well-inspection', value: { brief: null } }
   vi.stubGlobal(
     'fetch',
     vi.fn(async (url: string, request: RequestInit) => {
@@ -32,17 +27,14 @@ it.each([
   })
 })
 
-it('classifies a failure whose body is not JSON by its status', async () => {
+it('reports a failure whose body is not JSON as a persistence failure', async () => {
   vi.stubGlobal(
     'fetch',
-    vi.fn(async () => new Response('Bad gateway', { status: 409 })),
+    vi.fn(async () => new Response('Bad gateway', { status: 502 })),
   )
   await expect(
-    userContextAdapter.write(
-      { id: 'lab', expectedRevision: 0, operationId: 'retry', value: {} },
-      new AbortController().signal,
-    ),
-  ).rejects.toMatchObject({ code: 'user-context/conflict' })
+    userContextAdapter.write({ id: 'lab', value: {} }, new AbortController().signal),
+  ).rejects.toMatchObject({ code: 'user-context/persistence-failed' })
 })
 
 it('hydrates only owner IDs and forwards cancellation to the authenticated API', async () => {

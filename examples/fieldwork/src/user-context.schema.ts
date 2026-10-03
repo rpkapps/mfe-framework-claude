@@ -7,7 +7,10 @@ export const inspectionUserContextSchema = z.object({
     .nullable()
     .default(null),
 })
-/** Consumers declare only the fields they need, without importing Lab's owned schema. */
+/**
+ * Consumers declare only the fields they need, without importing Lab's owned schema, and a
+ * default for what Lab may not have saved yet.
+ */
 const selectionReadSchema = z
   .object({
     wellId: z.string(),
@@ -15,8 +18,9 @@ const selectionReadSchema = z
     comparisonMode: z.enum(['baseline', 'overlay']),
   })
   .nullable()
+  .default(null)
 export const labReadSchema = z.object({
-  units: z.enum(['metric', 'imperial']),
+  units: z.enum(['metric', 'imperial']).default('metric'),
   'well-selection': selectionReadSchema,
 })
 // The App's resolver needs only the selection; the Widget also displays units.

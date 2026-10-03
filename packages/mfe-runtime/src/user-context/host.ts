@@ -1,141 +1,99 @@
 import type { z } from 'zod'
-import type { Registry, ShellUser } from '@company/mfe-core'
+import type { ShellUser } from '@company/mfe-core'
 import {
   UserContextError,
-  type StateContract,
-  type UserContextAdapter as ScopedUserContextAdapter,
-  type StateWrite as ScopedStateWrite,
-  type StateRecord,
-  type UserContextRequirements,
+  type UserContextAdapter,
+  type UserContextOwner,
   type UserContextService,
 } from '@company/mfe-core/user-context'
 
 import type { ShellStateStore } from '../shell-state/shell-state-store.ts'
 import { UserContextRuntime } from './store.ts'
 
-/** A write for the signed-in user; authentication identifies the user at the backend. */
-export type StateWrite = Omit<ScopedStateWrite, 'scope'>
+/** The owner ID of the shell's own slice. */
+export const HOST_USER_CONTEXT_ID = 'shell'
 
-/** Shell persistence transport. The framework manages user changes and request cancellation. */
-export interface UserContextAdapter {
-  hydrate(ids: readonly string[], signal: AbortSignal): Promise<readonly StateRecord[]>
-  write(operation: StateWrite, signal: AbortSignal): Promise<StateRecord>
-  subscribe?(listener: (record: StateRecord) => void, signal: AbortSignal): () => void
-}
-
-/** Persistence is the shell's concern; generated deployment metadata supplies the contracts. */
+/** The shell's persistence and its own declaration, beside it in the host factory. */
 export interface HostUserContextOptions<
   Schema extends z.ZodObject | undefined = z.ZodObject | undefined,
 > {
-  /** Own values, compiled away by the host builder. */
+  /** The shell's own slice, owned under the ID `shell`. */
   readonly schema?: Schema
-  /** Only the foreign fields this shell reads, compiled away by the host builder. */
+  /** Only the foreign fields this shell reads. */
   readonly reads?: Readonly<Record<string, z.ZodObject>>
   readonly adapter: UserContextAdapter
   readonly onError?: (error: unknown, id: string) => void
 }
 
-/** @internal Injected by the host build transform, never assembled by application code. */
-export interface HostUserContextDefinition {
-  readonly contract?: StateContract
-  readonly requirements: UserContextRequirements
-}
-
-/** An opaque transport partition, never an authorization credential. */
+/** Partitions the per-user theme cache; never an authorization credential. */
 export function userScope(user: ShellUser): string {
   return JSON.stringify([user.tenantId ?? null, user.accountId ?? null, user.id])
 }
 
-function identity(user: ShellUser | null): string {
-  return user === null ? '@signed-out' : userScope(user)
-}
-
 /**
- * The host derives identity from its existing session lifecycle. The low-level runtime retains
- * its explicit scope API for servers and tests; a browser shell never has to coordinate it.
+ * Nothing is read or written while nobody is signed in, and the store starts over whenever the
+ * signed-in user changes, so an old mount can never read the next user's data.
  */
 export function createHostUserContext(options: {
   readonly persistence: HostUserContextOptions
-  readonly registry: Registry
   readonly shellState: ShellStateStore
-  readonly definition?: HostUserContextDefinition | undefined
 }): { readonly service: UserContextService; dispose(): void } {
-  const { persistence, registry, shellState, definition } = options
-  const contracts = [...registry.entries.values()].flatMap(entry => {
-    const contract = entry.userContextContract
-    if (contract === undefined) return []
-    if (contract.id !== entry.id)
-      throw new UserContextError(
-        'unsupported-contract',
-        entry.id,
-        'Registry contract owner does not match its definition',
-      )
-    return [contract]
+  const { persistence, shellState } = options
+  const host: UserContextOwner | undefined =
+    persistence.schema === undefined && persistence.reads === undefined
+      ? undefined
+      : {
+          id: HOST_USER_CONTEXT_ID,
+          userContext: {
+            ...(persistence.schema === undefined ? {} : { schema: persistence.schema }),
+            ...(persistence.reads === undefined ? {} : { reads: persistence.reads }),
+          },
+        }
+  const runtime = new UserContextRuntime({
+    adapter: persistence.adapter,
+    host,
+    ...(persistence.onError === undefined ? {} : { onError: persistence.onError }),
   })
-  if (definition?.contract !== undefined) {
-    if (definition.contract.id !== definition.requirements.ownerId)
-      throw new UserContextError(
-        'unsupported-contract',
-        definition.contract.id,
-        'Shell contract owner does not match its generated definition',
-      )
-    contracts.push(definition.contract)
-  }
-  const requireUser = (scope?: string): void => {
-    if (shellState.getUser() === null)
+  const identity = (user: ShellUser | null): string | null =>
+    user === null ? null : userScope(user)
+  let current = identity(shellState.getUser())
+  const requireUser = (): void => {
+    const user = shellState.getUser()
+    if (user === null)
       throw new UserContextError(
         'not-ready',
         '<user>',
         'Sign in before reading or writing persisted user context',
       )
-    if (scope !== undefined && scope !== identity(shellState.getUser()))
+    // An identity observer registered before this one runs while the store still holds the
+    // previous user; it must not start a request under the next user's session.
+    if (identity(user) !== current)
       throw new UserContextError(
         'scope-disposed',
         '<user>',
-        'The request belongs to a previous signed-in identity',
+        'The signed-in user changed; the shell remounts what it shows',
       )
   }
-  const adapter: ScopedUserContextAdapter = {
-    hydrate: (scope, ids, signal) => {
-      requireUser(scope)
-      return persistence.adapter.hydrate(ids, signal)
-    },
-    write: (operation, signal) => {
-      requireUser(operation.scope)
-      const { scope: _scope, ...write } = operation
-      return persistence.adapter.write(write, signal)
-    },
-    subscribe: (scope, listener, signal) => {
-      if (shellState.getUser() === null) return () => {}
-      requireUser(scope)
-      return persistence.adapter.subscribe?.(listener, signal) ?? (() => {})
-    },
-  }
-  const runtime = new UserContextRuntime({
-    schema: { formatVersion: 1, contracts },
-    scope: identity(shellState.getUser()),
-    adapter,
-    ...(persistence.onError === undefined ? {} : { onError: persistence.onError }),
-  })
   const stop = shellState.observeTransitions(change => {
-    if (change.transitions.some(transition => transition.kind === 'identity'))
-      runtime.setScope(identity(change.next.user))
+    if (!change.transitions.some(transition => transition.kind === 'identity')) return
+    current = identity(change.next.user)
+    runtime.reset()
   })
   return {
     service: {
-      protocolVersion: 1,
       inspection: runtime.inspection,
-      prepare: async (requirements, signal) => {
+      host,
+      prepare: async (owner, signal) => {
         requireUser()
-        await runtime.prepare(requirements, signal)
+        await runtime.prepare(owner, signal)
       },
-      bind: (definitionId, requirements, signal) => {
+      bind: (owner, signal) => {
         requireUser()
-        return runtime.bind(definitionId, requirements, signal)
+        return runtime.bind(owner, signal)
       },
-      bindReadOnly: (definitionId, requirements, ownerId, signal) => {
+      bindReadOnly: (owner, ownerId, signal) => {
         requireUser()
-        return runtime.bindReadOnly(definitionId, requirements, ownerId, signal)
+        return runtime.bindReadOnly(owner, ownerId, signal)
       },
     },
     dispose: () => {

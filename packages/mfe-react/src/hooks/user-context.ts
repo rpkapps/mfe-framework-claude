@@ -4,7 +4,6 @@ import {
   UserContextError,
   type UserContextReader,
   type UserContextStore,
-  type UserContextRequirements,
   type UserContextService,
 } from '@company/mfe-core/user-context'
 import { useMfeMount, useOptionalMfeMount } from '../mount-context.tsx'
@@ -12,8 +11,10 @@ import { useMfeRuntime } from '../runtime-context.tsx'
 
 export type {
   UserContextReader,
+  UserContextReadsOf,
   UserContextStore,
   UserContextSetter,
+  UserContextValuesOf,
 } from '@company/mfe-core/user-context'
 
 /** Generated per definition; selectors subscribe only to the paths they read. */
@@ -42,9 +43,9 @@ export function createUserContextBindings<
       typeof selector !== 'function'
     )
       throw new UserContextError(
-        'unsupported-contract',
+        'undeclared',
         definitionId,
-        'Use the generated binding with a selector for this mounted definition',
+        'Use the generated binding with a selector, inside the definition it was generated for',
       )
     const store = (
       ownerId === undefined ? mount.userContext : mount.resolveUserContext?.(ownerId)
@@ -90,16 +91,14 @@ type HostPreparation = {
   readonly readers: Map<string, UserContextReader>
   store?: UserContextStore
 }
-const hostPreparations = new WeakMap<
-  UserContextService,
-  Map<UserContextRequirements, HostPreparation>
->()
+/** One hydration per runtime and signed-in user, shared by every component that reads it. */
+const hostPreparations = new WeakMap<UserContextService, HostPreparation>()
 
 /** @internal Generated shell binding; application components still call only useUserContext. */
 export function createHostUserContextBindings<
   V,
   Reads extends Record<string, unknown> = Record<never, never>,
->(requirements: UserContextRequirements) {
+>() {
   function useUserContext<T>(
     selector: (context: Readonly<V>) => T,
   ): readonly [T, UserContextStore<V>['set']]
@@ -114,13 +113,14 @@ export function createHostUserContextBindings<
     const mount = useOptionalMfeMount()
     const runtime = useMfeRuntime('useUserContext()')
     const service = runtime.userContext
+    const host = service?.host
     const ownerId = typeof selectorOrOwner === 'string' ? selectorOrOwner : undefined
     const selector = ownerId === undefined ? selectorOrOwner : foreignSelector
-    if (mount || !service || typeof selector !== 'function')
+    if (mount || !service || !host || typeof selector !== 'function')
       throw new UserContextError(
-        'unsupported-contract',
-        requirements.ownerId,
-        'Use the generated shell binding inside its MfeProvider, outside an App or Widget mount',
+        'undeclared',
+        host?.id ?? '<shell>',
+        'Use the generated shell binding inside its MfeProvider, outside an App or Widget mount, with userContext declared on createMfeRuntime',
       )
     const inspection = service.inspection
     const observer = useMemo(
@@ -135,18 +135,13 @@ export function createHostUserContextBindings<
       observer.getSnapshot,
       observer.getSnapshot,
     )
-    let preparations = hostPreparations.get(service)
-    if (!preparations) {
-      preparations = new Map()
-      hostPreparations.set(service, preparations)
-    }
-    let preparation = preparations.get(requirements)
+    let preparation = hostPreparations.get(service)
     if (!preparation || preparation.generation !== generation) {
       const current: HostPreparation = {
         generation,
         status: 'pending',
         readers: new Map(),
-        promise: service.prepare(requirements).then(
+        promise: service.prepare(host).then(
           () => {
             current.status = 'ready'
           },
@@ -156,7 +151,7 @@ export function createHostUserContextBindings<
           },
         ),
       }
-      preparations.set(requirements, current)
+      hostPreparations.set(service, current)
       preparation = current
     }
     // React Suspense consumes the shared hydration promise and retries after it settles.
@@ -165,12 +160,12 @@ export function createHostUserContextBindings<
     if (preparation.status === 'failed') throw preparation.error
     let store: UserContextReader
     if (ownerId === undefined) {
-      preparation.store ??= service.bind(requirements.ownerId, requirements)
+      preparation.store ??= service.bind(host)
       store = preparation.store
     } else {
       let reader = preparation.readers.get(ownerId)
       if (!reader) {
-        reader = service.bindReadOnly(requirements.ownerId, requirements, ownerId)
+        reader = service.bindReadOnly(host, ownerId)
         preparation.readers.set(ownerId, reader)
       }
       store = reader

@@ -1,12 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
-import { runInNewContext } from 'node:vm'
 import { readFileSync, writeFileSync } from 'node:fs'
 import hostUserContextLoader from '../user-context/host-loader.ts'
 import { join, resolve } from 'node:path'
 import { ts } from '../discovery/ts-ast.ts'
-import { transformUserContextSource } from '../user-context/transform.ts'
-import { build } from 'esbuild'
 
 import { checkConfigField, type ConfigFieldSpec } from '../config/check.ts'
 import { cleanupContainers, createContainer } from '../testing/fixtures.ts'
@@ -235,9 +232,15 @@ describe('shell-owned user context', () => {
     expect(module).toContain('createHostUserContextBindings<UserContextValues, UserContextReads>')
     expect(module).not.toContain('createMfeRuntime')
     expect(module).not.toContain('zod')
-    expect(result.userContext?.registration.contract).toMatchObject({ id: 'shell' })
+    const declaration = result.files.find(file =>
+      file.path.endsWith('/user-context.declaration.ts'),
+    )!.contents
+    expect(declaration).toContain(`const settings = ${schema}`)
+    expect(declaration).toContain(
+      'export const declaration = { schema: settings, reads: {operations:',
+    )
   })
-  it('follows custom entry imports and compiles imported owner schemas without evaluating them', () => {
+  it('follows custom entry imports and types imported owner schemas without evaluating them', () => {
     const result = host(
       {
         'client/main.ts': `import('./boot')`,
@@ -247,65 +250,37 @@ describe('shell-owned user context', () => {
       ['client/main.ts'],
     )
     expect(result.userContext?.source).toMatch(/client[/\\]boot.ts$/)
-    expect(result.userContext?.registration.contract).toMatchObject({ id: 'shell' })
+    expect(result.userContext?.declaration.schema).toBe('settings')
+    expect(result.userContext?.declaration.imports).toHaveLength(1)
+    expect(result.userContext?.declaration.imports[0]?.from).toMatch(/client[/\\]schema$/)
   })
-  it('recompiles changed imported schemas and refreshes hook types during watch builds', () => {
-    const authored = `import {createMfeRuntime} from '@company/mfe-react/host'; import {schema} from './schema'; createMfeRuntime({userContext:{schema,adapter}})`
+  it('passes the entry through and refreshes the declaration during watch builds', () => {
+    const authored = `import {z} from 'zod'; import {createMfeRuntime} from '@company/mfe-react/host'; import {reads} from './reads'; createMfeRuntime({userContext:{schema:z.object({theme:z.string()}),reads,adapter}})`
     const result = host({
       'src/index.ts': authored,
-      'src/schema.ts': `import {z} from 'zod'; export const schema=z.object({theme:z.string()})`,
+      'src/reads.ts': `import {z} from 'zod'; export const reads={lab:z.object({units:z.string()})}`,
     })
     const dependencies: string[] = []
     const loader = {
-      resourcePath: result.userContext!.source,
       addDependency: (file: string) => {
         dependencies.push(file)
       },
       getOptions: () => ({
         root: result.options.containerRoot,
-        id: 'shell',
         generatedDir: result.options.generatedDir,
         generator: 'test',
       }),
     }
-    const before = hostUserContextLoader.call(loader, authored)
-    const schemaFile = join(result.options.containerRoot, 'src/schema.ts')
-    writeFileSync(
-      schemaFile,
-      `import {z} from 'zod'; export const schema=z.object({theme:z.enum(['light','dark'])})`,
-    )
-    const after = hostUserContextLoader.call(loader, authored)
-    expect(after).not.toEqual(before)
-    expect(dependencies).toContain(schemaFile)
-    expect(readFileSync(join(result.options.generatedDir, 'user-context.ts'), 'utf8')).toContain(
-      '"dark" | "light"',
-    )
-  })
-  it('strips schema-only dependencies while preserving transport and normal runtime imports', async () => {
-    const result = host()
-    const transformed = transformUserContextSource(
-      source + '\nexport type Settings = z.infer<typeof settings>',
-      'boot.ts',
-      {},
-      result.userContext!.registration,
-    )
-    expect(transformed).toContain('adapter')
-    expect(transformed).toContain('onError(error)')
-    expect(transformed).toContain('report(error)')
-    expect(transformed).toContain('__userContext:')
-    expect(transformed).toContain('...hostOptions')
-    const bundle = await build({
-      stdin: { contents: transformed, loader: 'ts' },
-      bundle: true,
-      write: false,
-      metafile: true,
-      external: ['@company/mfe-react/host'],
-      minify: true,
-      format: 'esm',
-    })
-    expect(Object.keys(bundle.metafile.inputs)).toEqual(['<stdin>'])
-    expect(bundle.outputFiles[0]!.text).not.toContain('zod')
-    expect(bundle.outputFiles[0]!.text).toContain('onError(')
+    const entry = join(result.options.containerRoot, 'src/index.ts')
+    const changed = authored.replace('z.string()', "z.enum(['light','dark'])")
+    writeFileSync(entry, changed)
+    // The runtime validates with the authored schema, so the source itself is never rewritten.
+    expect(hostUserContextLoader.call(loader, changed)).toBe(changed)
+    expect(dependencies).toContain(entry)
+    expect(dependencies).toContain(join(result.options.containerRoot, 'src/reads.ts'))
+    expect(
+      readFileSync(join(result.options.generatedDir, 'user-context.declaration.ts'), 'utf8'),
+    ).toContain("schema: z.object({theme:z.enum(['light','dark'])})")
   })
   it.each([
     source.replace('schema:settings,', '...other,schema:settings,'),
@@ -315,74 +290,11 @@ describe('shell-owned user context', () => {
   ])('rejects ambiguous host context declarations', value => {
     expect(() => host({ 'src/index.ts': value })).toThrow()
   })
-  it('preserves evaluation order of live adapter, error handler and later runtime options', () => {
-    const authored = `import {z} from 'zod'; import {createMfeRuntime} from '@company/mfe-react/host'; createMfeRuntime({userContext:{schema:z.object({theme:z.string()}),adapter:mark('adapter'),onError:mark('onError')},loader:mark('loader')})`
-    const result = host({ 'src/index.ts': authored })
-    const transformed = transformUserContextSource(
-      authored,
-      'index.ts',
-      {},
-      result.userContext!.registration,
-    )
-    const calls: string[] = []
-    runInNewContext(
-      ts.transpileModule(transformed, {
-        compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-      }).outputText,
-      {
-        exports: {},
-        require: () => ({
-          createMfeRuntime: () => {
-            calls.push('runtime')
-          },
-        }),
-        mark: (name: string) => {
-          calls.push(name)
-          return name
-        },
-      },
-    )
-    expect(calls).toEqual(['adapter', 'onError', 'loader', 'runtime'])
-  })
-  it('preserves JSX in custom host entries', () => {
-    const authored = source + '\nroot.render(<App />)'
-    const result = host({ 'client/start.jsx': authored }, ['client/start.jsx'])
-    const transformed = transformUserContextSource(
-      authored,
-      'client/start.jsx',
-      {},
-      result.userContext!.registration,
-    )
-    expect(transformed).toContain('root.render(<App />)')
-  })
-  it('keeps unrelated side effects whose binding names match schema fields', () => {
-    const authored = source.replace(
-      'const settings',
-      'const theme = registerTheme(); const string = registerString(); const settings',
-    )
-    const result = host({ 'src/index.ts': authored })
-    const transformed = transformUserContextSource(
-      authored,
-      'index.ts',
-      {},
-      result.userContext!.registration,
-    )
-    expect(transformed).toContain('const theme = registerTheme()')
-    expect(transformed).toContain('const string = registerString()')
-  })
   it('ignores local functions shadowing the imported runtime factory', () => {
     const authored =
       source +
       `function helper(createMfeRuntime: Function) { createMfeRuntime({userContext:{schema:unrelated,adapter}}); }`
-    const result = host({ 'src/index.ts': authored })
-    const transformed = transformUserContextSource(
-      authored,
-      'index.ts',
-      {},
-      result.userContext!.registration,
-    )
-    expect(transformed).toContain('schema: unrelated')
-    expect(transformed.match(/__userContext:/g)).toHaveLength(1)
+    expect(host({ 'src/index.ts': authored }).userContext?.declaration.schema).toBe('settings')
   })
   it('ignores type-only modules and refuses unsupported Angular host bindings', () => {
     expect(
@@ -407,8 +319,12 @@ describe('shell-owned user context', () => {
   it('typechecks generated host hooks and foreign read-only boundaries', () => {
     const result = host()
     const generated = result.files.find(file => file.path.endsWith('/user-context.ts'))!.contents
+    const declaration = result.files.find(file =>
+      file.path.endsWith('/user-context.declaration.ts'),
+    )!.contents
     const root = createContainer({
       'user-context.ts': generated,
+      'user-context.declaration.ts': declaration,
       'consumer.ts': `import {useUserContext} from './user-context';
 function component() {
   const [theme, set] = useUserContext(context => context.preferences.theme);
@@ -441,6 +357,7 @@ function component() {
       noEmit: true,
       jsx: ts.JsxEmit.ReactJSX,
       paths: {
+        zod: [join(repository, 'packages/mfe-build/node_modules/zod/index.d.cts')],
         '@company/mfe-react/host': [join(repository, 'packages/mfe-react/src/host/index.ts')],
         '@company/mfe-react/user-context': [
           join(repository, 'packages/mfe-react/src/hooks/user-context.ts'),

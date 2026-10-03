@@ -19,13 +19,8 @@ function setup() {
     })
   return { ...storage, authorize, forOwner }
 }
-function operation(
-  id: string,
-  value: Json,
-  expectedRevision = 0,
-  operationId = 'save',
-): StateWrite {
-  return { scope: 'user-one', id, value, expectedRevision, operationId }
+function operation(id: string, value: Json): StateWrite {
+  return { id, value: value as StateWrite['value'] }
 }
 
 describe('opaque user-context persistence', () => {
@@ -34,7 +29,7 @@ describe('opaque user-context persistence', () => {
     const { forOwner } = setup()
     const backend = forOwner('new-widget')
     const value = { arbitrary: { future: [true, null, { field: 'unknown to the server' }] } }
-    expect(await backend.write(operation('new-widget', value), signal())).toEqual({
+    expect(await backend.write('user-one', operation('new-widget', value), signal())).toEqual({
       id: 'new-widget',
       revision: 1,
       value,
@@ -45,11 +40,12 @@ describe('opaque user-context persistence', () => {
     ])
   })
 
-  it('merges a partial nested value while preserving unknown siblings, unrelated owners, and other users', async () => {
+  it('replaces each submitted key while preserving other keys, unrelated owners, and other users', async () => {
     const { forOwner } = setup()
     const lab = forOwner('lab')
     const shell = forOwner('shell')
     await lab.write(
+      'user-one',
       operation('lab', {
         selection: { well: '42', run: 'one', future: { retained: true } },
         unknownPreference: { preserve: 'yes' },
@@ -57,9 +53,13 @@ describe('opaque user-context persistence', () => {
       }),
       signal(),
     )
-    await shell.write(operation('shell', { theme: 'dark', unknown: 123 }), signal())
-    await lab.write({ ...operation('lab', { units: 'imperial' }), scope: 'user-two' }, signal())
-    await lab.write(operation('lab', { selection: { run: 'two' } }, 1, 'update-run'), signal())
+    await shell.write('user-one', operation('shell', { theme: 'dark', unknown: 123 }), signal())
+    await lab.write('user-two', operation('lab', { units: 'imperial' }), signal())
+    await lab.write(
+      'user-one',
+      operation('lab', { selection: { well: '42', run: 'two', future: { retained: true } } }),
+      signal(),
+    )
     expect(await lab.hydrate('user-one', ['lab', 'shell'], signal())).toEqual([
       {
         id: 'lab',
@@ -81,11 +81,13 @@ describe('opaque user-context persistence', () => {
     const { forOwner } = setup()
     const backend = forOwner('lab')
     await backend.write(
+      'user-one',
       operation('lab', { array: [1, 2], nested: { retained: true }, old: 'unchanged' }),
       signal(),
     )
     const result = await backend.write(
-      operation('lab', { array: [3], nested: null }, 1, 'replace'),
+      'user-one',
+      operation('lab', { array: [3], nested: null }),
       signal(),
     )
     expect(result.value).toEqual({ array: [3], nested: null, old: 'unchanged' })
@@ -98,8 +100,8 @@ describe('opaque user-context persistence', () => {
       '{"__proto__":{"polluted":"no"},"constructor":{"prototype":{"kept":true}}}',
     ) as Json
     const backend = forOwner('lab')
-    await backend.write(operation('lab', value), signal())
-    const result = await backend.write(operation('lab', { units: 'metric' }, 1, 'second'), signal())
+    await backend.write('user-one', operation('lab', value), signal())
+    const result = await backend.write('user-one', operation('lab', { units: 'metric' }), signal())
     expect(JSON.parse(JSON.stringify(result.value))).toEqual({
       ...(value as object),
       units: 'metric',
@@ -111,14 +113,14 @@ describe('opaque user-context persistence', () => {
     const { forOwner, authorize, records } = setup()
     const backend = forOwner('lab')
     await expect(
-      backend.write(operation('shell', { ownerId: 'lab', theme: 'dark' }), signal()),
+      backend.write('user-one', operation('shell', { ownerId: 'lab', theme: 'dark' }), signal()),
     ).rejects.toMatchObject({ code: 'user-context/unauthorized-owner' })
     expect(records.size).toBe(0)
     expect(authorize).not.toHaveBeenCalled()
     authorize.mockRejectedValueOnce(new Error('Wrong authenticated user'))
-    await expect(backend.write(operation('lab', { units: 'metric' }), signal())).rejects.toThrow(
-      'Wrong authenticated user',
-    )
+    await expect(
+      backend.write('user-one', operation('lab', { units: 'metric' }), signal()),
+    ).rejects.toThrow('Wrong authenticated user')
     expect(records.size).toBe(0)
     authorize.mockRejectedValueOnce(new Error('Read forbidden'))
     await expect(backend.hydrate('user-one', ['lab'], signal())).rejects.toThrow('Read forbidden')
@@ -129,28 +131,27 @@ describe('opaque user-context persistence', () => {
     async invalid => {
       const { forOwner, records } = setup()
       await expect(
-        forOwner('lab').write(operation('lab', invalid as Json), signal()),
+        forOwner('lab').write('user-one', operation('lab', invalid as Json), signal()),
       ).rejects.toMatchObject({ code: 'user-context/invalid-value' })
       expect(records.size).toBe(0)
     },
   )
 
-  it('uses CAS and durable receipts for conflicting writes and retries after later updates', async () => {
+  it('lets the last write of a key win and bumps the revision without comparing it', async () => {
     const { forOwner } = setup()
     const backend = forOwner('lab')
-    const first = operation('lab', { selection: { well: '42' } })
-    const accepted = await backend.write(first, signal())
-    await backend.write(operation('lab', { selection: { run: 'two' } }, 1, 'second'), signal())
-    expect(await backend.write(first, signal())).toEqual(accepted)
-    await expect(backend.write({ ...first, value: { selection: null } }, signal())).rejects.toThrow(
-      'reused',
-    )
-    await expect(backend.write({ ...first, operationId: 'stale' }, signal())).rejects.toMatchObject(
-      { code: 'user-context/conflict' },
-    )
-    expect((await backend.hydrate('user-one', ['lab'], signal()))[0]).toMatchObject({
-      revision: 2,
-      value: { selection: { well: '42', run: 'two' } },
+    const writes = await Promise.all([
+      backend.write('user-one', operation('lab', { selection: { well: '42' } }), signal()),
+      backend.write('user-one', operation('lab', { selection: { run: 'two' } }), signal()),
+      backend.write('user-one', operation('lab', { units: 'metric' }), signal()),
+      backend.write('user-one', operation('lab', { units: 'imperial' }), signal()),
+    ])
+    expect(writes.map(write => write.revision)).toEqual([1, 2, 3, 4])
+    expect((await backend.hydrate('user-one', ['lab'], signal()))[0]).toEqual({
+      id: 'lab',
+      revision: 4,
+      // A key is replaced whole: the client sends it complete, so nested fields never mix.
+      value: { selection: { run: 'two' }, units: 'imperial' },
     })
   })
 
@@ -176,7 +177,7 @@ describe('opaque user-context persistence', () => {
       },
     })
     const value = { nested: { intention: 'original' } }
-    const pending = backend.write(operation('lab', value), signal())
+    const pending = backend.write('user-one', operation('lab', value), signal())
     await started
     value.nested.intention = 'changed by caller'
     release()
@@ -203,7 +204,9 @@ describe('opaque user-context persistence', () => {
       },
     })
     const accepted = vi.fn()
-    const pending = backend.write(operation('lab', { value: 'saved' }), signal()).then(accepted)
+    const pending = backend
+      .write('user-one', operation('lab', { value: 'saved' }), signal())
+      .then(accepted)
     await Promise.resolve()
     await Promise.resolve()
     expect(accepted).not.toHaveBeenCalled()

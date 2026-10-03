@@ -3,27 +3,68 @@ import { resolve } from 'node:path'
 import { resolveRelativeModule } from '../discovery/local-modules.ts'
 import { standaloneSources } from '../discovery/sources.ts'
 import { collectImportedBindings, ts } from '../discovery/ts-ast.ts'
-import { compileUserContext, compileUserContextReads, requirementsFor } from './compiler.ts'
-import {
-  HOST_RUNTIME_MODULES,
-  isImportedRuntimeCall,
-  userContextExpression,
-  type HostUserContextTransform,
-} from './transform.ts'
-import { bindingTypes } from './generate.ts'
 import { banner, generatedPath, type GeneratedFile } from '../generate/emit.ts'
+import {
+  readUserContextSource,
+  userContextDeclarationModule,
+  userContextExpression,
+  type UserContextSource,
+} from './declaration.ts'
+import { bindingTypes } from './generate.ts'
 
 export interface HostUserContextPlan {
   readonly source: string
   readonly dependencies: readonly string[]
-  readonly registration: HostUserContextTransform
-  readonly values: string
-  readonly reads: string
+  readonly declaration: UserContextSource
+}
+export const HOST_RUNTIME_MODULES = [
+  '@company/mfe-react/host',
+  '@company/mfe-angular/host',
+  '@company/mfe-runtime',
+]
+/** A matching imported name can still be shadowed by an ordinary local function or variable. */
+export function isImportedRuntimeCall(identifier: ts.Identifier): boolean {
+  const binds = (name: ts.BindingName): boolean =>
+    ts.isIdentifier(name)
+      ? name.text === identifier.text
+      : name.elements.some(element => ts.isBindingElement(element) && binds(element.name))
+  for (let scope = identifier.parent; scope && !ts.isSourceFile(scope); scope = scope.parent) {
+    if (ts.isFunctionLike(scope) && scope.parameters.some(parameter => binds(parameter.name)))
+      return false
+    if (
+      (ts.isFunctionExpression(scope) || ts.isClassExpression(scope)) &&
+      scope.name?.text === identifier.text
+    )
+      return false
+    if (
+      (ts.isForStatement(scope) || ts.isForInStatement(scope) || ts.isForOfStatement(scope)) &&
+      scope.initializer &&
+      ts.isVariableDeclarationList(scope.initializer) &&
+      scope.initializer.declarations.some(declaration => binds(declaration.name))
+    )
+      return false
+    if (
+      ts.isCatchClause(scope) &&
+      scope.variableDeclaration &&
+      binds(scope.variableDeclaration.name)
+    )
+      return false
+    if (
+      ts.isBlock(scope) &&
+      scope.statements.some(statement =>
+        ts.isVariableStatement(statement)
+          ? statement.declarationList.declarations.some(declaration => binds(declaration.name))
+          : (ts.isFunctionDeclaration(statement) || ts.isClassDeclaration(statement)) &&
+            statement.name?.text === identifier.text,
+      )
+    )
+      return false
+  }
+  return true
 }
 /** Follow the host's entry graph; never evaluate application modules or inspect unrelated tests. */
 export function discoverHostUserContext(
   root: string,
-  id: string,
   entries?: readonly string[],
 ): HostUserContextPlan | undefined {
   const sources = standaloneSources()
@@ -56,23 +97,14 @@ export function discoverHostUserContext(
               throw new Error(
                 'Declare userContext schema/reads on exactly one createMfeRuntime call per host',
               )
-            const own = schema
-              ? compileUserContext(id, schema, file, sources).contracts[0]
-              : undefined
-            const foreign = reads ? compileUserContextReads(id, reads, file, sources) : []
             if (factories.get(node.expression.text)?.moduleSpecifier.includes('angular'))
               throw new Error(
                 'Angular host user-context bindings are not supported by the React host build integration',
               )
-            const contracts = [...(own ? [own] : []), ...foreign]
             result = {
               dependencies: [],
               source: filename,
-              registration: {
-                ...(own ? { contract: own } : {}),
-                requirements: requirementsFor({ formatVersion: 1, contracts }, id),
-              },
-              ...bindingTypes(contracts, id),
+              declaration: readUserContextSource(file, schema, reads),
             }
           }
         }
@@ -112,20 +144,26 @@ export function discoverHostUserContext(
   }
   return result ? { ...result, dependencies: [...visited] } : undefined
 }
-export function hostUserContextFile(
+export function hostUserContextFiles(
   plan: HostUserContextPlan,
   generatedDir: string,
   generator: string,
-): GeneratedFile {
-  return {
-    path: generatedPath(generatedDir, 'user-context.ts'),
-    contents: [
-      banner(generator, '#mfe/user-context'),
-      "import { createHostUserContextBindings } from '@company/mfe-react/user-context'",
-      `export type UserContextValues = ${plan.values}`,
-      `export type UserContextReads = ${plan.reads}`,
-      `export const { useUserContext } = createHostUserContextBindings<UserContextValues, UserContextReads>(${JSON.stringify(plan.registration.requirements)})`,
-      '',
-    ].join('\n'),
-  }
+): readonly GeneratedFile[] {
+  const declaration = generatedPath(generatedDir, 'user-context.declaration.ts')
+  return [
+    {
+      path: declaration,
+      contents: userContextDeclarationModule(plan.declaration, declaration, generator),
+    },
+    {
+      path: generatedPath(generatedDir, 'user-context.ts'),
+      contents: [
+        banner(generator, '#mfe/user-context'),
+        "import { createHostUserContextBindings } from '@company/mfe-react/user-context'",
+        ...bindingTypes('react', './user-context.declaration.ts'),
+        'export const { useUserContext } = createHostUserContextBindings<UserContextValues, UserContextReads>()',
+        '',
+      ].join('\n'),
+    },
+  ]
 }

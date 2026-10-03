@@ -64,9 +64,6 @@ function entriesFor(published, presentation, origin) {
       // The widget catalogue renders a form from this before anything is loaded, so it has to
       // be in the registry rather than behind a container fetch (§16).
       ...(definition.contract === undefined ? {} : { contract: definition.contract }),
-      ...(definition.userContextContract === undefined
-        ? {}
-        : { userContextContract: definition.userContextContract }),
       // The build belongs to the container rather than to any definition it exports, so every
       // entry from that build repeats it; a bug report is the only reader (§29).
       ...(published.build === undefined ? {} : { build: published.build }),

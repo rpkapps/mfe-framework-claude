@@ -1,82 +1,53 @@
 import { describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 import { isMfeError } from '@company/mfe-core'
-import {
-  stateCapabilities,
-  type UserContextAdapter,
-  type UserContextRequirements,
-  type StateContract,
-  type StateRecord,
-  type StateWrite,
+import type {
+  StateRecord,
+  StateWrite,
+  UserContextAdapter,
+  UserContextOwner,
 } from '@company/mfe-core/user-context'
-import { createTestUserContextRepository } from '../testing/user-context.ts'
+import {
+  createTestUserContextRepository,
+  scopedUserContextAdapter,
+} from '../testing/user-context.ts'
 import { createUserContextBackend } from './backend.ts'
 import { UserContextRuntime } from './store.ts'
 
-const owner: StateContract = {
-  formatVersion: 1,
+const schema = z.object({
+  units: z.enum(['metric', 'imperial']).default('metric'),
+  selection: z
+    .strictObject({
+      well: z.string(),
+      run: z.string().nullable(),
+      comparison: z.string().default('baseline'),
+    })
+    .nullable()
+    .default(null),
+})
+const owner: UserContextOwner = { id: 'owner-app', userContext: { schema } }
+const other: UserContextOwner = { id: 'other-app', userContext: { schema } }
+/** Reads both slices: its own and only the units of the other owner. */
+const reader: UserContextOwner = {
   id: 'owner-app',
-  revision: 'v2',
-  node: {
-    kind: 'object',
-    strict: true,
-    fields: {
-      units: {
-        kind: 'default',
-        inner: { kind: 'enum', values: ['metric', 'imperial'] },
-        value: 'metric',
-      },
-      selection: {
-        kind: 'default',
-        value: null,
-        inner: {
-          kind: 'nullable',
-          inner: {
-            kind: 'object',
-            strict: true,
-            fields: {
-              well: { kind: 'string' },
-              run: { kind: 'nullable', inner: { kind: 'string' } },
-              comparison: { kind: 'default', inner: { kind: 'string' }, value: 'baseline' },
-            },
-          },
-        },
-      },
-    },
+  userContext: {
+    schema,
+    reads: { 'other-app': z.object({ units: z.enum(['metric', 'imperial']).default('metric') }) },
   },
 }
-const other: StateContract = { ...owner, id: 'other-app' }
-const schema = { formatVersion: 1 as const, contracts: [owner, other] }
-function refs(
-  contracts: readonly StateContract[] = [owner],
-  ownerId = owner.id,
-): UserContextRequirements {
-  return {
-    protocolVersion: 1,
-    ownerId,
-    contracts: contracts.map(contract => ({
-      id: contract.id,
-      revision: contract.revision,
-      capabilities: stateCapabilities(contract.node),
-    })),
-  }
-}
+
 function setup(override?: (adapter: UserContextAdapter) => UserContextAdapter) {
   const storage = createTestUserContextRepository()
-  const authorize = vi.fn(async (_scope: string, _id: string, _operation: 'read' | 'write') => {})
   const backend = createUserContextBackend({
     repository: storage.repository,
-    authorize,
+    authorize: async () => {},
     resolveOwner: async () => owner.id,
   })
-  const adapter = override ? override(backend) : backend
+  const scoped = scopedUserContextAdapter(backend, 'tenant/user')
+  const adapter = override ? override(scoped) : scoped
   const onError = vi.fn()
-  const runtime = new UserContextRuntime({
-    scope: 'tenant/user/workspace',
-    schema,
-    adapter,
-    onError,
-  })
-  return { ...storage, backend, runtime, adapter, authorize, onError }
+  const runtime = new UserContextRuntime({ adapter, onError })
+  return { ...storage, backend, runtime, adapter, onError }
 }
 function deferred<T>() {
   let resolve!: (value: T) => void
@@ -87,50 +58,55 @@ function deferred<T>() {
   })
   return { promise, resolve, reject }
 }
-const signal = () => new AbortController().signal
 const record = (revision: number, units = 'metric'): StateRecord => ({
   id: owner.id,
   revision,
-  ...(revision ? { value: { units, selection: null } } : {}),
+  ...(revision ? { value: { units } } : {}),
 })
 
 describe('definition-owned user context', () => {
   it('hydrates defaults without writes, separates owner slices, and persists own fields', async () => {
     const { runtime, records } = setup()
-    await runtime.prepare(refs([owner, other]))
-    const own = runtime.bind(owner.id, refs([owner, other]))
-    const foreign = runtime.bindReadOnly(owner.id, refs([owner, other]), other.id)
-    expect(own.get('units')).toBe('metric')
+    await runtime.prepare(reader)
+    const own = runtime.bind(reader)
+    const foreign = runtime.bindReadOnly(reader, other.id)
+    expect(own.getSnapshot()).toEqual({ units: 'metric', selection: null })
     expect(records.size).toBe(0)
     expect(await own.set('units', 'imperial')).toEqual({ ok: true, value: 'imperial' })
     expect(own.get('units')).toBe('imperial')
     expect(foreign.get('units')).toBe('metric')
     expect(foreign).not.toHaveProperty('set')
+    expect(records.get('tenant/user/owner-app')).toEqual({
+      revision: 1,
+      value: { units: 'imperial' },
+    })
     runtime.dispose()
   })
 
-  it('rejects spoofed requirement ownership and undeclared cross-owner reads', async () => {
+  it('binds only the declared schema, owners and fields', async () => {
     const { runtime } = setup()
-    await runtime.prepare(refs([owner, other]))
-    expect(() => runtime.bind(other.id, refs())).toThrow('Mounted definition')
-    expect(() => runtime.bindReadOnly(owner.id, refs(), other.id).get('units')).toThrow(
-      'did not declare',
+    await runtime.prepare(owner)
+    expect(() => runtime.bindReadOnly(owner, other.id)).toThrow(
+      "did not declare userContext.reads['other-app']",
     )
-    const own = runtime.bind(owner.id, refs())
-    const result = await own.set(other.id, 'imperial')
-    expect(result).toMatchObject({
-      ok: false,
-      error: { code: 'user-context/unsupported-contract' },
-    })
+    expect(() => runtime.bindReadOnly(reader, reader.id)).toThrow('did not declare')
+    expect(() => runtime.bind({ id: 'reads-only', userContext: { reads: {} } })).toThrow(
+      'Declare userContext.schema',
+    )
+    await expect(
+      runtime.prepare({ id: 'self-reader', userContext: { reads: { 'self-reader': schema } } }),
+    ).rejects.toMatchObject({ code: 'user-context/undeclared' })
+    const result = await runtime.bind(owner).set('surprise' as 'units', 'imperial')
+    expect(result).toMatchObject({ ok: false, error: { code: 'user-context/undeclared' } })
     if (!result.ok) expect(isMfeError(result.error)).toBe(true)
     runtime.dispose()
   })
 
-  it('reads and notifies only after durable acceptance and returns canonical values', async () => {
+  it('reads and notifies only after the server accepts a write, returning the parsed value', async () => {
     const acceptance = deferred<StateRecord>()
     const { runtime } = setup(adapter => ({ ...adapter, write: () => acceptance.promise }))
-    await runtime.prepare(refs())
-    const store = runtime.bind(owner.id, refs())
+    await runtime.prepare(owner)
+    const store = runtime.bind(owner)
     const listener = vi.fn()
     const observer = vi.fn()
     store.subscribe('units', listener)
@@ -140,7 +116,6 @@ describe('definition-owned user context', () => {
     expect(store.get('units')).toBe('metric')
     expect(store.getSnapshot()).toBe(previous)
     expect(listener).not.toHaveBeenCalled()
-    expect(observer).not.toHaveBeenCalled()
     acceptance.resolve(record(1, 'imperial'))
     expect(await pending).toEqual({ ok: true, value: 'imperial' })
     expect(listener).toHaveBeenCalledOnce()
@@ -150,613 +125,287 @@ describe('definition-owned user context', () => {
     runtime.dispose()
   })
 
-  it('leaves committed state and subscriptions unchanged on validation and persistence failures', async () => {
-    const { runtime } = setup(adapter => ({
-      ...adapter,
-      write: async () => {
-        throw new Error('denied')
-      },
-    }))
-    await runtime.prepare(refs())
-    const store = runtime.bind(owner.id, refs())
-    const listener = vi.fn()
-    store.observe(listener)
-    expect(await store.set('units', 'bogus')).toMatchObject({
+  it('rejects an invalid value before sending it', async () => {
+    const { runtime, adapter } = setup(scoped => ({ ...scoped, write: vi.fn(scoped.write) }))
+    await runtime.prepare(owner)
+    const store = runtime.bind(owner)
+    const result = await store.set('units', 'bogus')
+    expect(result).toMatchObject({ ok: false, error: { code: 'user-context/invalid-value' } })
+    if (!result.ok) expect(result.error.message).toContain('units: Invalid option')
+    expect(await store.set('units', Number.NaN as never)).toMatchObject({
       ok: false,
       error: { code: 'user-context/invalid-value' },
     })
-    expect(await store.set('units', 'imperial')).toMatchObject({
-      ok: false,
-      error: { code: 'user-context/persistence-failed' },
-    })
-    await vi.waitFor(() =>
-      expect(runtime.inspection.getSnapshot().entries[0]?.pendingWrites).toBe(0),
-    )
-    expect(store.get('units')).toBe('metric')
-    expect(listener).not.toHaveBeenCalled()
+    expect(adapter.write).not.toHaveBeenCalled()
     runtime.dispose()
   })
 
-  it('serializes overlapping writes across different fields at the owner-slice revision', async () => {
+  it('rejects only the failed write and reads the owner again', async () => {
+    const hydrate = vi.fn<UserContextAdapter['hydrate']>()
+    const { runtime, onError } = setup(adapter => ({
+      hydrate: hydrate.mockImplementation(adapter.hydrate),
+      write: async write => {
+        if (write.value['units'] === 'imperial') throw new Error('denied')
+        return await adapter.write(write, new AbortController().signal)
+      },
+    }))
+    await runtime.prepare(owner)
+    const store = runtime.bind(owner)
+    const listener = vi.fn()
+    store.observe(listener)
+    const failed = store.set('units', 'imperial')
+    const next = store.set('selection', { well: '42', run: null })
+    expect(await failed).toMatchObject({
+      ok: false,
+      error: { code: 'user-context/persistence-failed', message: 'owner-app: denied' },
+    })
+    expect(await next).toEqual({
+      ok: true,
+      value: { well: '42', run: null, comparison: 'baseline' },
+    })
+    expect(onError).toHaveBeenCalledOnce()
+    await vi.waitFor(() => expect(hydrate).toHaveBeenCalledTimes(2))
+    expect(store.getSnapshot()).toEqual({
+      units: 'metric',
+      selection: { well: '42', run: null, comparison: 'baseline' },
+    })
+    runtime.dispose()
+  })
+
+  it('sends one owner key at a time, as a patch, in the order the writes were made', async () => {
     const gates = [deferred<StateRecord>(), deferred<StateRecord>()]
     const writes: StateWrite[] = []
     const { runtime } = setup(adapter => ({
       ...adapter,
-      write: operation => {
-        writes.push(operation)
+      write: write => {
+        writes.push(write)
         return gates[writes.length - 1]!.promise
       },
     }))
-    await runtime.prepare(refs())
-    const store = runtime.bind(owner.id, refs())
+    await runtime.prepare(owner)
+    const store = runtime.bind(owner)
     const first = store.set('units', 'imperial')
     const second = store.set('selection', { well: '42', run: null })
-    expect(writes).toHaveLength(1)
+    await Promise.resolve()
+    expect(writes).toEqual([{ id: owner.id, value: { units: 'imperial' } }])
     gates[0]!.resolve(record(1, 'imperial'))
     await first
     await vi.waitFor(() => expect(writes).toHaveLength(2))
-    expect(writes.map(write => write.expectedRevision)).toEqual([0, 1])
+    expect(writes[1]).toEqual({ id: owner.id, value: { selection: { well: '42', run: null } } })
     gates[1]!.resolve({
       id: owner.id,
       revision: 2,
-      value: { units: 'imperial', selection: { well: '42', run: null, comparison: 'canonical' } },
+      value: { units: 'imperial', selection: { well: '42', run: null } },
     })
-    expect(await second).toEqual({
-      ok: true,
-      value: { well: '42', run: null, comparison: 'canonical' },
-    })
+    expect(await second).toMatchObject({ ok: true })
     expect(store.get('units')).toBe('imperial')
     runtime.dispose()
   })
 
-  it('accepts a consumer declaring only a compatible nested subset of an owner', async () => {
-    const { runtime } = setup()
-    const subset: StateContract = {
-      ...owner,
-      revision: 'selection-well-reader',
-      node: {
-        kind: 'object',
-        strict: false,
-        fields: {
-          selection: {
-            kind: 'nullable',
-            inner: { kind: 'object', strict: false, fields: { well: { kind: 'string' } } },
-          },
-        },
-      },
-    }
-    const requirements = refs([subset], 'reader-widget')
-    await runtime.prepare(requirements)
-    const reader = runtime.bindReadOnly<{ selection: { well: string } | null }>(
-      'reader-widget',
-      requirements,
-      owner.id,
-    )
-    expect(reader.get('selection')).toBeNull()
-    await runtime.bind(owner.id, refs()).set('selection', { well: '42', run: '7' })
-    expect(reader.get('selection')?.well).toBe('42')
-    expect(reader).not.toHaveProperty('set')
-    // Subsets describe compatibility and generated types, not a runtime privacy boundary.
-    expect(reader.getSnapshot()).toHaveProperty('units', 'metric')
-    runtime.dispose()
-  })
-
-  it('rejects an incompatible nested consumer field before hydrating', async () => {
-    const { runtime, adapter } = setup()
-    const hydrate = vi.spyOn(adapter, 'hydrate')
-    const incompatible: StateContract = {
-      ...owner,
-      revision: 'incompatible-reader',
-      node: {
-        kind: 'object',
-        strict: true,
-        fields: {
-          selection: {
-            kind: 'default',
-            value: null,
-            inner: {
-              kind: 'nullable',
-              inner: { kind: 'object', strict: true, fields: { well: { kind: 'number' } } },
-            },
-          },
-        },
-      },
-    }
-    await expect(runtime.prepare(refs([incompatible], 'reader-widget'))).rejects.toMatchObject({
-      code: 'user-context/unsupported-contract',
-    })
-    expect(hydrate).not.toHaveBeenCalled()
-    runtime.dispose()
-  })
-
-  it('preserves newer nested fields on older partial updates and replaces arrays/null explicitly', async () => {
-    const { runtime } = setup()
-    await runtime.prepare(refs())
-    const store = runtime.bind(owner.id, refs())
-    await store.set('selection', { well: '42', run: '7', comparison: 'overlay' })
-    await store.set('selection', { run: '8' })
-    expect(store.get('selection')).toEqual({ well: '42', run: '8', comparison: 'overlay' })
-    await store.set('selection', null)
-    expect(store.get('selection')).toBeNull()
-    runtime.dispose()
-  })
-
-  it('rejects invalid persisted values instead of silently replacing them with defaults', async () => {
-    const { runtime, records } = setup()
-    records.set(`tenant/user/workspace/${owner.id}`, {
-      revision: 1,
-      value: { units: 'invalid', selection: null },
-      receipts: {},
-    })
-    await expect(runtime.prepare(refs())).rejects.toMatchObject({
-      code: 'user-context/invalid-value',
-    })
-    expect(records.get(`tenant/user/workspace/${owner.id}`)?.value).toEqual({
-      units: 'invalid',
-      selection: null,
-    })
-    runtime.dispose()
-  })
-
-  it('refreshes CAS conflicts without retrying stale intentions', async () => {
-    const { runtime, backend, authorize } = setup()
-    await runtime.prepare(refs())
-    const store = runtime.bind(owner.id, refs())
-    await backend.write(
-      {
-        scope: 'tenant/user/workspace',
-        id: owner.id,
-        expectedRevision: 0,
-        operationId: 'external',
-        value: { units: 'imperial' },
-      },
-      signal(),
-    )
-    expect(await store.set('units', 'metric')).toMatchObject({
-      ok: false,
-      error: { code: 'user-context/conflict' },
-    })
-    await vi.waitFor(() => expect(store.get('units')).toBe('imperial'))
-    expect(authorize.mock.calls.filter(call => call[2] === 'write')).toHaveLength(2)
-    runtime.dispose()
-  })
-
-  it('settles an update made during conflict recovery locally', async () => {
-    const recovery = deferred<void>()
-    let hydrations = 0
-    const { runtime, backend, authorize, onError } = setup(adapter => ({
+  it('completes a nested update from what the tab reads and sends the key whole', async () => {
+    const writes: StateWrite[] = []
+    const { runtime, records } = setup(adapter => ({
       ...adapter,
-      hydrate: async (...args) => {
-        if (++hydrations === 2) await recovery.promise
-        return await adapter.hydrate(...args)
+      write: (write, signal) => {
+        writes.push(write)
+        return adapter.write(write, signal)
       },
     }))
-    await runtime.prepare(refs())
-    const store = runtime.bind(owner.id, refs())
-    await backend.write(
-      {
-        scope: 'tenant/user/workspace',
-        id: owner.id,
-        expectedRevision: 0,
-        operationId: 'external',
-        value: { units: 'imperial' },
-      },
-      signal(),
-    )
-    expect(await store.set('units', 'metric')).toMatchObject({
-      ok: false,
-      error: { code: 'user-context/conflict' },
+    await runtime.prepare(owner)
+    const store = runtime.bind(owner)
+    await store.set('selection', { well: '42', run: 'one' })
+    expect(await store.set('selection', { run: 'two' })).toEqual({
+      ok: true,
+      value: { well: '42', run: 'two', comparison: 'baseline' },
     })
-    await vi.waitFor(() => expect(hydrations).toBe(2))
-    const during = store.set('selection', null)
-    const behind = store.set('units', 'metric')
-    recovery.resolve()
-    expect(await during).toMatchObject({ ok: false, error: { code: 'user-context/conflict' } })
-    expect(await behind).toMatchObject({ ok: false, error: { code: 'user-context/conflict' } })
-    expect(store.get('units')).toBe('imperial')
-    expect(authorize.mock.calls.filter(call => call[2] === 'write')).toHaveLength(2)
-    expect(hydrations).toBe(2)
-    expect(onError).toHaveBeenCalledTimes(1)
-    expect(await store.set('units', 'metric')).toMatchObject({ ok: true, value: 'metric' })
+    expect(writes[1]).toEqual({
+      id: owner.id,
+      value: { selection: { well: '42', run: 'two', comparison: 'baseline' } },
+    })
+    expect(records.get(`tenant/user/${owner.id}`)?.revision).toBe(2)
     runtime.dispose()
   })
 
-  it('fails stale scopes, settles pending writes, and ignores late adapter responses', async () => {
-    const gate = deferred<StateRecord>()
-    const { runtime } = setup(adapter => ({ ...adapter, write: () => gate.promise }))
-    await runtime.prepare(refs())
-    const old = runtime.bind(owner.id, refs())
-    const pending = old.set('units', 'imperial')
-    runtime.setScope('new-user')
+  it('lets a reader declare a nested subset with its own defaults', async () => {
+    const { runtime, records } = setup()
+    records.set('tenant/user/other-app', {
+      revision: 3,
+      value: { units: 'imperial', selection: { well: '7', run: null }, future: true },
+    })
+    const consumer: UserContextOwner = {
+      id: 'consumer',
+      userContext: {
+        reads: {
+          'other-app': z.object({
+            selection: z.object({ well: z.string() }).nullable(),
+            missing: z.string().default('fallback'),
+          }),
+        },
+      },
+    }
+    await runtime.prepare(consumer)
+    expect(runtime.bindReadOnly(consumer, other.id).getSnapshot()).toEqual({
+      selection: { well: '7' },
+      missing: 'fallback',
+    })
+    runtime.dispose()
+  })
+
+  it('explains how to fix a reader whose required field the owner has not written', async () => {
+    const { runtime } = setup()
+    const consumer: UserContextOwner = {
+      id: 'consumer',
+      userContext: { reads: { 'other-app': z.object({ units: z.string() }) } },
+    }
+    await runtime.prepare(consumer)
+    expect(() => runtime.bindReadOnly(consumer, other.id).get('units')).toThrow(
+      /units: Invalid input.*Give a field the owner may not have written yet a default/,
+    )
+    runtime.dispose()
+  })
+
+  it('marks a stored record the owner schema rejects as invalid', async () => {
+    const { runtime, records, onError } = setup()
+    records.set('tenant/user/owner-app', { revision: 2, value: { units: 'kelvin' } })
+    await expect(runtime.prepare(owner)).rejects.toMatchObject({
+      code: 'user-context/invalid-value',
+    })
+    expect(runtime.inspection.getSnapshot().entries[0]).toMatchObject({
+      id: owner.id,
+      status: 'invalid',
+      value: undefined,
+    })
+    expect(() => runtime.bind(owner).getSnapshot()).toThrow('units')
+    expect(onError).toHaveBeenCalledOnce()
+    runtime.dispose()
+  })
+
+  it('refuses a schema whose output is not JSON', async () => {
+    const { runtime } = setup()
+    const dated: UserContextOwner = {
+      id: 'dated',
+      userContext: {
+        schema: z.object({
+          at: z
+            .string()
+            .default('2026-01-01')
+            .transform(s => new Date(s)),
+        }),
+      },
+    }
+    await expect(runtime.prepare(dated)).rejects.toThrow('must be finite JSON data')
+    runtime.dispose()
+  })
+
+  it('never lets a late or duplicate record replace a newer revision', async () => {
+    const hydration = deferred<readonly StateRecord[]>()
+    let push: ((record: StateRecord) => void) | undefined
+    const { runtime } = setup(adapter => ({
+      ...adapter,
+      hydrate: () => hydration.promise,
+      subscribe: listener => {
+        push = listener
+        return () => {}
+      },
+    }))
+    const prepared = runtime.prepare(owner)
+    push?.(record(4, 'imperial'))
+    hydration.resolve([record(3, 'metric')])
+    await prepared
+    const store = runtime.bind(owner)
+    expect(store.get('units')).toBe('imperial')
+    push?.(record(4, 'metric'))
+    push?.(record(2, 'metric'))
+    expect(store.get('units')).toBe('imperial')
+    push?.(record(5, 'metric'))
+    expect(store.get('units')).toBe('metric')
+    runtime.dispose()
+  })
+
+  it('keeps a newer synchronized record when a write answers late', async () => {
+    const acceptance = deferred<StateRecord>()
+    let push: ((record: StateRecord) => void) | undefined
+    const { runtime } = setup(adapter => ({
+      ...adapter,
+      write: () => acceptance.promise,
+      subscribe: listener => {
+        push = listener
+        return () => {}
+      },
+    }))
+    await runtime.prepare(owner)
+    const store = runtime.bind(owner)
+    const pending = store.set('units', 'imperial')
+    push?.(record(2, 'metric'))
+    acceptance.resolve(record(1, 'imperial'))
+    expect(await pending).toEqual({ ok: true, value: 'metric' })
+    expect(store.get('units')).toBe('metric')
+    runtime.dispose()
+  })
+
+  it('fails old bindings, writes and late responses closed after a reset', async () => {
+    const acceptance = deferred<StateRecord>()
+    const { runtime } = setup(adapter => ({ ...adapter, write: () => acceptance.promise }))
+    await runtime.prepare(owner)
+    const store = runtime.bind(owner)
+    const listener = vi.fn()
+    store.observe(listener)
+    const pending = store.set('units', 'imperial')
+    runtime.reset()
+    expect(listener).toHaveBeenCalledOnce()
     expect(await pending).toMatchObject({
       ok: false,
       error: { code: 'user-context/scope-disposed' },
     })
-    expect(() => old.get('units')).toThrow('disposed scope')
-    await runtime.prepare(refs())
-    gate.resolve(record(1, 'imperial'))
-    await Promise.resolve()
-    expect(runtime.bind(owner.id, refs()).get('units')).toBe('metric')
+    acceptance.resolve(record(1, 'imperial'))
+    expect(() => store.get('units')).toThrow('previous signed-in user')
+    expect(runtime.inspection.getSnapshot().entries).toEqual([])
+    await runtime.prepare(owner)
+    expect(runtime.bind(owner).get('units')).toBe('metric')
+    expect(() => store.observe(() => {})).toThrow('previous signed-in user')
     runtime.dispose()
   })
 
-  it('notifies stale bindings exactly once on scope invalidation and cleans subscription handlers', async () => {
+  it('unsubscribes a mount when its signal aborts and keeps the record for others', async () => {
     const { runtime } = setup()
-    await runtime.prepare(refs())
-    const mount = new AbortController()
-    const remove = vi.spyOn(mount.signal, 'removeEventListener')
-    const store = runtime.bind(owner.id, refs(), mount.signal)
-    const field = vi.fn()
-    const slice = vi.fn()
-    store.subscribe('units', field)
-    store.observe(slice)
-    runtime.setScope('another-user')
-    expect(field).toHaveBeenCalledOnce()
-    expect(slice).toHaveBeenCalledOnce()
-    expect(remove).toHaveBeenCalledTimes(2)
-    expect(() => store.getSnapshot()).toThrow('disposed scope')
+    await runtime.prepare(owner)
+    const controller = new AbortController()
+    const mounted = runtime.bind(owner, controller.signal)
+    const listener = vi.fn()
+    mounted.observe(listener)
+    controller.abort()
+    expect(() => mounted.get('units')).toThrow('The mount has been disposed')
+    const again = runtime.bind(owner)
+    expect(await again.set('units', 'imperial')).toMatchObject({ ok: true })
+    expect(listener).not.toHaveBeenCalled()
     runtime.dispose()
-    expect(slice).toHaveBeenCalledOnce()
-  })
-
-  it('rejects dependent queued intentions after failure without silently rebasing them', async () => {
-    const gate = deferred<StateRecord>()
-    const write = vi.fn(() => gate.promise)
-    const { runtime } = setup(adapter => ({ ...adapter, write }))
-    await runtime.prepare(refs())
-    const store = runtime.bind(owner.id, refs())
-    const first = store.set('units', 'imperial')
-    const second = store.set('selection', { well: '42', run: null })
-    gate.reject(new Error('denied'))
-    expect(await first).toMatchObject({
-      ok: false,
-      error: { code: 'user-context/persistence-failed' },
-    })
-    expect(await second).toMatchObject({ ok: false, error: { code: 'user-context/conflict' } })
-    expect(write).toHaveBeenCalledOnce()
-    expect(store.get('selection')).toBeNull()
-    runtime.dispose()
-  })
-
-  it('rejects malformed consumer revision metadata before hydration', async () => {
-    const { runtime, adapter } = setup()
-    const hydrate = vi.spyOn(adapter, 'hydrate')
-    for (const revision of ['', undefined, 1]) {
-      const malformed = {
-        ...refs(),
-        contracts: [{ ...refs().contracts[0], revision }],
-      } as unknown as UserContextRequirements
-      await expect(runtime.prepare(malformed)).rejects.toMatchObject({
-        code: 'user-context/unsupported-contract',
-      })
-    }
-    expect(hydrate).not.toHaveBeenCalled()
-    runtime.dispose()
-  })
-
-  it('retains canonical state across mount disposal and supports structural requirements', async () => {
-    const { runtime } = setup()
-    await runtime.prepare(refs())
-    const mount = new AbortController()
-    const store = runtime.bind(owner.id, structuredClone(refs()), mount.signal)
-    await store.set('units', 'imperial')
-    mount.abort()
-    expect(() => store.get('units')).toThrow('mount has been disposed')
-    expect(await store.set('units', 'metric')).toMatchObject({
-      ok: false,
-      error: { code: 'user-context/scope-disposed' },
-    })
-    expect(runtime.bind(owner.id, refs()).get('units')).toBe('imperial')
-    runtime.dispose()
-  })
-
-  it('does not let delayed hydration or duplicate sync overwrite newer committed revisions', async () => {
-    const gate = deferred<readonly StateRecord[]>()
-    let publish!: (record: StateRecord) => void
-    const { runtime } = setup(adapter => ({
-      ...adapter,
-      hydrate: () => gate.promise,
-      subscribe: (_scope, listener) => {
-        publish = listener
-        return () => {}
-      },
-    }))
-    const prepared = runtime.prepare(refs())
-    publish(record(3, 'imperial'))
-    gate.resolve([record(1)])
-    await prepared
-    const store = runtime.bind(owner.id, refs())
-    expect(store.get('units')).toBe('imperial')
-    publish(record(2))
-    publish(record(3))
-    expect(store.get('units')).toBe('imperial')
-    runtime.dispose()
-  })
-
-  it('returns the original acceptance while preserving a newer synchronized record', async () => {
-    const gate = deferred<StateRecord>()
-    let publish!: (record: StateRecord) => void
-    const { runtime } = setup(adapter => ({
-      ...adapter,
-      write: () => gate.promise,
-      subscribe: (_scope, listener) => {
-        publish = listener
-        return () => {}
-      },
-    }))
-    await runtime.prepare(refs())
-    const store = runtime.bind(owner.id, refs())
-    const accepted = store.set('units', 'imperial')
-    publish(record(2, 'metric'))
-    gate.resolve(record(1, 'imperial'))
-    expect(await accepted).toEqual({ ok: true, value: 'imperial' })
-    expect(store.get('units')).toBe('metric')
-    runtime.dispose()
-  })
-
-  it('notifies field and slice subscribers when authoritative validity changes without a value change', async () => {
-    let publish!: (record: StateRecord) => void
-    const { runtime } = setup(adapter => ({
-      ...adapter,
-      subscribe: (_scope, listener) => {
-        publish = listener
-        return () => {}
-      },
-    }))
-    await runtime.prepare(refs())
-    const store = runtime.bind(owner.id, refs())
-    const field = vi.fn()
-    const slice = vi.fn()
-    store.subscribe('units', field)
-    store.observe(slice)
-    publish({ id: owner.id, revision: 1, value: { units: 'invalid', selection: null } })
-    expect(field).toHaveBeenCalledOnce()
-    expect(slice).toHaveBeenCalledOnce()
-    expect(() => store.get('units')).toThrow()
-    expect(() => store.getSnapshot()).toThrow()
-    publish(record(2, 'metric'))
-    expect(field).toHaveBeenCalledTimes(2)
-    expect(slice).toHaveBeenCalledTimes(2)
-    expect(store.get('units')).toBe('metric')
-    runtime.dispose()
-  })
-
-  it('supports independently compiled manifests and rejects unsupported consumers before hydration', async () => {
-    const { adapter, runtime: initial } = setup()
-    initial.dispose()
-    const hydrate = vi.fn(adapter.hydrate)
-    const runtime = new UserContextRuntime({
-      scope: 'scope',
-      schema: [
-        { formatVersion: 1, contracts: [owner] },
-        { formatVersion: 1, contracts: [other] },
-      ],
-      adapter: { ...adapter, hydrate },
-    })
-    const requirements = refs()
-    const incompatible = {
-      ...requirements,
-      contracts: requirements.contracts.map(contract => ({
-        ...contract,
-        capabilities: [...contract.capabilities, 'future-field'],
-      })),
-    }
-    await expect(runtime.prepare(incompatible)).rejects.toMatchObject({
-      code: 'user-context/unsupported-contract',
-    })
-    expect(hydrate).not.toHaveBeenCalled()
-    await runtime.prepare(refs([owner, other]))
-    expect(hydrate).toHaveBeenCalledTimes(2)
-    runtime.dispose()
-  })
-})
-
-describe('validation boundaries', () => {
-  it('keeps schema validation in the client and requires trusted backend owner resolution', () => {
-    const { repository } = createTestUserContextRepository()
-    const options = {
-      repository,
-      authorize: async () => {},
-      resolveOwner: async () => owner.id,
-    }
-    expect(() =>
-      createUserContextBackend({ ...options, resolveOwner: undefined } as unknown as Parameters<
-        typeof createUserContextBackend
-      >[0]),
-    ).toThrow()
-    for (const contract of [
-      { ...owner, id: 'global/path' },
-      { ...owner, node: { kind: 'string' } },
-      { ...owner, node: { kind: 'object', fields: null, strict: true } },
-      { ...owner, node: { ...owner.node, unknownConstraint: true } },
-      {
-        ...owner,
-        node: {
-          kind: 'object',
-          strict: true,
-          fields: { code: { kind: 'string', regex: '^[A-Z]+$' } },
-        },
-      },
-    ]) {
-      const malformed = { formatVersion: 1 as const, contracts: [contract as StateContract] }
-      expect(
-        () =>
-          new UserContextRuntime({
-            scope: 'scope',
-            schema: malformed,
-            adapter: { hydrate: async () => [], write: async () => record(1) },
-          }),
-      ).toThrow()
-    }
   })
 })
 
 describe('read-only inspection', () => {
-  it('caches immutable snapshots without hydrating or exposing authenticated scope', () => {
-    const { runtime, adapter } = setup()
-    const hydrate = vi.spyOn(adapter, 'hydrate')
+  it('caches snapshots without hydrating, and shows the stored record and owner schema', async () => {
+    const { runtime, records } = setup()
     const first = runtime.inspection.getSnapshot()
+    expect(first).toEqual({ generation: 0, disposed: false, entries: [] })
     expect(runtime.inspection.getSnapshot()).toBe(first)
-    expect(first.entries.map(entry => entry.status)).toEqual(['absent', 'absent'])
-    expect(Object.isFrozen(first.entries)).toBe(true)
-    expect(first).not.toHaveProperty('scope')
-    expect(hydrate).not.toHaveBeenCalled()
-    runtime.dispose()
-  })
-
-  it('reports pending persistence and atomically clears values when scope changes', async () => {
-    const gate = deferred<StateRecord>()
-    const { runtime } = setup(adapter => ({ ...adapter, write: () => gate.promise }))
-    await runtime.prepare(refs())
-    const pending = runtime.bind(owner.id, refs()).set('units', 'imperial')
-    expect(runtime.inspection.getSnapshot().entries[0]).toMatchObject({
-      pendingWrites: 1,
-      recordRevision: 0,
-      confirmed: { units: 'metric' },
+    records.set('tenant/user/owner-app', { revision: 2, value: { units: 'imperial' } })
+    const listener = vi.fn()
+    runtime.inspection.subscribe(listener)
+    await runtime.prepare(owner)
+    expect(listener).toHaveBeenCalled()
+    const [entry] = runtime.inspection.getSnapshot().entries
+    expect(entry).toMatchObject({
+      id: owner.id,
+      status: 'ready',
+      revision: 2,
+      value: { units: 'imperial' },
+      error: undefined,
     })
-    gate.resolve(record(1, 'imperial'))
-    await pending
-    expect(runtime.inspection.getSnapshot().entries[0]).toMatchObject({
-      pendingWrites: 0,
-      recordRevision: 1,
-    })
-    const snapshots: ReturnType<typeof runtime.inspection.getSnapshot>[] = []
-    runtime.inspection.subscribe(() => snapshots.push(runtime.inspection.getSnapshot()))
-    runtime.setScope('another-user')
-    expect(snapshots).toHaveLength(1)
-    expect(snapshots[0]?.entries.every(entry => entry.confirmed === undefined)).toBe(true)
+    expect(entry?.schema).toMatchObject({ properties: { units: { default: 'metric' } } })
+    expect(JSON.stringify(runtime.inspection.getSnapshot())).not.toContain('tenant/user')
+    runtime.reset()
+    expect(runtime.inspection.getSnapshot()).toMatchObject({ generation: 1, entries: [] })
     runtime.dispose()
-    expect(snapshots.at(-1)).toMatchObject({ generation: 2, disposed: true, entries: [] })
-  })
-})
-
-const preferenceOwner: StateContract = {
-  formatVersion: 1,
-  id: 'owner-app',
-  revision: 'preferences',
-  node: {
-    kind: 'object',
-    strict: false,
-    fields: {
-      preferences: {
-        kind: 'default',
-        value: { appearance: { theme: 'light', fontSize: 14 }, layout: 'grid' },
-        inner: {
-          kind: 'object',
-          strict: false,
-          fields: {
-            appearance: {
-              kind: 'default',
-              value: { theme: 'light', fontSize: 14 },
-              inner: {
-                kind: 'object',
-                strict: false,
-                fields: { theme: { kind: 'string' }, fontSize: { kind: 'number' } },
-              },
-            },
-            layout: { kind: 'string' },
-          },
-        },
-      },
-      items: {
-        kind: 'optional',
-        inner: {
-          kind: 'array',
-          item: { kind: 'object', strict: false, fields: { label: { kind: 'string' } } },
-        },
-      },
-    },
-  },
-}
-async function preferenceContext(initial?: StateWrite['value']) {
-  const { repository } = createTestUserContextRepository()
-  const backend = createUserContextBackend({
-    repository,
-    authorize: async () => {},
-    resolveOwner: async () => preferenceOwner.id,
-  })
-  if (initial !== undefined)
-    await backend.write(
-      {
-        scope: 'user',
-        id: preferenceOwner.id,
-        expectedRevision: 0,
-        operationId: 'seed',
-        value: initial,
-      },
-      signal(),
-    )
-  const write = vi.fn(backend.write)
-  const runtime = new UserContextRuntime({
-    scope: 'user',
-    schema: { formatVersion: 1, contracts: [preferenceOwner] },
-    adapter: { ...backend, write },
-  })
-  const requirements = refs([preferenceOwner])
-  await runtime.prepare(requirements)
-  return {
-    runtime,
-    backend,
-    write,
-    store: runtime.bind<{
-      preferences: { appearance: { theme: string; fontSize: number }; layout: string }
-      items?: { label: string }[]
-    }>(preferenceOwner.id, requirements),
-  }
-}
-
-describe('client defaults with opaque persistence', () => {
-  it('seeds defaulted required siblings for the first write, then sends queued writes narrowly', async () => {
-    const { runtime, backend, write, store } = await preferenceContext()
-    try {
-      const first = store.set('preferences', { appearance: { theme: 'dark' } })
-      const second = store.set('preferences', { appearance: { fontSize: 20 } })
-      expect(await first).toEqual({
-        ok: true,
-        value: { appearance: { theme: 'dark', fontSize: 14 }, layout: 'grid' },
-      })
-      expect(await second).toEqual({
-        ok: true,
-        value: { appearance: { theme: 'dark', fontSize: 20 }, layout: 'grid' },
-      })
-      expect(write.mock.calls[0]?.[0].value).toEqual({
-        preferences: { appearance: { theme: 'dark', fontSize: 14 }, layout: 'grid' },
-      })
-      expect(write.mock.calls[1]?.[0].value).toEqual({
-        preferences: { appearance: { fontSize: 20 } },
-      })
-      expect((await backend.hydrate('user', [preferenceOwner.id], signal()))[0]?.value).toEqual({
-        preferences: { appearance: { theme: 'dark', fontSize: 20 }, layout: 'grid' },
-      })
-    } finally {
-      runtime.dispose()
-    }
-  })
-
-  it('seeds only absent nested branches and preserves persisted sibling arrays with unknown fields', async () => {
-    const initial = {
-      preferences: { layout: 'list', newerPreference: true },
-      items: [{ label: 'existing', newerItemField: 'retain' }],
-      unknownRoot: { keep: true },
-    }
-    const { runtime, backend, write, store } = await preferenceContext(initial)
-    try {
-      const patch = JSON.parse(
-        '{"appearance":{"theme":"dark"},"constructor":{"ignored":true},"__proto__":{"ignored":true}}',
-      ) as { appearance: { theme: string } }
-      expect((await store.set('preferences', patch)).ok).toBe(true)
-      expect(write.mock.calls[0]?.[0].value).toEqual({
-        preferences: { appearance: { theme: 'dark', fontSize: 14 } },
-      })
-      expect((await backend.hydrate('user', [preferenceOwner.id], signal()))[0]?.value).toEqual({
-        ...initial,
-        preferences: { ...initial.preferences, appearance: { theme: 'dark', fontSize: 14 } },
-      })
-      const replacement = [{ label: 'replacement', ignored: 'stripped by the client' }]
-      expect((await store.set('items', replacement)).ok).toBe(true)
-      expect(write.mock.calls[1]?.[0].value).toEqual({ items: [{ label: 'replacement' }] })
-    } finally {
-      runtime.dispose()
-    }
+    expect(runtime.inspection.getSnapshot().disposed).toBe(true)
   })
 })

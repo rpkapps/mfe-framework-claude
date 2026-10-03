@@ -49,12 +49,9 @@ export function createDemoBackend(file) {
         signal.throwIfAborted()
         const records = await readAll()
         const next = update(stored(records, scope, id))
-        // Values form an opaque document per user. CAS and retry metadata stay separate.
+        // Values form an opaque document per user; revisions stay beside it.
         records.documents[scope] = { ...records.documents[scope], [id]: next.value }
-        records.metadata[scope] = {
-          ...records.metadata[scope],
-          [id]: { revision: next.revision, receipts: next.receipts },
-        }
+        records.metadata[scope] = { ...records.metadata[scope], [id]: { revision: next.revision } }
         await mkdir(dirname(file), { recursive: true })
         const temporary = `${file}.tmp`
         const handle = await open(temporary, 'w')

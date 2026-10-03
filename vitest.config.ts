@@ -1,7 +1,6 @@
 import { basename, resolve } from 'node:path'
 
 import { defineConfig, type TestProjectInlineConfiguration } from 'vitest/config'
-import { userContextDeclarationsForTests } from './tools/user-context/vitest.mjs'
 
 import { tectonResolveForTests, tectonServerForTests } from './tools/tecton/vitest.mjs'
 import { sourceResolveForTests, sourceSsrForTests } from './tools/workspace/conditions.mjs'
@@ -179,7 +178,7 @@ export default defineConfig({
             ...tectonResolveForTests.alias,
           ],
         },
-        plugins: [mfeMeta, userContextDeclarationsForTests],
+        plugins: [mfeMeta],
       },
       {
         test: {

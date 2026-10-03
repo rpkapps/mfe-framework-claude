@@ -32,20 +32,6 @@
     "./host-user-context-loader": {
       "mfe-source": "./src/user-context/host-loader.ts",
       "default": "./dist/user-context/host-loader.js"
-    },
-    "./user-context-loader": {
-      "mfe-source": "./src/user-context/loader.ts",
-      "default": "./dist/user-context/loader.js"
-    },
-    "./user-context": {
-      "mfe-source": "./src/user-context/compiler.ts",
-      "types": "./dist/user-context/compiler.d.ts",
-      "default": "./dist/user-context/compiler.js"
-    },
-    "./user-context-lint": {
-      "mfe-source": "./src/user-context/lint.ts",
-      "types": "./dist/user-context/lint.d.ts",
-      "default": "./dist/user-context/lint.js"
     }
   },
   "files": [

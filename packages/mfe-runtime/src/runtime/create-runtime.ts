@@ -5,7 +5,7 @@ import {
   type UserContextThemeOptions,
 } from '../theme/user-context-theme.ts'
 import type { UserContextService } from '@company/mfe-core/user-context'
-import type { HostUserContextOptions, HostUserContextDefinition } from '../user-context/host.ts'
+import type { HostUserContextOptions } from '../user-context/host.ts'
 /**
  * Assembling the shell-side runtime once per document. Everything here outlives an individual
  * mount, and none of it knows which adapter will render what it loads, so every adapter's host
@@ -81,10 +81,8 @@ export interface CreateMfeRuntimeOptions<
   readonly theme?: UserContextThemeOptions<
     NoInfer<Schema extends z.ZodObject ? z.output<Schema> : unknown>
   >
-  /** Persistence transport; contracts and identity are discovered by the framework. */
+  /** The shell's own slice and reads beside its persistence; identity comes from shellState. */
   readonly userContext?: HostUserContextOptions<Schema>
-  /** @internal Injected by the host builder; never authored by the shell. */
-  readonly __userContext?: HostUserContextDefinition
   /** Raw registry entries, usually fetched by the shell at boot. */
   readonly registryEntries: readonly unknown[]
   /** In production this is the federation loader. */
@@ -161,27 +159,14 @@ function containersByDefinitionId(entries: readonly unknown[]): ReadonlyMap<stri
 export function createMfeRuntime<Schema extends z.ZodObject | undefined = undefined>(
   options: CreateMfeRuntimeOptions<Schema>,
 ): MfeRuntimeHandle {
-  if (options.userContext && ('schema' in options.userContext || 'reads' in options.userContext))
+  if (options.theme !== undefined && options.userContext?.schema === undefined)
     throw createMfeError({
       code: 'config/invalid',
       id: '<shell>',
-      operation: 'read the shell user-context declaration',
-      expected: 'a user-context declaration compiled by the host builder',
-      observed: 'author schema or read declarations reached the runtime',
-      repair:
-        'Enable the MFE host build plugin and generate the host bindings before running createMfeRuntime. The builder removes userContext.schema and userContext.reads and supplies their compiled metadata.',
-    })
-  if (
-    options.theme !== undefined &&
-    (options.userContext === undefined || options.__userContext?.contract === undefined)
-  )
-    throw createMfeError({
-      code: 'config/invalid',
-      id: options.__userContext?.requirements.ownerId ?? '<shell>',
       operation: 'configure a user-context theme',
-      expected: 'a generated shell owner contract and a user-context persistence adapter',
+      expected: 'a shell userContext.schema and persistence adapter',
       repair:
-        'Declare userContext.schema and userContext.adapter on createMfeRuntime options and compile the shell with the MFE host build plugin.',
+        'Declare userContext.schema and userContext.adapter on createMfeRuntime options; the theme selects its preference from that schema.',
     })
   const ownsDiagnostics = options.diagnostics === undefined
   const diagnostics = options.diagnostics ?? new DiagnosticsHub()
@@ -245,7 +230,6 @@ export function createMfeRuntime<Schema extends z.ZodObject | undefined = undefi
     registry,
     theme: options.theme as UserContextThemeOptions<unknown> | undefined,
     userContext: options.userContext,
-    __userContext: options.__userContext,
     loader: options.loader,
     adapters: options.adapters,
     shellState,

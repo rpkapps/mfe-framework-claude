@@ -2,34 +2,20 @@ import {
   mountApp,
   createTestUserContextRepository,
   createUserContextBackend,
-  type MemoryRuntimeOptions,
+  scopedUserContextAdapter,
 } from '@company/mfe-angular/testing'
-import labRegistry from '../../lab/.mfe/mfe-registry.json'
-import fieldworkRegistry from '../.mfe/mfe-registry.json'
 import { expect, it } from 'vitest'
 
 import { fieldwork as app } from './mfe'
 
-// Canonical contracts come from the same generated registry artifacts deployed by each owner.
-const generatedSchema = {
-  formatVersion: 1,
-  contracts: [...labRegistry.definitions, ...fieldworkRegistry.definitions].flatMap(definition =>
-    'userContextContract' in definition ? [definition.userContextContract] : [],
-  ),
-}
-const schema = generatedSchema as NonNullable<MemoryRuntimeOptions['userContext']>['schema']
-
 function state() {
   const repository = createTestUserContextRepository().repository
-  return {
-    schema,
-    scope: 'test',
-    adapter: createUserContextBackend({
-      repository,
-      resolveOwner: async () => 'fieldwork',
-      authorize: async () => undefined,
-    }),
-  }
+  const backend = createUserContextBackend({
+    repository,
+    resolveOwner: async () => 'fieldwork',
+    authorize: async () => undefined,
+  })
+  return { adapter: scopedUserContextAdapter(backend, 'test') }
 }
 
 // A component test with explicit fixtures: no shell process, no live credentials, no federation.
