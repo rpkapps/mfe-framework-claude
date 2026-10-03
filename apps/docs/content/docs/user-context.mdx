@@ -13,7 +13,7 @@ The shell must [configure user context](/docs/configure-user-context) before mou
 <Step>
 ### 1. Declare your slice
 
-Put a Zod object directly on the definition's literal options. Its properties are local keys, not globally shared IDs.
+Put a Zod object in `userContext.schema` on the definition’s literal options. Its properties are local keys, not globally shared IDs.
 
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">
@@ -26,10 +26,15 @@ import { makeRouter } from './router'
 export default createApp({
   id: 'operations',
   router: makeRouter,
-  userContextSchema: z.object({
-    selection: z.object({ wellId: z.string().nullable().default(null) }),
-    units: z.enum(['metric', 'imperial']).default('metric'),
-  }),
+  userContext: {
+    schema: z.object({
+      selection: z.object({
+        wellId: z.string().nullable().default(null),
+        label: z.string().default(''),
+      }),
+      units: z.enum(['metric', 'imperial']).default('metric'),
+    }),
+  },
 })
 ```
 
@@ -44,10 +49,15 @@ import { routes } from './routes'
 export default createApp({
   id: 'operations',
   routes,
-  userContextSchema: z.object({
-    selection: z.object({ wellId: z.string().nullable().default(null) }),
-    units: z.enum(['metric', 'imperial']).default('metric'),
-  }),
+  userContext: {
+    schema: z.object({
+      selection: z.object({
+        wellId: z.string().nullable().default(null),
+        label: z.string().default(''),
+      }),
+      units: z.enum(['metric', 'imperial']).default('metric'),
+    }),
+  },
 })
 ```
 
@@ -56,7 +66,7 @@ export default createApp({
 
 Angular `createApp` and both adapters' `createWidget` accept the same declarations. Run `pnpm generate` to generate `#mfe/user-context`. Containers with multiple definitions use `#mfe/user-context/<definition-id>` so each binding checks the mounted definition's identity.
 
-A shared schema package is optional. Each owner can author and release its schema in its own repository.
+Own reads and writes infer this definition’s ID; do not repeat the ID when using the generated binding. A shared schema package is optional. Each owner can author and release its schema in its own repository.
 
 </Step>
 <Step>
@@ -151,23 +161,27 @@ The framework owns both subscriptions and cleanup. There is no unsubscribe funct
 <Step>
 ### 3. Read another owner's context
 
-Declare the subset you need in `userContextReads`, keyed by the owner's definition ID. The reader owns this declaration; the owner does not need to import or deploy the reader.
+Declare the subset you need in `userContext.reads`, keyed by the owner's definition ID. The reader owns this declaration; the owner does not need to import or deploy the reader. This Widget reads only `selection.wellId` from the `operations` App above: it does not declare `selection.label` or `units`, and it does not import the owner’s schema. A reader can omit `schema` when it has no context of its own. Read requirements can omit the owner’s default values and object strictness; preserve required versus optional and nullable semantics, value types and constraints. Arrays are atomic contracts, so an array reader declares the full item shape.
 
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">
 
-```ts title="src/app.tsx"
+```ts title="src/mfe.ts"
 import { z } from 'zod'
-import { createApp } from '@company/mfe-react'
-import { makeRouter } from './router'
+import { createWidget } from '@company/mfe-react'
+import { SelectedWell } from './selected-well'
 
-export default createApp({
-  id: 'reports',
-  router: makeRouter,
-  userContextReads: {
-    operations: z.object({
-      selection: z.object({ wellId: z.string().nullable().default(null) }),
-    }),
+export const selectedWell = createWidget({
+  id: 'selected-well',
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
+  render: SelectedWell,
+  userContext: {
+    reads: {
+      operations: z.object({
+        selection: z.object({ wellId: z.string().nullable() }),
+      }),
+    },
   },
 })
 ```
@@ -175,18 +189,22 @@ export default createApp({
 </Tab>
 <Tab value="Angular">
 
-```ts title="src/app.ts"
+```ts title="src/mfe.ts"
 import { z } from 'zod'
-import { createApp } from '@company/mfe-angular'
-import { routes } from './routes'
+import { createWidget } from '@company/mfe-angular'
+import { SelectedWellComponent } from './selected-well.component'
 
-export default createApp({
-  id: 'reports',
-  routes,
-  userContextReads: {
-    operations: z.object({
-      selection: z.object({ wellId: z.string().nullable().default(null) }),
-    }),
+export const selectedWell = createWidget({
+  id: 'selected-well',
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
+  component: SelectedWellComponent,
+  userContext: {
+    reads: {
+      operations: z.object({
+        selection: z.object({ wellId: z.string().nullable() }),
+      }),
+    },
   },
 })
 ```
@@ -225,7 +243,7 @@ export class SelectedWellComponent {
 </Tab>
 </Tabs>
 
-Generated bindings infer allowed owner IDs and readable properties from `userContextReads`. No explicit generic is needed. The explicit-owner overload returns only a readonly `[selectedValue]` tuple in React or `{ value: Signal<T> }` in Angular. It has no write capability:
+Generated bindings infer allowed owner IDs and readable properties from `userContext.reads`. No explicit generic is needed. The explicit-owner overload returns only a readonly `[selectedValue]` tuple in React or `{ value: Signal<T> }` in Angular. It has no write capability:
 
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">
@@ -247,7 +265,7 @@ selection.set('selection', { wellId: 'well-42' })
 </Tab>
 </Tabs>
 
-The runtime also enforces the declared owner access and mounted identity. A reader cannot gain write access by choosing another owner ID.
+Generated types expose only declared fields. Canonical runtime snapshots are not a field privacy boundary: use backend authorization for confidential data. The runtime also enforces the declared owner access and mounted identity. A reader cannot gain write access by choosing another owner ID.
 
 </Step>
 </Steps>

@@ -66,8 +66,8 @@ export async function resolveDefinition(
       id,
       'Loaded definition identity differs from the registry mount identity',
     )
-  if (definition.userContext) {
-    if (definition.userContext.ownerId !== id)
+  if (definition.__userContext) {
+    if (definition.__userContext.ownerId !== id)
       throw new UserContextError(
         'unauthorized-owner',
         id,
@@ -77,9 +77,9 @@ export async function resolveDefinition(
       throw new UserContextError(
         'unsupported-contract',
         id,
-        'Shell requires user-context protocol 1, a deployment contracts and persistence adapter',
+        'Shell requires user-context protocol 1 and a configured persistence adapter',
       )
-    await runtime.userContext.prepare(definition.userContext, signal)
+    await runtime.userContext.prepare(definition.__userContext, signal)
   }
   return definition
 }

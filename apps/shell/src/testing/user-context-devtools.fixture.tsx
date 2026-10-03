@@ -1,12 +1,9 @@
 /** Browser-only scale fixture. This entry is never part of the shell's production build. */
 import { createRoot } from 'react-dom/client'
 import { devtools, MfeDevtools } from '@company/mfe-devtools'
-import {
-  createMfeRuntime,
-  createNoopTelemetryProvider,
-  MfeProvider,
-  type CreateMfeRuntimeOptions,
-} from '@company/mfe-react/host'
+import type { RegistryEntry } from '@company/mfe-react'
+import { reactAdapter } from '@company/mfe-react/registry'
+import { createMfeRuntime, createNoopTelemetryProvider, MfeProvider } from '@company/mfe-react/host'
 import '../styles/app.css'
 
 const keys = [
@@ -41,9 +38,7 @@ const keys = [
   'workspace:preferences',
   'workspace:preferences:inspection:default-survey-and-comparison-settings',
 ]
-type Schema = NonNullable<CreateMfeRuntimeOptions['userContext']>['schema']
-type Contracts = Extract<Schema, { readonly contracts: unknown }>['contracts']
-const contracts: Contracts = keys.map(key => ({
+const contracts: readonly NonNullable<RegistryEntry['userContextContract']>[] = keys.map(key => ({
   formatVersion: 1,
   id: key.replaceAll(':', '-'),
   revision: 'browser-fixture-v1',
@@ -54,16 +49,22 @@ const contracts: Contracts = keys.map(key => ({
   },
 }))
 const { runtime } = createMfeRuntime({
-  registryEntries: [],
-  adapters: [],
+  registryEntries: contracts.map(contract => ({
+    id: contract.id,
+    kind: 'app',
+    mfe: { framework: 'react' },
+    manifestUrl: `https://fixture.invalid/${contract.id}/mf-manifest.json`,
+    container: contract.id,
+    requiresRuntime: '>=1.2.0 <2.0.0',
+    userContextContract: contract,
+  })),
+  adapters: [reactAdapter],
   loader: {
     load: () => Promise.reject(new Error('The scale fixture loads no containers')),
   },
-  shellState: { user: null, groups: [], theme: 'light' },
+  shellState: { user: { id: 'fixture-user', name: 'Fixture user' }, groups: [], theme: 'light' },
   telemetryProvider: createNoopTelemetryProvider(),
   userContext: {
-    scope: 'browser-fixture',
-    schema: { formatVersion: 1, contracts },
     adapter: {
       hydrate: (_scope, ids) =>
         Promise.resolve(

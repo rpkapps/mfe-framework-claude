@@ -27,7 +27,6 @@ import { shellUi } from './ui-store.ts'
 /** What a shell action reads at the render it was built in. */
 export interface ShellActionContext {
   readonly runtime: MfeRuntime
-  readonly theme: ShellTheme
   readonly layout: DashboardLayout
   readonly setLayout: StoredStateSetter<DashboardLayout>
   readonly goToDashboard: () => void
@@ -39,8 +38,7 @@ export interface ShellActionContext {
  * never changes, because the registrations are matched to their handles by position.
  */
 export function shellActions(context: ShellActionContext): readonly ActionRegistration[] {
-  const { runtime, theme, layout, setLayout } = context
-  const otherTheme = theme === 'dark' ? 'light' : 'dark'
+  const { runtime, layout, setLayout } = context
 
   return [
     {
@@ -114,14 +112,6 @@ export function shellActions(context: ShellActionContext): readonly ActionRegist
       execute: context.goToDashboard,
     },
     {
-      name: 'theme',
-      label: `Switch to ${otherTheme} theme`,
-      shortcut: 'mod+j',
-      execute: () => {
-        runtime.shellState.apply({ theme: otherTheme })
-      },
-    },
-    {
       name: 'releases',
       label: 'What’s new',
       effect: 'read',
@@ -168,6 +158,21 @@ export function shellActions(context: ShellActionContext): readonly ActionRegist
       },
     },
   ]
+}
+
+/** Keep the shortcut registered while preferences load, then enable its persistent setter. */
+export function themeAction(
+  theme: ShellTheme,
+  save?: (theme: ShellTheme) => Promise<void>,
+): ActionRegistration {
+  const next = theme === 'dark' ? 'light' : 'dark'
+  return {
+    name: 'theme',
+    label: `Switch to ${next} theme`,
+    shortcut: 'mod+j',
+    canExecute: () => (save ? allow() : deny('Your saved theme preference is not available yet.')),
+    execute: () => save?.(next),
+  }
 }
 
 async function copyToClipboard(value: string, success: string): Promise<void> {

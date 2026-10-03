@@ -4,24 +4,29 @@
     {
       "formatVersion": 1,
       "id": "well-inspection",
-      "node": { "kind": "object", "strict": false, "fields": {} },
-      "revision": "1ffed6fb24014b41187b0e601faf58f37f98d13035284a416e258818554bbe17"
-    },
-    {
-      "formatVersion": 1,
-      "id": "fieldwork",
       "node": {
         "kind": "object",
         "strict": false,
         "fields": {
-          "inspection:showCompleted": {
+          "brief": {
             "kind": "default",
-            "inner": { "kind": "boolean" },
-            "value": false
+            "inner": {
+              "kind": "nullable",
+              "inner": {
+                "kind": "object",
+                "strict": false,
+                "fields": {
+                  "runId": { "kind": "string" },
+                  "text": { "kind": "string" },
+                  "wellId": { "kind": "string" }
+                }
+              }
+            },
+            "value": null
           }
         }
       },
-      "revision": "4ddc65cece24754dbbc3369edc79522f18ce3d1ef1897dc6cc12c38d484d7d01"
+      "revision": "9a3734e8e37303e2223b16b5e79103dfb8ae8adc16f2bd60f4fc1dcd35aab03c"
     }
   ]
 }

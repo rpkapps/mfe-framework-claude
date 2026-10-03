@@ -9,7 +9,6 @@ import {
   useActiveDefinition,
   useMfeRuntime,
   useStoredState,
-  useTheme,
   type ActiveDefinition,
   type StoredStateSetter,
 } from '@company/mfe-react'
@@ -85,11 +84,9 @@ export function useActionShortcuts(): void {
 export function useShellActions(): void {
   const runtime = useMfeRuntime('the shell actions')
   const navigate = useNavigate()
-  const theme = useTheme()
   const [layout, setLayout] = useDashboardLayout()
   const registrations = shellActions({
     runtime,
-    theme,
     layout,
     setLayout,
     goToDashboard: () => void navigate({ to: '/' }),

@@ -1,5 +1,5 @@
 import { applyStateWrite, normalize, stateCapabilities } from '@company/mfe-core/user-context'
-import { act, render, renderHook } from '@testing-library/react'
+import { act, render, renderHook, waitFor } from '@testing-library/react'
 import {
   createMemoryHistory,
   createRootRouteWithContext,
@@ -7,7 +7,7 @@ import {
   createRouter,
 } from '@tanstack/react-router'
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
-import { Component, StrictMode, useMemo, type ReactNode } from 'react'
+import { Component, StrictMode, Suspense, useMemo, useEffect, type ReactNode } from 'react'
 import type {
   UserContextAdapter,
   UserContextScopeService,
@@ -22,7 +22,8 @@ import { MfeMountProvider } from '../mount-context.tsx'
 import type { AppRouterOptions, MfeRouterContext } from '../router-contract.ts'
 import { withQueryClient } from '../runtime.ts'
 import { mountApp } from '../testing/index.tsx'
-import { createUserContextBindings } from './user-context.ts'
+import { createHostUserContextBindings, createUserContextBindings } from './user-context.ts'
+import { MfeProvider } from '../runtime-context.tsx'
 
 type Values = {
   units: 'metric' | 'imperial'
@@ -98,12 +99,12 @@ function adapter(): UserContextAdapter {
     },
   }
 }
-async function setup() {
+async function setup(persistence: UserContextAdapter = adapter()) {
   const memory = createMemoryRuntime({
     userContext: {
       scope: 'user/workspace',
       schema: { formatVersion: 1, contracts: [contract] },
-      adapter: adapter(),
+      adapter: persistence,
     },
   })
   const context = createMountContext({
@@ -113,7 +114,7 @@ async function setup() {
     basePath: '/',
   })
   const prepared = await prepareUserContextMount(
-    { id: 'reader', userContext: requirements },
+    { id: 'reader', __userContext: requirements },
     context.context,
   )
   const mount = withQueryClient(prepared)
@@ -244,7 +245,7 @@ describe('definition-bound React user context and routers', () => {
       basePath: '/',
     })
     const prepared = await prepareUserContextMount(
-      { id: 'observer', userContext: { ...requirements, ownerId: 'observer' } },
+      { id: 'observer', __userContext: { ...requirements, ownerId: 'observer' } },
       observerContext.context,
     )
     const observerMount = withQueryClient(prepared)
@@ -387,7 +388,7 @@ describe('definition-bound React user context and routers', () => {
         routeTree: createRootRouteWithContext<MfeRouterContext<Values>>()({}).addChildren([]),
       })
     })
-    const definition = createApp({ id: 'reader', userContext: requirements, router: factory })
+    const definition = createApp({ id: 'reader', __userContext: requirements, router: factory })
     const mounted = await mountApp(definition, {
       userContext: {
         scope: 'user/workspace',
@@ -426,3 +427,120 @@ function TypeContracts() {
   return null
 }
 void TypeContracts
+
+describe('generated React shell user-context binding', () => {
+  it('hydrates automatically, selects narrowly, and cleans subscriptions on unmount', async () => {
+    const environment = await setup()
+    const host = createHostUserContextBindings<Values>(requirements)
+    const rendered = vi.fn()
+    function Consumer() {
+      const [theme] = host.useUserContext(value => value.preferences.appearance.theme)
+      rendered(theme)
+      return <span>{theme}</span>
+    }
+    const component = render(
+      <MfeProvider runtime={environment.memory.runtime}>
+        <Suspense fallback={<span>Loading</span>}>
+          <Consumer />
+        </Suspense>
+      </MfeProvider>,
+    )
+    await waitFor(() => expect(component.getByText('light')).toBeTruthy())
+    rendered.mockClear()
+    await act(async () => {
+      await environment.mount.userContext!.set('preferences', { appearance: { fontSize: 20 } })
+    })
+    expect(rendered).not.toHaveBeenCalled()
+    await act(async () => {
+      await environment.mount.userContext!.set('preferences', { appearance: { theme: 'dark' } })
+    })
+    expect(component.getByText('dark')).toBeTruthy()
+    component.unmount()
+    rendered.mockClear()
+    await environment.mount.userContext!.set('units', 'imperial')
+    expect(rendered).not.toHaveBeenCalled()
+    await environment.dispose()
+  })
+
+  it('routes hydration failures to a local boundary while the surrounding shell stays mounted', async () => {
+    const environment = await setup()
+    const service = environment.memory.runtime.userContext!
+    vi.spyOn(service, 'prepare').mockRejectedValue(new Error('Preferences API unavailable'))
+    const host = createHostUserContextBindings<Values>(requirements)
+    class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
+      override state = { failed: false }
+      static getDerivedStateFromError() {
+        return { failed: true }
+      }
+      override render() {
+        return this.state.failed ? <span>Preferences unavailable</span> : this.props.children
+      }
+    }
+    function Consumer() {
+      const [theme] = host.useUserContext(value => value.preferences.appearance.theme)
+      return <span>{theme}</span>
+    }
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const component = render(
+      <MfeProvider runtime={environment.memory.runtime}>
+        <span>Shell navigation</span>
+        <Boundary>
+          <Suspense fallback={<span>Loading</span>}>
+            <Consumer />
+          </Suspense>
+        </Boundary>
+      </MfeProvider>,
+    )
+    try {
+      await waitFor(() => expect(component.getByText('Preferences unavailable')).toBeTruthy())
+      expect(component.getByText('Shell navigation')).toBeTruthy()
+      expect(service.prepare).toHaveBeenCalledTimes(1)
+    } finally {
+      component.unmount()
+      consoleError.mockRestore()
+      await environment.dispose()
+    }
+  })
+
+  it('rebinds after user scope changes and never keeps the previous user value', async () => {
+    const persistence = adapter()
+    const environment = await setup({
+      ...persistence,
+      hydrate: (scope, ids, signal) =>
+        scope === 'next-user'
+          ? Promise.resolve([{ id: 'reader', revision: 0 }])
+          : persistence.hydrate(scope, ids, signal),
+    })
+    await environment.mount.userContext!.set('units', 'imperial')
+    const service = environment.memory.runtime.userContext as UserContextScopeService
+    const host = createHostUserContextBindings<Values>(requirements)
+    let latest: ReturnType<typeof service.bind<Values>>['set'] | undefined
+    function Consumer() {
+      const [units, set] = host.useUserContext(value => value.units)
+      useEffect(() => {
+        latest = set
+      }, [set])
+      return <span>{units}</span>
+    }
+    const component = render(
+      <MfeProvider runtime={environment.memory.runtime}>
+        <Suspense fallback={<span>Loading</span>}>
+          <Consumer />
+        </Suspense>
+      </MfeProvider>,
+    )
+    await waitFor(() => expect(component.getByText('imperial')).toBeTruthy())
+    const oldSet = latest!
+    await act(async () => {
+      service.setScope('next-user')
+    })
+    await waitFor(() => expect(component.getByText('metric')).toBeTruthy())
+    expect(latest).not.toBe(oldSet)
+    expect(await oldSet('units', 'metric')).toMatchObject({
+      ok: false,
+      error: { code: 'user-context/scope-disposed' },
+    })
+    component.unmount()
+    await environment.dispose()
+  })
+})

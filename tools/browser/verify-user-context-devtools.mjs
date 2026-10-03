@@ -8,7 +8,8 @@ const shots = fileURLToPath(new URL('../../screenshots/', import.meta.url))
 export async function verifyUserContextDevtools(browser) {
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
   await mkdir(shots, { recursive: true })
-  const screenshot = name => page.screenshot({ path: `${shots}${name}.png` })
+  const screenshot = name =>
+    page.screenshot({ path: `${shots}${name}.png`, animations: 'disabled' })
   const panel = page.locator('[data-mfe-devtools-panel]')
   const selectOwner = async () => {
     const picker = page.getByLabel('Choose user-context owner', { exact: true })
@@ -39,12 +40,21 @@ export async function verifyUserContextDevtools(browser) {
       'Ready',
     )
     await screenshot('user-context-current')
+    await page.getByRole('tab', { name: 'Keys', exact: true }).click()
+    await expect(page.getByRole('button', { name: 'lab:units', exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'lab:well-selection', exact: true }).click()
+    const nestedValue = page.getByLabel('current value of lab:well-selection', { exact: true })
+    await expect(nestedValue).toBeVisible()
+    await expect(nestedValue).toContainText('well-42')
+    await expect.poll(async () => (await nestedValue.boundingBox())?.height ?? 0).toBeGreaterThan(0)
+    await screenshot('user-context-keys')
+    await page.getByRole('tab', { name: 'Current value', exact: true }).click()
 
     // Hold persistence: consumers and diagnostics must keep the durable value until acknowledgement.
     const pendingWrite = new Promise(resolve => {
       heldWrite = resolve
     })
-    await page.route('**/api/user-context/write', route => {
+    await page.route('**/api/user-context/write/lab', route => {
       heldWrite(route)
     })
     await close()
@@ -63,7 +73,7 @@ export async function verifyUserContextDevtools(browser) {
     )
     await screenshot('user-context-confirmed')
     await route.continue()
-    await page.unroute('**/api/user-context/write')
+    await page.unroute('**/api/user-context/write/lab')
     await expect(panel.getByText('Pending', { exact: true })).toHaveCount(0)
     await expect(survey.getByLabel('Well', { exact: true })).toHaveValue('well-17')
     await expect(page.getByLabel('confirmed value of lab', { exact: true })).toContainText(
@@ -95,7 +105,7 @@ export async function verifyUserContextDevtools(browser) {
     await screenshot('user-context-mobile')
     expect(await panel.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
     console.log(
-      'User Context devtools: live values, pending persistence, confirmed values, schema, search, docking and mobile verified.',
+      'User Context devtools: namespaced keys, nested values, pending persistence, confirmed values, schema, search, docking and mobile verified.',
     )
   } finally {
     await page.close()

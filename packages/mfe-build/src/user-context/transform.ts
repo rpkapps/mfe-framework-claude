@@ -4,22 +4,63 @@ import {
   collectTopLevelBindings,
   propertyName,
   ts,
+  unwrapExpression,
 } from '../discovery/ts-ast.ts'
 
 export function userContextExpression(
   options: ts.ObjectLiteralExpression,
-  name: 'userContextSchema' | 'userContextReads' = 'userContextSchema',
+  name: 'schema' | 'reads' = 'schema',
 ): ts.Expression | undefined {
-  const properties = options.properties.filter(candidate => propertyName(candidate) === name)
+  if (
+    options.properties.some(property =>
+      ['userContextSchema', 'userContextReads'].includes(propertyName(property) ?? ''),
+    )
+  )
+    throw new Error(
+      'user-context/unsupported-schema: Declare userContext: { schema, reads } on definition options',
+    )
+  const properties = options.properties.filter(
+    candidate => propertyName(candidate) === 'userContext',
+  )
   const property = properties[0]
   if (!property) return undefined
-  if (properties.length !== 1 || options.properties.some(ts.isSpreadAssignment))
+  if (
+    properties.length !== 1 ||
+    options.properties.some(ts.isSpreadAssignment) ||
+    !ts.isPropertyAssignment(property)
+  )
     throw new Error(
-      `user-context/unsupported-schema: Put ${name} directly on definition options once without spreads; the production declaration must be removable`,
+      'user-context/unsupported-schema: Put userContext directly on definition options once without spreads',
     )
-  if (ts.isPropertyAssignment(property)) return property.initializer
-  if (ts.isShorthandPropertyAssignment(property)) return property.name
-  throw new Error(`user-context/unsupported-schema: ${name} must be a static declaration`)
+  const declaration = unwrapExpression(property.initializer)
+  if (!ts.isObjectLiteralExpression(declaration))
+    throw new Error(
+      'user-context/unsupported-schema: userContext must be an inline { schema, reads } declaration',
+    )
+  const seen = new Set<string>()
+  for (const member of declaration.properties) {
+    const key = propertyName(member)
+    if (
+      !key ||
+      !['schema', 'reads'].includes(key) ||
+      seen.has(key) ||
+      (!ts.isPropertyAssignment(member) && !ts.isShorthandPropertyAssignment(member))
+    )
+      throw new Error(
+        'user-context/unsupported-schema: userContext accepts unique schema and reads declarations without spreads',
+      )
+    seen.add(key)
+  }
+  if (!seen.size)
+    throw new Error(
+      'user-context/unsupported-schema: userContext needs a schema or reads declaration',
+    )
+  const member = declaration.properties.find(candidate => propertyName(candidate) === name)
+  return member && ts.isPropertyAssignment(member)
+    ? member.initializer
+    : member && ts.isShorthandPropertyAssignment(member)
+      ? member.name
+      : undefined
 }
 /** An actual declaration transform, followed by pruning authoring-only bindings/imports. */
 export function transformUserContextSource(
@@ -66,7 +107,7 @@ export function transformUserContextSource(
           const options = node.arguments[0]
           if (options && ts.isObjectLiteralExpression(options)) {
             const schema = userContextExpression(options)
-            const reads = userContextExpression(options, 'userContextReads')
+            const reads = userContextExpression(options, 'reads')
             if (schema || reads) {
               if (schema) collectCandidates(schema)
               if (reads) collectCandidates(reads)
@@ -81,12 +122,11 @@ export function transformUserContextSource(
               if (!refs) throw new Error(`user-context/missing-contract: ${id ?? filename}`)
               const properties = options.properties.filter(
                 property =>
-                  propertyName(property) !== 'userContextSchema' &&
-                  propertyName(property) !== 'userContextReads' &&
-                  propertyName(property) !== 'userContext',
+                  propertyName(property) !== 'userContext' &&
+                  propertyName(property) !== '__userContext',
               )
               properties.push(
-                ts.factory.createPropertyAssignment('userContext', jsonExpression(refs)),
+                ts.factory.createPropertyAssignment('__userContext', jsonExpression(refs)),
               )
               return ts.factory.updateCallExpression(node, node.expression, node.typeArguments, [
                 ts.factory.updateObjectLiteralExpression(options, properties),

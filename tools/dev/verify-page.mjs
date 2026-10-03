@@ -15,7 +15,7 @@
  */
 
 import { detachedForGroupKill, killTree, spawnPnpm } from './processes.mjs'
-import { DEV_API_PORT } from './api.mjs'
+import { DEV_API_PORT } from './api-port.mjs'
 import { spawn } from 'node:child_process'
 import { readFile, readdir } from 'node:fs/promises'
 import { existsSync } from 'node:fs'
@@ -24,6 +24,7 @@ import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { verifyUserContextDevtools } from '../browser/verify-user-context-devtools.mjs'
 import { verifyUserContextScale } from '../browser/verify-user-context-scale.mjs'
+import { verifyUserContextPreferences } from '../browser/verify-user-context-preferences.mjs'
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
 
@@ -870,6 +871,7 @@ async function main() {
   if (values.url === undefined) {
     await verifyUserContextDevtools(browser)
     await verifyUserContextScale(browser)
+    await verifyUserContextPreferences(browser)
   }
   if (values['keep-open'] !== true) await browser.close()
 }

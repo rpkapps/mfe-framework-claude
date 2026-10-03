@@ -3,6 +3,9 @@ import { dirname } from 'node:path'
 import { createUserContextBackend } from '@company/mfe-runtime/user-context'
 import { schema } from './src/schema.js'
 
+// Matches the shell's local demo identity; production derives this from its authenticated session.
+export const DEMO_SCOPE = JSON.stringify([null, null, 'u-2841'])
+
 /** Single-process local example; production supplies an authenticated database repository. */
 export function createDemoBackend(file) {
   let writes = Promise.resolve()
@@ -54,17 +57,28 @@ export function createDemoBackend(file) {
       return operation
     },
   }
-  return createUserContextBackend({
-    schema,
-    repository,
-    // This bounded demo endpoint grants only Lab writes. Never infer identity from a body or
-    // arbitrary owner header; production resolves it from the authenticated server session.
-    resolveOwner: async () => 'lab',
-    authorize: async scope => {
-      // This stand-in has no sign-in service. Only its isolated demo workspace is available.
-      if (scope !== 'user-context-example') throw new Error('Unknown demo workspace')
-    },
-  })
+  const owners = new Set(['lab', 'well-inspection', 'shell'])
+  const backends = new Map()
+  function forOwner(owner) {
+    if (!owners.has(owner)) throw new Error('Unknown demo owner')
+    if (!backends.has(owner)) {
+      backends.set(
+        owner,
+        createUserContextBackend({
+          schema,
+          repository,
+          // Each dev API route selects a fixed owner; submitted record IDs cannot change it.
+          // These endpoints are public local-demo capabilities, not production authentication.
+          resolveOwner: async () => owner,
+          authorize: async scope => {
+            if (scope !== DEMO_SCOPE) throw new Error('Unknown demo identity')
+          },
+        }),
+      )
+    }
+    return backends.get(owner)
+  }
+  return { ...forOwner('lab'), forOwner }
 }
 
 export async function readRequestBody(request) {

@@ -1,5 +1,10 @@
-import type { UserContextScopeService } from '@company/mfe-core/user-context'
-import type { UserContextOptions } from '../user-context/store.ts'
+import {
+  readCachedTheme,
+  resolveTheme,
+  type UserContextThemeOptions,
+} from '../theme/user-context-theme.ts'
+import type { UserContextService } from '@company/mfe-core/user-context'
+import type { HostUserContextOptions, HostUserContextDefinition } from '../user-context/host.ts'
 /**
  * Assembling the shell-side runtime once per document. Everything here outlives an individual
  * mount, and none of it knows which adapter will render what it loads, so every adapter's host
@@ -7,6 +12,7 @@ import type { UserContextOptions } from '../user-context/store.ts'
  */
 
 import {
+  createMfeError,
   withoutUndefined,
   type DeadlineConfig,
   type DiagnosticsSink,
@@ -45,7 +51,7 @@ import { assembleRuntime, reportRejectedEntries } from './assemble-runtime.ts'
 
 /** Shared, shell-owned services, one instance per document. */
 export interface MfeRuntime {
-  readonly userContext?: UserContextScopeService
+  readonly userContext?: UserContextService
   /** Version of the registry, mount protocol and services, independent of package versions. */
   readonly apiVersion: string
   readonly registry: Registry
@@ -69,8 +75,12 @@ export interface MfeRuntime {
 }
 
 export interface CreateMfeRuntimeOptions {
+  readonly theme?: UserContextThemeOptions<unknown>
+  /** Persistence transport; contracts and identity are discovered by the framework. */
+  readonly userContext?: HostUserContextOptions
+  /** @internal Supplied by the generated host module. */
+  readonly __userContext?: HostUserContextDefinition
   /** Raw registry entries, usually fetched by the shell at boot. */
-  readonly userContext?: UserContextOptions
   readonly registryEntries: readonly unknown[]
   /** In production this is the federation loader. */
   readonly loader: ContainerLoader
@@ -144,11 +154,30 @@ function containersByDefinitionId(entries: readonly unknown[]): ReadonlyMap<stri
 }
 
 export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHandle {
+  if (
+    options.theme !== undefined &&
+    (options.userContext === undefined || options.__userContext?.contract === undefined)
+  )
+    throw createMfeError({
+      code: 'config/invalid',
+      id: options.__userContext?.requirements.ownerId ?? '<shell>',
+      operation: 'configure a user-context theme',
+      expected: 'a generated shell owner contract and a user-context persistence adapter',
+      repair:
+        'Declare the shell userContext.schema in mfe.config.ts, import createMfeRuntime from #mfe/user-context, and supply userContext.adapter.',
+    })
   const ownsDiagnostics = options.diagnostics === undefined
   const diagnostics = options.diagnostics ?? new DiagnosticsHub()
   const removeSinks = (options.diagnosticsSinks ?? []).map(sink => diagnostics.add(sink))
 
-  const shellState = new ShellStateStore(options.shellState)
+  const shellState = new ShellStateStore(
+    options.theme
+      ? {
+          ...options.shellState,
+          theme: resolveTheme(readCachedTheme(options.theme.cacheKey, options.shellState.user)),
+        }
+      : options.shellState,
+  )
   const storage = new MfeStorageStore({ diagnostics })
   const { previousIdentity } = recordSessionIdentity(storage, identityOf(shellState.getSnapshot()))
   // A sign-in within the page is recorded too, so the next reload compares against it.
@@ -197,7 +226,9 @@ export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHa
 
   const assembled = assembleRuntime({
     registry,
+    theme: options.theme,
     userContext: options.userContext,
+    __userContext: options.__userContext,
     loader: options.loader,
     adapters: options.adapters,
     shellState,

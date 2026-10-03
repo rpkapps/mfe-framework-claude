@@ -11,7 +11,7 @@ describe('production user-context declarations', () => {
       const source = `import { z } from 'zod';
       import { createApp } from '@company/mfe-react';
       const schema = z.object({ selection: z.string().default('none') });
-      export default createApp({ id: 'example', router: () => ({}), ${readOnly ? 'userContextReads: { producer: schema }' : 'userContextSchema: schema'} });`
+      export default createApp({ id: 'example', router: () => ({}), ${readOnly ? 'userContext: { reads: { producer: schema } }' : 'userContext: { schema }'} });`
       const file = ts.createSourceFile('mfe.ts', source, ts.ScriptTarget.Latest, true)
       const schema = (file.statements[2] as ts.VariableStatement).declarationList.declarations[0]!
         .initializer!

@@ -8,7 +8,7 @@ it('reports unsupported authoring expressions with source locations in editor di
       filename: 'mfe.ts',
       sourceCode: {
         text: `import {z} from 'zod'; import {createApp} from '@company/mfe-react';
-    const app = createApp({ userContextSchema: z.object({ selection: z.string().transform(value => value) }) });`,
+    const app = createApp({ userContext: { schema: z.object({ selection: z.string().transform(value => value) }) } });`,
       },
       report: report => reports.push(report),
     })
@@ -24,7 +24,7 @@ it('leaves supported declarations clean without requiring a release policy in th
     .create({
       filename: 'mfe.ts',
       sourceCode: {
-        text: `import {z} from 'zod'; import {createApp} from '@company/mfe-react'; const app = createApp({ userContextSchema: z.object({ selection: z.string().default('none') }) });`,
+        text: `import {z} from 'zod'; import {createApp} from '@company/mfe-react'; const app = createApp({ userContext: { schema: z.object({ selection: z.string().default('none') }) } });`,
       },
       report: report => reports.push(report),
     })
@@ -38,7 +38,7 @@ it('reports unsupported cross-owner read schemas', () => {
     .create({
       filename: 'mfe.ts',
       sourceCode: {
-        text: `import {z} from 'zod'; import {createApp} from '@company/mfe-react'; const app = createApp({ id: 'reader', userContextReads: { owner: z.object({ selected: z.string().transform(value => value) }) } });`,
+        text: `import {z} from 'zod'; import {createApp} from '@company/mfe-react'; const app = createApp({ id: 'reader', userContext: { reads: { owner: z.object({ selected: z.string().transform(value => value) }) } } });`,
       },
       report: report => reports.push(report),
     })

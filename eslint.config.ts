@@ -90,8 +90,9 @@ const config: Linter.Config[] = [
       // The other end of the same bootstrap: the override key and the panel's own flag are
       // the page's, not any definition's, and are read before a store exists to read them.
       'packages/mfe-devtools/src/browser-storage.ts',
-      // The theme is read before first paint, before a framework store exists.
-      'apps/shell/src/shell/preferences.ts',
+      // Framework-owned prepaint cache: validated theme preference, partitioned by user;
+      // access failures are handled internally before a persisted context is available.
+      'packages/mfe-runtime/src/theme/user-context-theme.ts',
       // The OIDC session and the sign-in request's state and PKCE verifier, in sessionStorage
       // under `shell.oidc.`, and the tab's own id under `shell.tab`: they must survive a reload
       // and the redirect to the identity provider, are read before any store exists, and die

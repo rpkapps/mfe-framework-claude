@@ -9,9 +9,10 @@
 import { createServer } from 'node:http'
 import { fileURLToPath } from 'node:url'
 import { createDemoBackend, readRequestBody } from '../../examples/user-context/server.mjs'
+import { DEV_API_PORT } from './api-port.mjs'
 
 /** Exported so `pnpm dev` checks and waits on this port without a second copy of the number. */
-export const DEV_API_PORT = Number(process.env['MFE_DEV_API_PORT'] ?? 3010)
+export { DEV_API_PORT } from './api-port.mjs'
 
 const ASSETS = {
   north: [
@@ -49,6 +50,14 @@ const userContext = createDemoBackend(
   fileURLToPath(new URL('../../.mfe/user-context-demo/records.json', import.meta.url)),
 )
 
+// Explicit demo routes choose the permitted writer; a submitted record id does not grant it.
+const contextWriters = new Map([
+  ['/api/user-context/write', userContext],
+  ['/api/user-context/write/lab', userContext],
+  ['/api/user-context/write/well-inspection', userContext.forOwner('well-inspection')],
+  ['/api/user-context/write/shell', userContext.forOwner('shell')],
+])
+
 const server = createServer(async (request, response) => {
   if (request.method === 'OPTIONS') {
     cors(response)
@@ -59,7 +68,7 @@ const server = createServer(async (request, response) => {
 
   const url = new URL(request.url ?? '/', `http://localhost:${String(DEV_API_PORT)}`)
 
-  if (url.pathname === '/api/user-context/hydrate' || url.pathname === '/api/user-context/write') {
+  if (url.pathname === '/api/user-context/hydrate' || contextWriters.has(url.pathname)) {
     if (request.method !== 'POST') {
       json(response, 405, { message: 'Use POST for user context' })
       return
@@ -71,7 +80,7 @@ const server = createServer(async (request, response) => {
       const body = await readRequestBody(request)
       const record = url.pathname.endsWith('/hydrate')
         ? await userContext.hydrate(body.scope, body.ids, controller.signal)
-        : await userContext.write(body, controller.signal)
+        : await contextWriters.get(url.pathname).write(body, controller.signal)
       json(response, 200, record)
     } catch (error) {
       json(response, error.code === 'user-context/conflict' ? 409 : 400, {

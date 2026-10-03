@@ -24,7 +24,7 @@ it('replaces authoring schemas after the actual Angular compiler emits JavaScrip
   const root = createContainer({
     'src/mfe.ts': `import { z } from 'zod'; import { createApp } from '@company/mfe-angular';
       const schema = z.object({ selection: z.string().default('none') });
-      export default createApp({ id: 'reports', routes: [], userContextSchema: schema });`,
+      export default createApp({ id: 'reports', routes: [], userContext: { schema } });`,
     'src/modules.d.ts': `declare module 'zod' { export const z: any }
       declare module '@company/mfe-angular' { export function createApp(options: any): unknown }`,
     'tsconfig.json': JSON.stringify({
@@ -68,7 +68,7 @@ it('replaces authoring schemas after the actual Angular compiler emits JavaScrip
     })
     expect(stats.toJson({ all: false, errors: true }).errors).toEqual([])
     const emitted = readFileSync(join(root, 'dist/bundle.js'), 'utf8')
-    expect(emitted).not.toContain('userContextSchema')
+    expect(emitted).toContain('__userContext')
     expect(emitted).not.toContain('zod')
     expect(emitted).toContain('protocolVersion')
     expect(emitted).toContain('ownerId')

@@ -5,8 +5,8 @@ import type { LabUserContext } from './user-context.schema'
 
 @Injectable()
 export class SelectionResolverContext {
-  readonly selection = injectUserContext('lab', context => context['well:selection'])
+  readonly selection = injectUserContext('lab', context => context['well-selection'])
 }
 
-export const selectionResolver: ResolveFn<LabUserContext['well:selection']> = () =>
+export const selectionResolver: ResolveFn<LabUserContext['well-selection']> = () =>
   inject(SelectionResolverContext).selection.value()

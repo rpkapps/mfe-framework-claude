@@ -3,7 +3,7 @@ title: "Evolve an owner's user-context schema"
 description: 'Release owner schemas independently while preserving older readers and writers.'
 ---
 
-Each App or Widget versions its own `userContextSchema`. Readers separately declare the subset they require in `userContextReads`. Build tooling compiles these declarations into owner contracts and small generated requirements; runtime bundles do not carry Zod or the compiler solely for user context.
+Each App or Widget versions its own `userContext.schema`. Readers separately declare the subset they require in `userContext.reads`. Build tooling compiles these declarations into owner contracts and small generated requirements; runtime bundles do not carry Zod or the compiler solely for user context.
 
 ## Preserve compatible fields
 
@@ -30,9 +30,9 @@ A first release can build without baselines. Omitting baselines does not establi
 
 ## Coordinate deployments
 
-Publish the owner's new compiled contract with its deployment artifacts. Make a compatible current contract available to the shell and backend before deploying a reader that requires newly added fields. Existing readers can continue using their older subset. A new reader requiring an unavailable capability fails before mount rather than silently dropping data.
+Publish the owner's new compiled contract with its deployment artifacts. Publish a compatible current contract through the owner's registry entry and update the backend's trusted contracts before deploying a reader that requires newly added fields. Existing readers can continue using their older subset. A new reader requiring an unavailable capability fails before mount rather than silently dropping data.
 
-The shell and backend need current owner contracts. Historical baselines remain in build and release tooling, outside consumer runtime payloads.
+The runtime discovers current owner contracts from the registry; the backend loads its trusted current owner contracts. Historical baselines remain in build and release tooling, outside consumer runtime payloads.
 
 ## Related
 

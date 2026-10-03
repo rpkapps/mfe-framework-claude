@@ -5,28 +5,28 @@ import { createDemoUserContext } from './src/browser.ts'
 test('browser transport preserves backend ownership and conflict error codes', async () => {
   const options = createDemoUserContext()
   const operation = {
-    scope: options.scope,
-    id: 'fieldwork',
+    scope: JSON.stringify([null, null, 'u-2841']),
+    id: 'well-inspection',
     expectedRevision: 0,
     operationId: 'forbidden',
-    value: { 'inspection:showCompleted': true },
+    value: { brief: null },
   }
   for (const [status, code] of [
     [400, 'unauthorized-owner'],
     [409, 'conflict'],
   ]) {
     const fetch = mock.method(globalThis, 'fetch', async (url, request) => {
-      assert.equal(url, 'http://localhost:3010/api/user-context/write')
+      assert.equal(url, 'http://localhost:3010/api/user-context/write/well-inspection')
       assert.deepEqual(JSON.parse(request.body), operation)
       return Response.json(
-        { code: `user-context/${code}`, id: 'fieldwork', message: 'Rejected' },
+        { code: `user-context/${code}`, id: 'well-inspection', message: 'Rejected' },
         { status },
       )
     })
     try {
       await assert.rejects(options.adapter.write(operation, new AbortController().signal), {
         code: `user-context/${code}`,
-        id: 'fieldwork',
+        id: 'well-inspection',
       })
     } finally {
       fetch.mock.restore()

@@ -582,6 +582,13 @@ retention (§56); the host scope keeps the tab's session identity record in its 
 The theme key remains a pre-paint shell preference, read before the runtime starts.
 The legacy interoperation rationale above is historical.
 
+**User-context amendment:** the shell now persists `preferences.theme` as its own
+context and exposes the effective theme through shell state. The framework owns a
+startup cache partitioned by tenant, account and user. Pre-paint use requires a
+known identity in the document; otherwise the page starts with the system theme
+and may correct it after sign-in. The bare key and shell-local storage helpers
+above are historical. See [the user-context protocol](./user-context.md).
+
 ---
 
 ## 25. The runtime adopts the shell's hub, and owns everything else
@@ -2034,4 +2041,4 @@ bringing it back is an optional field, so it would not break anyone who stores t
 
 ## User-context contracts and persistence
 
-User-context authoring gives each definition a `userContextSchema` and explicit `userContextReads` for other owners. Generated React and Angular object bindings expose local reads, structured asynchronous write results and subscriptions. Only the owner writes its slice, and pending writes remain invisible until durable acceptance. Recursive object merges preserve unknown fields. Scope changes invalidate bindings and pending work. Compatibility baselines are optional and per owner; no global domain package or policy is required. See [the user-context API and protocol](./user-context.md).
+User-context authoring gives each definition a `userContext.schema` and explicit `userContext.reads` for other owners. Generated React tuple bindings and Angular signal objects expose selected local reads, structured asynchronous write results and lifecycle-managed subscriptions. Only the owner writes its slice, and pending writes remain invisible until durable acceptance. Recursive object merges preserve unknown fields. Scope changes invalidate bindings and pending work. Compatibility baselines are optional and per owner; no global domain package or policy is required. See [the user-context API and protocol](./user-context.md).

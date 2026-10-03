@@ -44,11 +44,15 @@ export function containerDescriptor(
 ): ContainerDescriptor {
   const definitions = context.discovery.definitions.map(definition => {
     const appCapabilities = definition.kind === 'app' && capabilities.length > 0 ? capabilities : []
+    const ownedUserContext = definition.userContext?.contracts.find(
+      contract => contract.id === definition.id,
+    )
     return {
       id: definition.id,
       ...(definition.userContext === undefined
         ? {}
         : { userContext: requirementsFor(definition.userContext, definition.id) }),
+      ...(ownedUserContext === undefined ? {} : { userContextContract: ownedUserContext }),
       kind: definition.kind,
       ...(definition.version === undefined ? {} : { version: definition.version }),
       ...(definition.title === undefined ? {} : { title: definition.title }),

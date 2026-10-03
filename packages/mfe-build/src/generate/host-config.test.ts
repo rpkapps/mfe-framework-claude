@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
+import { join, resolve } from 'node:path'
+import { ts } from '../discovery/ts-ast.ts'
 
 import { checkConfigField, type ConfigFieldSpec } from '../config/check.ts'
 import { cleanupContainers, createContainer } from '../testing/fixtures.ts'
@@ -197,5 +199,109 @@ export default {
       shout: 'quiet',
       tags: [],
     })
+  })
+})
+
+describe('shell-owned user context', () => {
+  it('typechecks the generated runtime wrapper, theme selector and owner read boundaries', () => {
+    const result = plan(`${CONFIG}
+export const userContext = {
+  schema: z.object({ preferences: z.object({ theme: z.enum(['light','dark','system']) }) }),
+  reads: { operations: z.object({ selection: z.object({ wellId: z.string().nullable() }) }) },
+}`)!
+    const generated = result.files.find(file => file.path.endsWith('/user-context.ts'))!.contents
+    const root = createContainer({
+      'user-context.ts': generated,
+      'consumer.ts': `import {createMfeRuntime, useUserContext} from './user-context';
+declare const base: Omit<Parameters<typeof createMfeRuntime>[0], 'theme' | 'shellState'>;
+createMfeRuntime({...base, shellState: {user:null, groups:[]}, theme: {
+  cacheKey: 'theme', select: context => context.preferences.theme,
+}});
+createMfeRuntime({...base, shellState: {user:null, groups:[], theme:'dark'}, theme: {
+  cacheKey: 'theme',
+  // @ts-expect-error theme selectors cannot access undeclared fields
+  select: context => context.missing,
+}});
+createMfeRuntime({...base, shellState: {user:null, groups:[]}, theme: {
+  cacheKey: 'theme',
+  // @ts-expect-error theme selectors must return a supported preference
+  select: context => context.preferences,
+}});
+function component() {
+  const [theme, set] = useUserContext(context => context.preferences.theme);
+  const preference: 'light' | 'dark' | 'system' = theme;
+  void set('preferences', {theme:'dark'});
+  // @ts-expect-error owner writes retain the generated schema
+  void set('preferences', {theme:'blue'});
+  const [wellId] = useUserContext('operations', context => context.selection.wellId);
+  const selected: string | null = wellId;
+  // @ts-expect-error foreign reads have no setter
+  const [foreign, foreignSet] = useUserContext('operations', context => context.selection.wellId);
+  // @ts-expect-error undeclared foreign fields are inaccessible
+  useUserContext('operations', context => context.preferences);
+  // @ts-expect-error undeclared owners are inaccessible
+  useUserContext('unknown', context => context.selection);
+  return {preference, selected};
+}`,
+    })
+    const repository = resolve(import.meta.dirname, '../../../..')
+    const file = join(root, 'consumer.ts')
+    const program = ts.createProgram([file], {
+      target: ts.ScriptTarget.ES2023,
+      module: ts.ModuleKind.ESNext,
+      moduleResolution: ts.ModuleResolutionKind.Bundler,
+      customConditions: ['mfe-source'],
+      strict: true,
+      exactOptionalPropertyTypes: true,
+      skipLibCheck: true,
+      allowImportingTsExtensions: true,
+      noEmit: true,
+      jsx: ts.JsxEmit.ReactJSX,
+      paths: {
+        '@company/mfe-react/host': [join(repository, 'packages/mfe-react/src/host/index.ts')],
+        '@company/mfe-react/user-context': [
+          join(repository, 'packages/mfe-react/src/hooks/user-context.ts'),
+        ],
+      },
+    })
+    const diagnostics = ts
+      .getPreEmitDiagnostics(program)
+      .filter(
+        diagnostic =>
+          diagnostic.file?.fileName === file ||
+          diagnostic.file?.fileName === join(root, 'user-context.ts'),
+      )
+    expect(
+      diagnostics.map(diagnostic => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')),
+    ).toEqual([])
+  }, 30_000)
+  it('compiles only its own schema and declared read slices into a typed host binding', () => {
+    const result = plan(`${CONFIG}
+export const userContext = {
+  schema: z.object({ preferences: z.object({ theme: z.enum(['light','dark','system']).default('system') }).default({theme:'system'}) }),
+  reads: { operations: z.object({ selection: z.object({ wellId: z.string().nullable() }) }) },
+}`)
+    const module = result?.files.find(file => file.path.endsWith('/user-context.ts'))?.contents
+    expect(result?.aliases['#mfe/user-context']).toMatch(/user-context.ts$/)
+    expect(module).toContain(
+      'createHostUserContextBindings<UserContextValues, UserContextReads>(registration.requirements)',
+    )
+    expect(module).toContain('UserContextThemeOptions<UserContextValues>')
+    expect(module).toContain('__userContext: registration')
+    expect(module).toContain('"wellId": string | null')
+    expect(module).not.toContain("from 'zod'")
+    const contract = result?.files.find(file => file.path.endsWith('/user-context.contract.json'))
+    expect(JSON.parse(contract?.contents ?? '{}')).toMatchObject({
+      id: 'shell',
+      node: { fields: { preferences: { kind: 'default' } } },
+    })
+  })
+  it('does not generate a binding for a shell that owns or reads no context', () => {
+    expect(plan()?.aliases['#mfe/user-context']).toBeUndefined()
+  })
+  it('rejects ambiguous host declarations', () => {
+    expect(() =>
+      plan(`${CONFIG}\nexport const userContext = { schema: z.object({}), typo: true }`),
+    ).toThrow('accepts unique schema and reads')
   })
 })

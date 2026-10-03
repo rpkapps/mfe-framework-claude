@@ -23,6 +23,7 @@ import {
   type RegistryEntry,
 } from '@company/mfe-react'
 import { MfeDevtools } from '@company/mfe-devtools'
+import { ThemeAction } from './theme-action.tsx'
 import {
   Breadcrumb,
   BreadcrumbItem as Crumb,
@@ -91,7 +92,6 @@ import {
 } from './hooks.ts'
 import { negotiateNavigation } from './navigation.ts'
 import { CommandPalette } from './palette.tsx'
-import { writeTheme } from './preferences.ts'
 import { ReleasesDialog } from './releases-dialog.tsx'
 import { ReportBugDialog } from './report-bug-dialog.tsx'
 import { SettingsSheet } from './settings-sheet.tsx'
@@ -147,9 +147,6 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
     // `dark` is what the design system's variant keys off.
     document.documentElement.classList.toggle('dark', theme === 'dark')
     document.documentElement.style.colorScheme = theme
-    // Remembered here rather than at each switch, because the theme has four ways to change and
-    // a fifth added later would be the one that forgets; the key is the bare `theme` (§24).
-    writeTheme(theme)
   }, [theme])
 
   // `action` is forwarded rather than dropped, because refusing the back button while allowing a
@@ -175,6 +172,7 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
     // and every breadcrumb click tore the shell down. It covers the surfaces too, whose rows link
     // to an application's pages; an App mounts in a root of its own, so none of this reaches it.
     <TectonProvider navigate={navigateTo}>
+      <ThemeAction />
       {/* A third child of this grid would land in the `1fr` row and push the mounted App down the page. */}
       <AppShell>
         <Header />
@@ -439,7 +437,7 @@ function Header(): ReactNode {
           <DropdownMenuGroup>
             <DropdownMenuItem
               onClick={() => {
-                runtime.shellState.apply({ theme: theme === 'dark' ? 'light' : 'dark' })
+                void runtime.actions.execute('@host:theme', { caller: 'ui' })
               }}
             >
               {theme === 'dark' ? <SunIcon /> : <MoonIcon />}

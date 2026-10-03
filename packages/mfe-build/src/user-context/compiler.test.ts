@@ -213,7 +213,7 @@ describe('user-context contract compiler and release gate', () => {
     )
     writeFileSync(
       file,
-      `import {createApp} from '@company/mfe-react'; import {schema} from './contracts'; export default createApp({ id: 'reader', userContextSchema: schema, router: makeRouter });`,
+      `import {createApp} from '@company/mfe-react'; import {schema} from './contracts'; export default createApp({ id: 'reader', userContext: { schema }, router: makeRouter });`,
     )
     expect(discoverDefinitions(file, syntax).definitions[0]!.userContext!.contracts[0]!.id).toBe(
       'reader',
@@ -235,7 +235,7 @@ describe('user-context contract compiler and release gate', () => {
       JSON.stringify({ schemas: { userContextSchema: compile(base) } }),
     )
     const file = join(directory, 'mfe.ts')
-    const source = `import {createApp} from '@company/mfe-react'; import {userContextSchema} from '@domain/state'; export default createApp({ id: 'reader', userContextSchema, router: makeRouter });`
+    const source = `import {createApp} from '@company/mfe-react'; import {userContextSchema} from '@domain/state'; export default createApp({ id: 'reader', userContext: { schema: userContextSchema }, router: makeRouter });`
     writeFileSync(file, source)
     expect(discoverDefinitions(file, syntax).definitions[0]!.userContext).toEqual(compile(base))
     rmSync(join(packageDirectory, 'user-context.manifest.json'))
@@ -253,7 +253,7 @@ describe('user-context contract compiler and release gate', () => {
       writeFileSync(
         file,
         `import { z } from 'zod'; import { createApp } from '${factoryModule}'; import { selection } from './contracts';
-         export default createApp({ id: 'reader', router: makeRouter, routes: [], userContextSchema: z.object({ units: z.string().default('metric') }), userContextReads: { producer: selection } });`,
+         export default createApp({ id: 'reader', router: makeRouter, routes: [], userContext: { schema: z.object({ units: z.string().default('metric') }), reads: { producer: selection } } });`,
       )
       const manifest = discoverDefinitions(file, syntax).definitions[0]!.userContext!
       expect(manifest.contracts).toEqual([
@@ -272,7 +272,7 @@ describe('user-context contract compiler and release gate', () => {
     const file = join(directory, 'mfe.ts')
     const source = `import { z } from 'zod'; import { createApp } from '@company/mfe-react';
       const producer = z.object({ selected: z.string().default('none') });
-      export default createApp({ id: 'reader', router: makeRouter, userContextReads: { producer } });`
+      export default createApp({ id: 'reader', router: makeRouter, userContext: { reads: { producer } } });`
     writeFileSync(file, source)
     const manifest = discoverDefinitions(file, syntax).definitions[0]!.userContext!
     expect(manifest.contracts.map(contract => contract.id)).toEqual(['producer'])
@@ -285,20 +285,50 @@ describe('user-context contract compiler and release gate', () => {
     expect(output).toContain(manifest.contracts[0]!.revision)
     expect(output).toContain('"ownerId": "reader"')
   })
+  it('compiles nested reader subsets without importing the complete owner schema', () => {
+    const directory = temporary()
+    const file = join(directory, 'mfe.ts')
+    writeFileSync(
+      file,
+      `import { z } from 'zod'; import { createApp } from '@company/mfe-react';
+      export default createApp({ id: 'reader', router: makeRouter,
+        userContext: { reads: { producer: z.object({ preferences: z.object({ theme: z.string() }) }) } }
+      });`,
+    )
+    const projected = discoverDefinitions(file, syntax).definitions[0]!.userContext!
+    const canonical = compile(
+      'z.object({ preferences: z.object({ theme: z.string(), fontSize: z.number() }), selected: z.string() })',
+      'producer',
+    )
+    const requested = requirementsFor(projected, 'reader').contracts[0]!
+    const published = requirementsFor(canonical, 'producer').contracts[0]!
+    expect(requested.revision).not.toBe(published.revision)
+    expect(published.capabilities).toEqual(expect.arrayContaining([...requested.capabilities]))
+    expect(stateType(projected.contracts[0]!.node)).toContain('"theme": string')
+    expect(stateType(projected.contracts[0]!.node)).not.toMatch(/fontSize|selected/)
+  })
   it.each([
-    'userContextReads: importedReads',
-    'userContextReads: { ...importedReads }',
-    'userContextReads: { [owner]: z.object({}) }',
-    'userContextReads: { producer: z.object({}), producer: z.object({}) }',
-    'userContextReads: {}, userContextReads: { producer: z.object({}) }',
-    'userContextReads: { reader: z.object({}) }',
-    "userContextReads: { '': z.object({}) }",
-    "userContextReads: { 'Invalid Owner': z.object({}) }",
-    'userContextReads: { producer() { return z.object({}) } }',
-    'userContextReads: { producer: z.string() }',
-    'userContextReads: { producer: z.object({ value: z.string().transform(x => x) }) }',
-    'userContextReads() { return {} }',
-    'get userContextReads() { return {} }',
+    'userContextSchema: z.object({})',
+    'userContextReads: { producer: z.object({}) }',
+    'userContext: config',
+    'userContext: {}',
+    'userContext: { ...config }',
+    'userContext: { schema: z.object({}), schema: z.object({}) }',
+    'userContext: { unknown: z.object({}) }',
+    'userContext: { reads: {} }, userContext: { reads: {} }',
+    'userContext: { reads: importedReads }',
+    'userContext: { reads: { ...importedReads } }',
+    'userContext: { reads: { [owner]: z.object({}) } }',
+    'userContext: { reads: { producer: z.object({}), producer: z.object({}) } }',
+    'userContext: { reads: {}, reads: { producer: z.object({}) } }',
+    'userContext: { reads: { reader: z.object({}) } }',
+    "userContext: { reads: { '': z.object({}) } }",
+    "userContext: { reads: { 'Invalid Owner': z.object({}) } }",
+    'userContext: { reads: { producer() { return z.object({}) } } }',
+    'userContext: { reads: { producer: z.string() } }',
+    'userContext: { reads: { producer: z.object({ value: z.string().transform(x => x) }) } }',
+    'userContext: { reads() { return {} } }',
+    'userContext: { get reads() { return {} } }',
   ])('fails closed on invalid read declaration %s', declaration => {
     const directory = temporary()
     const file = join(directory, 'mfe.ts')
@@ -311,20 +341,20 @@ describe('user-context contract compiler and release gate', () => {
   })
   it('replaces declarations and prunes user-context-only schema imports and local helpers', () => {
     const manifest = compile(base)
-    const source = `import {z} from 'zod'; import {createApp} from '@company/mfe-react'; const field = z.string(); const userContextSchema = z.object({ selected: field.default('') }); export default createApp({ id: 'reader', userContextSchema, router: makeRouter });`
+    const source = `import {z} from 'zod'; import {createApp} from '@company/mfe-react'; const field = z.string(); const userContextSchema = z.object({ selected: field.default('') }); export default createApp({ id: 'reader', userContext: { schema: userContextSchema }, router: makeRouter });`
     const output = transformUserContextSource(source, 'mfe.ts', {
       reader: requirementsFor(manifest, 'reader'),
     })
     expect(output).not.toContain('userContextSchema')
     expect(output).not.toContain("from 'zod'")
     expect(output).not.toContain('z.string')
-    expect(output).toContain('userContext:')
+    expect(output).toContain('__userContext:')
     expect(output).toContain(manifest.contracts[0]!.revision)
   })
   it('keeps Zod needed by unrelated widget contracts and binds each definition independently', () => {
     const manifest = compile(base, 'one')
     const refs = requirementsFor(manifest, 'one')
-    const source = `import {z} from 'zod'; import {createWidget} from '@company/mfe-react'; import {schema} from './domain'; export const one = createWidget({id:'one', userContextSchema: schema, inputSchema: z.object({}), outputSchema: z.object({}), render: () => null}); export const two = createWidget({id:'two', userContextSchema: z.object({units:z.string().default('metric')}), inputSchema:z.object({}), outputSchema:z.object({}), render:() => null});`
+    const source = `import {z} from 'zod'; import {createWidget} from '@company/mfe-react'; import {schema} from './domain'; export const one = createWidget({id:'one', userContext: { schema }, inputSchema: z.object({}), outputSchema: z.object({}), render: () => null}); export const two = createWidget({id:'two', userContext: { schema: z.object({units:z.string().default('metric')}) }, inputSchema:z.object({}), outputSchema:z.object({}), render:() => null});`
     const output = transformUserContextSource(source, 'mfe.ts', {
       one: refs,
       two: {

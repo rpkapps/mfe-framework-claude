@@ -196,6 +196,36 @@ export function stateCapabilities(node: StateNode): readonly string[] {
   visit(node, '')
   return tokens.sort()
 }
+/** Read compatibility concerns parsed values, not an owner's defaults or unknown-key policy. */
+export function userContextReadCapabilities(capabilities: readonly string[]): readonly string[] {
+  const parsed = capabilities.map(token => {
+    const separator = token.indexOf(':{')
+    if (separator < 0) return { token }
+    try {
+      const node: unknown = JSON.parse(token.slice(separator + 1))
+      if (!isObject(node)) return { token }
+      return { token, path: token.slice(0, separator), node }
+    } catch {
+      return { token }
+    }
+  })
+  const defaults = parsed
+    .filter(item => item.node?.['kind'] === 'default')
+    .map(item => `${item.path}/i`)
+    .sort((left, right) => right.length - left.length)
+  return parsed
+    .flatMap(item => {
+      if (!item.node || item.path === undefined) return [item.token]
+      if (item.node['kind'] === 'default') return []
+      let path = item.path
+      for (const prefix of defaults)
+        if (path === prefix || path.startsWith(`${prefix}/`))
+          path = prefix.slice(0, -2) + path.slice(prefix.length)
+      const node = item.node['kind'] === 'object' ? { kind: 'object' } : item.node
+      return [`${path}:${stableJson(node)}`]
+    })
+    .sort()
+}
 export function isObject(value: unknown): value is Record<string, unknown> {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
   const prototype: unknown = Object.getPrototypeOf(value)

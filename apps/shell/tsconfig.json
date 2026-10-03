@@ -15,6 +15,7 @@
      */
     "paths": {
       "#mfe/config": ["./.mfe/config.ts"],
+      "#mfe/user-context": ["./.mfe/user-context.ts"],
       "react": ["./node_modules/@types/react"],
       "react/jsx-runtime": ["./node_modules/@types/react/jsx-runtime"],
       "react/jsx-dev-runtime": ["./node_modules/@types/react/jsx-dev-runtime"],

@@ -11,7 +11,7 @@ const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTa
 const owners =
   basename(directory) === 'lab'
     ? { userContextSchema: 'lab' }
-    : { inspectionUserContextSchema: 'well-inspection', fieldworkUserContextSchema: 'fieldwork' }
+    : { inspectionUserContextSchema: 'well-inspection' }
 const contracts = []
 for (const statement of source.statements) {
   if (!ts.isVariableStatement(statement)) continue

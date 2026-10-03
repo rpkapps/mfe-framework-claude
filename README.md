@@ -103,7 +103,7 @@ The containers, all mounted by one shell, each on its own dev server:
 | `examples/loaders`     | 3008 | an App with a page for every loading screen the shell can draw              |
 
 For user context, follow [the React and Angular walkthrough](examples/user-context/README.md).
-Each definition owns its context slice and declares its own `userContextSchema`.
+Each definition owns its context slice and declares it with `userContext: { schema }`.
 React and Angular readers subscribe to other owners through explicit read contracts.
 The shell connects the compiled owner contracts to persistence; the example API saves context on disk.
 

@@ -57,7 +57,9 @@ function setup(
   }),
   contracts: readonly StateContract[] = [contract],
 ) {
-  const hydrate = vi.fn(async () => contracts.map(item => ({ id: item.id, revision: 0 })))
+  const hydrate = vi.fn(async (_scope: string, ids: readonly string[]) =>
+    ids.map(id => ({ id, revision: 0 })),
+  )
   const runtime = new UserContextRuntime({
     scope: 'private-scope',
     schema: { formatVersion: 1, contracts },
@@ -154,6 +156,79 @@ describe('User Context tab', () => {
       selectedWell: null,
     })
     expect(view.container.textContent).not.toContain('private-scope')
+  })
+  it('finds namespaced keys before hydration and inspects only the committed nested value', async () => {
+    const owner: StateContract = {
+      ...contract,
+      id: 'lab',
+      node: {
+        kind: 'object',
+        strict: true,
+        fields: {
+          'well-selection': {
+            kind: 'default',
+            value: { wellId: 'well-42' },
+            inner: {
+              kind: 'object',
+              strict: true,
+              fields: { wellId: { kind: 'string' } },
+            },
+          },
+          note: { kind: 'optional', inner: { kind: 'string' } },
+        },
+      },
+    }
+    const { runtime, hydrate } = setup(undefined, [owner, contract])
+    const user = userEvent.setup()
+    render(<UserContextTab />)
+    await user.type(screen.getByLabelText('Search user-context owners'), 'lab:well-selection')
+    expect(screen.getByRole('button', { name: 'Inspect lab' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Inspect units' })).toBeNull()
+    await user.click(screen.getByRole('tab', { name: 'Keys' }))
+    await user.click(screen.getByRole('button', { name: 'lab:well-selection' }))
+    expect(screen.getByText('Value has not been loaded')).toBeTruthy()
+    expect(hydrate).not.toHaveBeenCalled()
+    await act(async () => {
+      await runtime.prepare({
+        protocolVersion: 1,
+        ownerId: owner.id,
+        contracts: [
+          { id: owner.id, revision: owner.revision, capabilities: stateCapabilities(owner.node) },
+        ],
+      })
+    })
+    expect(
+      JSON.parse(screen.getByLabelText('current value of lab:well-selection').textContent),
+    ).toEqual({ wellId: 'well-42' })
+    await user.click(screen.getByRole('button', { name: 'lab:note' }))
+    expect(screen.getByText('Optional value is not set')).toBeTruthy()
+  })
+  it('shows persistence errors without replacing the committed local key value', async () => {
+    const { runtime, hydrate } = setup(async () => {
+      throw new Error('Storage is unavailable')
+    })
+    await runtime.prepare(requirements)
+    let recover!: (records: { id: string; revision: number }[]) => void
+    hydrate.mockImplementationOnce(
+      () =>
+        new Promise(resolve => {
+          recover = resolve
+        }),
+    )
+    const user = userEvent.setup()
+    render(<UserContextTab />)
+    await user.click(screen.getByRole('tab', { name: 'Keys' }))
+    await user.click(screen.getByRole('button', { name: 'units:system' }))
+    await act(async () => {
+      const result = await runtime.bind('units', requirements).set('system', 'imperial')
+      expect(result.ok).toBe(false)
+    })
+    expect(screen.getAllByText('Write failed')).toHaveLength(2)
+    expect(screen.getByRole('alert').textContent).toContain('Storage is unavailable')
+    expect(screen.getByLabelText('current value of units:system').textContent).toBe('"metric"')
+    await act(async () => recover([{ id: 'units', revision: 0 }]))
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(screen.getAllByText('Ready')).toHaveLength(2)
   })
   it('keeps pending writes invisible until commit and clears values on scope changes', async () => {
     let accept!: (record: StateRecord) => void

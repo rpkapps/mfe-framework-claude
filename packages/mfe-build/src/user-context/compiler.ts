@@ -75,10 +75,10 @@ export function compileUserContext(
   sourceFile: ts.SourceFile,
   sources: ContainerSources = standaloneSources(),
 ): UserContextManifest {
-  const root = readNode(expression, sourceFile, sources, 'userContextSchema', new Set())
+  const root = readNode(expression, sourceFile, sources, 'userContext.schema', new Set())
   if (root.kind !== 'object')
     throw new Error(
-      'user-context/unsupported-schema: userContextSchema must be a fixed-shape z.object',
+      'user-context/unsupported-schema: userContext.schema must be a fixed-shape z.object',
     )
   return {
     formatVersion: 1,
@@ -96,7 +96,7 @@ export function compileUserContextReads(
   const shape = unwrapExpression(expression)
   if (!ts.isObjectLiteralExpression(shape))
     throw new Error(
-      'user-context/unsupported-schema: userContextReads must be an inline owner-to-schema object',
+      'user-context/unsupported-schema: userContext.reads must be an inline owner-to-schema object',
     )
   const owners = new Set([definitionId])
   return shape.properties.flatMap(property => {

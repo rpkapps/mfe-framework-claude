@@ -13,7 +13,7 @@
 import { spawn } from 'node:child_process'
 
 import { DEV_AGENT_PORT } from '../agent-dev/src/port.ts'
-import { DEV_API_PORT } from './api.mjs'
+import { DEV_API_PORT } from './api-port.mjs'
 import { busyPortsMessage, findBusyPorts, waitForPortsFree } from './ports.mjs'
 import { detachedForGroupKill, killTree, spawnPnpm } from './processes.mjs'
 import { readFile, readdir } from 'node:fs/promises'
@@ -175,10 +175,14 @@ function startStandIn(script, label, colour) {
  */
 function generateContainers(services) {
   const containers = services.filter(service => !service.isShell)
-  if (containers.length === 0) return Promise.resolve()
 
   return new Promise((resolve, reject) => {
-    const filters = containers.flatMap(service => ['--filter', service.packageName])
+    // The example API needs the shell's compiled preference contract even in --only-mfes mode.
+    const filters = [
+      '--filter',
+      '@company/shell',
+      ...containers.flatMap(service => ['--filter', service.packageName]),
+    ]
     const child = spawnPnpm([...filters, 'run', 'generate'], {
       cwd: repoRoot,
       stdio: 'inherit',

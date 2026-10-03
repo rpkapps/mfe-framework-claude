@@ -190,7 +190,16 @@ export default defineConfig({
           // The chat's Markdown is rendered with Tecton parts, which must share the shell's React.
           server: tectonServerForTests,
         },
-        resolve: tectonResolveForTests,
+        resolve: {
+          ...tectonResolveForTests,
+          alias: [
+            {
+              find: /^#mfe\/user-context$/,
+              replacement: resolve('apps/shell/.mfe/user-context.ts'),
+            },
+            ...tectonResolveForTests.alias,
+          ],
+        },
       },
       {
         test: {

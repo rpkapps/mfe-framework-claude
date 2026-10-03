@@ -27,7 +27,7 @@ const bytes = value => ({
 function declaration(id, extra = '') {
   const source = `import {z} from 'zod'; import {createApp} from '@company/mfe-react';
     const schema=z.object({selection:z.strictObject({id:z.string()${extra}}).nullable().default(null)});
-    export default createApp({id:'${id}',router:()=>({}),userContextSchema:schema});`
+    export default createApp({id:'${id}',router:()=>({}),userContext:{schema}});`
   const file = ts.createSourceFile(`${id}.ts`, source, ts.ScriptTarget.Latest, true)
   const manifest = compileUserContext(
     id,

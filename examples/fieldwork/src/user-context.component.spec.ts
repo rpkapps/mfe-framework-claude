@@ -21,7 +21,7 @@ async function state() {
       authorize: async () => undefined,
     })
   const lab = backend('lab')
-  const adapter = lab
+  const adapter = backend('well-inspection')
   await lab.write(
     {
       scope: 'test',
@@ -29,8 +29,8 @@ async function state() {
       expectedRevision: 0,
       operationId: 'react-selection',
       value: {
-        'display:units': 'imperial',
-        'well:selection': { wellId: 'well-42', runId: 'run-8', comparisonMode: 'overlay' },
+        units: 'imperial',
+        'well-selection': { wellId: 'well-42', runId: 'run-8', comparisonMode: 'overlay' },
       },
     },
     new AbortController().signal,
@@ -38,13 +38,13 @@ async function state() {
   return { schema, scope: 'test', adapter }
 }
 
-it('reads Lab without a setter and prepares a local inspection brief', async () => {
+it('reads Lab without a setter and persists its own inspection brief across mounts', async () => {
   const userContext = await state()
   const mounted = await mountWidget(wellInspection, { userContext })
   expect(mounted.element.textContent).toContain('North Ridge 42')
   expect(mounted.element.textContent).toContain('Inspection depth: 8,038 ft')
   const foreign = runInInjectionContext(mounted.injector, () =>
-    injectUserContext('lab', context => context['well:selection']),
+    injectUserContext('lab', context => context['well-selection']),
   )
   expect(foreign).not.toHaveProperty('set')
   expect(foreign.value()?.comparisonMode).toBe('overlay')
@@ -58,11 +58,37 @@ it('reads Lab without a setter and prepares a local inspection brief', async () 
       return mounted.element.textContent
     })
     .toContain('Inspect North Ridge 42 at North Ridge pad, using October survey at 8,038 ft.')
-  const saved = await userContext.adapter.hydrate('test', ['lab'], new AbortController().signal)
+  const saved = await userContext.adapter.hydrate(
+    'test',
+    ['lab', 'well-inspection'],
+    new AbortController().signal,
+  )
   expect(saved[0]?.value).toMatchObject({
-    'well:selection': { comparisonMode: 'overlay', runId: 'run-8' },
+    'well-selection': { comparisonMode: 'overlay', runId: 'run-8' },
+  })
+  expect(saved[1]?.value).toEqual({
+    brief: {
+      wellId: 'well-42',
+      runId: 'run-8',
+      text: 'Inspect North Ridge 42 at North Ridge pad, using October survey at 8,038 ft.',
+    },
   })
   await mounted.dispose()
+  const reopened = await mountWidget(wellInspection, { userContext })
+  expect(reopened.element.textContent).toContain(
+    'Inspect North Ridge 42 at North Ridge pad, using October survey at 8,038 ft.',
+  )
+  const clear = [...reopened.element.querySelectorAll<HTMLButtonElement>('button')].find(button =>
+    button.textContent?.includes('Clear inspection brief'),
+  )!
+  clear.click()
+  await expect
+    .poll(async () => {
+      await reopened.whenStable()
+      return reopened.element.querySelector('[aria-label="Inspection brief"]')
+    })
+    .toBeNull()
+  await reopened.dispose()
 })
 
 it('hydrates the explicitly declared Lab slice before Fieldwork route resolvers run', async () => {
@@ -79,5 +105,32 @@ it('hydrates the explicitly declared Lab slice before Fieldwork route resolvers 
     comparisonMode: 'overlay',
   })
   await expect.poll(() => mounted.element.textContent).toContain('North Ridge 42')
+  await mounted.dispose()
+})
+
+it('reports a rejected brief save without displaying uncommitted context', async () => {
+  const context = await state()
+  const mounted = await mountWidget(wellInspection, {
+    userContext: {
+      ...context,
+      adapter: {
+        ...context.adapter,
+        write: async () => {
+          throw new Error('Brief storage unavailable')
+        },
+      },
+    },
+  })
+  const prepare = [...mounted.element.querySelectorAll<HTMLButtonElement>('button')].find(button =>
+    button.textContent?.includes('Prepare inspection'),
+  )!
+  prepare.click()
+  await expect
+    .poll(async () => {
+      await mounted.whenStable()
+      return mounted.element.querySelector('[role="alert"]')?.textContent
+    })
+    .toContain('Brief storage unavailable')
+  expect(mounted.element.querySelector('[aria-label="Inspection brief"]')).toBeNull()
   await mounted.dispose()
 })

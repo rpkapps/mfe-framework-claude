@@ -132,7 +132,7 @@ export function createMemoryRuntime(options: MemoryRuntimeOptions = {}): MemoryR
 
   const assembled = assembleRuntime({
     registry,
-    userContext: options.userContext,
+    testUserContext: options.userContext,
     loader: createInProcessLoader(loadable),
     adapters,
     shellState,

@@ -16,6 +16,9 @@ import {
   type RegistryEntry,
 } from '@company/mfe-core'
 
+import { stateCapabilities, type StateContract } from '@company/mfe-core/user-context'
+import { createFederatedAdapter } from '../registry/federated-entry.ts'
+
 import { DEFAULT_DEADLINES } from '../deadline.ts'
 import { DiagnosticsHub } from '../diagnostics.ts'
 import { OVERRIDES_STORAGE_KEY } from '../overrides/dev-overrides.ts'
@@ -533,4 +536,97 @@ describe('auditing action runs', () => {
       ['warning', 'config/invalid'],
     ])
   })
+})
+
+describe('automatic user-context discovery', () => {
+  it('boots with only a persistence adapter and reads a registry owner before mounting it', async () => {
+    const contract: StateContract = {
+      formatVersion: 1,
+      id: 'operations',
+      revision: 'one',
+      node: {
+        kind: 'object',
+        strict: true,
+        fields: {
+          units: { kind: 'default', inner: { kind: 'string' }, value: 'metric' },
+        },
+      },
+    }
+    const hydrate = vi.fn(async () => [{ id: 'operations', revision: 0 }])
+    const { runtime } = create({
+      adapters: [createFederatedAdapter({ kind: 'react' })],
+      registryEntries: [
+        {
+          id: 'operations',
+          kind: 'app',
+          mfe: { framework: 'react' },
+          manifestUrl: 'https://example.test/mf-manifest.json',
+          container: 'operations',
+          requiresRuntime: '>=1.1.0 <2.0.0',
+          userContextContract: contract,
+        },
+      ],
+      userContext: { adapter: { hydrate, write: vi.fn() } },
+    })
+    const requirements = {
+      protocolVersion: 1 as const,
+      ownerId: 'reports',
+      contracts: [
+        {
+          id: contract.id,
+          revision: contract.revision,
+          capabilities: stateCapabilities(contract.node),
+        },
+      ],
+    }
+    await runtime.userContext?.prepare(requirements)
+    expect(
+      runtime.userContext?.bindReadOnly('reports', requirements, 'operations').get('units'),
+    ).toBe('metric')
+    expect(hydrate).toHaveBeenCalledWith(
+      '[null,null,"ada"]',
+      ['operations'],
+      expect.any(AbortSignal),
+    )
+    runtime.shellState.apply({ user: null })
+    await expect(runtime.userContext?.prepare(requirements)).rejects.toThrow('Sign in')
+    expect(hydrate).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('theme configuration validation', () => {
+  it.each(['missing-generated-owner', 'missing-adapter', 'read-only-shell'] as const)(
+    'rejects %s before registering diagnostics or starting persistence',
+    missing => {
+      const contract: StateContract = {
+        formatVersion: 1,
+        id: 'shell',
+        revision: 'one',
+        node: { kind: 'object', strict: true, fields: {} },
+      }
+      const requirements = { protocolVersion: 1 as const, ownerId: 'shell', contracts: [] }
+      const subscribe = vi.fn(() => vi.fn())
+      const diagnostics = new DiagnosticsHub()
+      const add = vi.spyOn(diagnostics, 'add')
+      const options: CreateMfeRuntimeOptions = {
+        ...baseOptions(),
+        diagnostics,
+        theme: { cacheKey: 'test:theme', select: () => 'dark' },
+        ...(missing === 'missing-adapter'
+          ? {}
+          : {
+              userContext: { adapter: { hydrate: vi.fn(), write: vi.fn(), subscribe } },
+            }),
+        ...(missing === 'missing-generated-owner'
+          ? {}
+          : {
+              __userContext:
+                missing === 'read-only-shell' ? { requirements } : { contract, requirements },
+            }),
+      }
+      expect(() => createMfeRuntime(options)).toThrow('generated shell owner contract')
+      expect(subscribe).not.toHaveBeenCalled()
+      expect(add).not.toHaveBeenCalled()
+    },
+  )
 })

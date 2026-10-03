@@ -1,10 +1,10 @@
 # User-context protocol
 
-User context is a shell-owned service for the current authenticated scope. Each App or Widget owns one object slice under its definition ID. Owners declare `userContextSchema`; readers declare `userContextReads` keyed by owner ID. A definition can write only its own slice. An explicit-owner binding exposes only a reactive read.
+User context is a shell-owned service for the current authenticated scope. Each App or Widget owns one object slice under its definition ID. Owners declare `userContext.schema`; readers declare `userContext.reads` keyed by owner ID. A definition can write only its own slice. An explicit-owner binding exposes only a reactive read.
 
 ## Authoring and generated bindings
 
-Declare a fixed Zod object directly on literal `createApp` or `createWidget` options. Local exported schemas and supported relative imports can be compiled. Independently published schemas are optional conveniences, not required infrastructure.
+Declare `userContext: { schema?, reads? }` on literal `createApp` or `createWidget` options. `schema` is the definition’s owned Zod object; `reads` maps foreign definition IDs to the Zod subsets this consumer requires. Either property is optional. Reader subsets can omit owner defaults and object strictness, including within nested objects, while retaining nullable/optional semantics, types and constraints. Arrays remain atomic contracts with complete item shapes. Generated types hide undeclared fields, but runtime snapshots are not a field privacy boundary. A read-only Widget can declare only `reads`, including just a nested property such as `selection.wellId`, without importing the owner’s schema. Local exported schemas and supported relative imports can be compiled. Independently published schemas are optional conveniences, not required infrastructure.
 
 The build compiles one contract for the owner's whole object slice, plus reader requirements for explicitly declared owners. The contract ID is the definition ID; its properties are local context keys. Generated `#mfe/user-context` bindings expose one primary binding per framework: React `useUserContext` or Angular `injectUserContext`. A container with multiple definitions uses `#mfe/user-context/<definition-id>`. Generated types infer the owner slice and each declared read schema; callers do not supply cross-owner generics.
 
@@ -45,9 +45,9 @@ An adapter hydrates records by scope and owner ID, writes structural updates, an
 
 ## Shell and lifecycle
 
-The shell supplies `userContext: { scope, schema, adapter, onError }` to its runtime. `schema` accepts runtime manifests containing the current owner contracts from independently deployed owners. Build output's `user-context.manifest.json` is an artifact index; resolve its contract files and assemble `{ formatVersion: 1, contracts }` for the runtime, choosing each owner's contract rather than a reader's subset. Hydration and capability validation finish before a definition renders or runs route callbacks. A reader can consume a compatible subset of a newer owner contract.
+The shell supplies `userContext: { adapter, onError? }` to its runtime. Compiled owner contracts are registered automatically from the generated registry's embedded contracts; the host does not manually aggregate them or fetch separate artifacts. Hydration and capability validation finish before a definition renders or runs route callbacks. A reader can consume a compatible subset of a newer owner contract. The backend independently loads current compiled owner contracts from trusted deployment artifacts.
 
-`runtime.userContext.setScope(nextOpaqueIdentity)` invalidates old bindings and pending work. The shell remounts affected definitions. Old hydration, storage acknowledgements and subscription callbacks cannot enter the new scope. `dispose` aborts work and removes subscriptions.
+The runtime derives each scope from the shell user's tenant ID, account ID and user ID. While no user is signed in, it performs no context storage operations. Updating identity through `runtime.shellState.apply({ user, groups })` invalidates old bindings and pending work; the shell remounts affected definitions. Old hydration, storage acknowledgements and subscription callbacks cannot enter the new scope. `dispose` aborts work and removes subscriptions. Applications do not construct scope strings or call a separate scope setter.
 
 Optional read-only inspection exposes owner contracts, committed values, status, record revisions and pending counts. Observing inspection never hydrates or writes. Inspection excludes authenticated scope values.
 
@@ -55,7 +55,7 @@ Optional read-only inspection exposes owner contracts, committed values, status,
 
 Supported schemas are finite JSON shapes: fixed objects, primitives, literals, enums, arrays, nullable/optional properties, deterministic defaults and supported bounds. Unsupported transforms, coercion, dynamic defaults, arbitrary refinements, recursion, unions and records fail closed.
 
-Build output contains owner contract artifacts and lightweight references. Production definitions and generated bindings exclude authoring Zod schemas, compiler code and historical compatibility payloads introduced solely by context declarations.
+Build output contains owner contract artifacts and lightweight references. The transform removes the authoring `userContext` declaration and attaches compiled requirements as private `__userContext` metadata; application authors never write that field. Production definitions and generated bindings exclude authoring Zod schemas, compiler code and historical compatibility payloads introduced solely by context declarations.
 
 Optional `userContextBaselines` maps owner IDs to previously published contract paths. Each baseline is a single-owner manifest or bare contract. Compatibility is evaluated per owner; there is no mandatory global policy or shared domain package. Trusted publishing CI chooses supported prior releases. The shell/backend consume current contracts while historical baselines stay in release tooling.
 

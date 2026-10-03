@@ -270,7 +270,7 @@ function readDefinition(
   const id = readIdentity(sourceFile, factory)
   const version = readVersion(sourceFile, factory, id, imports, sources)
   const stateSchema = userContextExpression(factory.options)
-  const reads = userContextExpression(factory.options, 'userContextReads')
+  const reads = userContextExpression(factory.options, 'reads')
   const contracts =
     stateSchema === undefined
       ? []

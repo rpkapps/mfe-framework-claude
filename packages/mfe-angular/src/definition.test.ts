@@ -148,3 +148,40 @@ describe('createWidget', () => {
     ).toThrowError(/expected an array of providers, received an object/)
   })
 })
+
+describe('consolidated Angular user-context declarations', () => {
+  it('accepts owned and nested foreign declarations for apps and widgets', () => {
+    const userContext = {
+      schema: z.object({ collapsed: z.boolean().default(false) }),
+      reads: {
+        preferences: z.object({ appearance: z.object({ theme: z.string() }) }),
+      },
+    }
+    const app = createApp({ id: 'app-owner', routes, userContext })
+    const widget = createWidget({
+      id: 'widget-owner',
+      inputSchema: z.object({}),
+      outputSchema: z.object({}),
+      component: BadgeComponent,
+      userContext,
+    })
+    expect(app.userContext).toBe(userContext)
+    expect(widget.userContext).toBe(userContext)
+    expect(app.__userContext).toBeUndefined()
+    expect(widget.__userContext).toBeUndefined()
+  })
+
+  it('keeps compiled widget requirements under its own owner identity', () => {
+    const requirements = { protocolVersion: 1 as const, ownerId: 'widget-owner', contracts: [] }
+    const widget = createWidget({
+      id: 'widget-owner',
+      inputSchema: z.object({}),
+      outputSchema: z.object({}),
+      component: BadgeComponent,
+      __userContext: requirements,
+    })
+    expect(widget.id).toBe(requirements.ownerId)
+    expect(widget.__userContext).toBe(requirements)
+    expect(widget).not.toHaveProperty('userContext')
+  })
+})

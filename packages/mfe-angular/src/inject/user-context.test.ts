@@ -96,7 +96,7 @@ describe('definition-bound Angular user context', () => {
   it('renders reactive readonly signals and retains state on unmount/remount', async () => {
     const definition = createWidget({
       id: 'reader',
-      userContext: requirements,
+      __userContext: requirements,
       inputSchema: z.object({}),
       outputSchema: z.object({}),
       component: ReaderComponent,
@@ -145,7 +145,7 @@ describe('definition-bound Angular user context', () => {
     }
     const definition = createWidget({
       id: 'reader',
-      userContext: requirements,
+      __userContext: requirements,
       inputSchema: z.object({}),
       outputSchema: z.object({}),
       component: NestedReader,
@@ -175,7 +175,7 @@ describe('definition-bound Angular user context', () => {
   it('unsubscribes at injector destruction without deleting shell state', async () => {
     const definition = createWidget({
       id: 'reader',
-      userContext: requirements,
+      __userContext: requirements,
       inputSchema: z.object({}),
       outputSchema: z.object({}),
       component: ReaderComponent,
@@ -202,7 +202,7 @@ describe('definition-bound Angular user context', () => {
       class EmptyReader {}
       const definition = createWidget({
         id: 'reader',
-        userContext: requirements,
+        __userContext: requirements,
         inputSchema: z.object({}),
         outputSchema: z.object({}),
         component: EmptyReader,
@@ -230,7 +230,7 @@ describe('definition-bound Angular user context', () => {
   it('reads a declared foreign owner reactively without a setter', async () => {
     const owner = createWidget({
       id: 'reader',
-      userContext: requirements,
+      __userContext: requirements,
       inputSchema: z.object({}),
       outputSchema: z.object({}),
       component: ReaderComponent,
@@ -244,7 +244,7 @@ describe('definition-bound Angular user context', () => {
     }
     const observer = createWidget({
       id: 'observer',
-      userContext: { ...requirements, ownerId: 'observer' },
+      __userContext: { ...requirements, ownerId: 'observer' },
       inputSchema: z.object({}),
       outputSchema: z.object({}),
       component: ObserverComponent,
@@ -295,7 +295,7 @@ describe('definition-bound Angular user context', () => {
     }
     const definition = createWidget({
       id: 'reader',
-      userContext: requirements,
+      __userContext: requirements,
       inputSchema: z.object({}),
       outputSchema: z.object({}),
       component: ScopeReader,
@@ -318,7 +318,7 @@ describe('definition-bound Angular user context', () => {
     const resolver = vi.fn(() => inject(UserPreferences).units())
     const definition = createApp({
       id: 'reader',
-      userContext: requirements,
+      __userContext: requirements,
       providers: [UserPreferences],
       routes: [
         {

@@ -210,6 +210,66 @@ describe('definition-owned user context', () => {
     runtime.dispose()
   })
 
+  it('accepts a consumer declaring only a compatible nested subset of an owner', async () => {
+    const { runtime } = setup()
+    const subset: StateContract = {
+      ...owner,
+      revision: 'selection-well-reader',
+      node: {
+        kind: 'object',
+        strict: false,
+        fields: {
+          selection: {
+            kind: 'nullable',
+            inner: { kind: 'object', strict: false, fields: { well: { kind: 'string' } } },
+          },
+        },
+      },
+    }
+    const requirements = refs([subset], 'reader-widget')
+    await runtime.prepare(requirements)
+    const reader = runtime.bindReadOnly<{ selection: { well: string } | null }>(
+      'reader-widget',
+      requirements,
+      owner.id,
+    )
+    expect(reader.get('selection')).toBeNull()
+    await runtime.bind(owner.id, refs()).set('selection', { well: '42', run: '7' })
+    expect(reader.get('selection')?.well).toBe('42')
+    expect(reader).not.toHaveProperty('set')
+    // Subsets describe compatibility and generated types, not a runtime privacy boundary.
+    expect(reader.getSnapshot()).toHaveProperty('units', 'metric')
+    runtime.dispose()
+  })
+
+  it('rejects an incompatible nested consumer field before hydrating', async () => {
+    const { runtime, adapter } = setup()
+    const hydrate = vi.spyOn(adapter, 'hydrate')
+    const incompatible: StateContract = {
+      ...owner,
+      revision: 'incompatible-reader',
+      node: {
+        kind: 'object',
+        strict: true,
+        fields: {
+          selection: {
+            kind: 'default',
+            value: null,
+            inner: {
+              kind: 'nullable',
+              inner: { kind: 'object', strict: true, fields: { well: { kind: 'number' } } },
+            },
+          },
+        },
+      },
+    }
+    await expect(runtime.prepare(refs([incompatible], 'reader-widget'))).rejects.toMatchObject({
+      code: 'user-context/unsupported-contract',
+    })
+    expect(hydrate).not.toHaveBeenCalled()
+    runtime.dispose()
+  })
+
   it('preserves newer nested fields on older partial updates and replaces arrays/null explicitly', async () => {
     const { runtime } = setup()
     await runtime.prepare(refs())

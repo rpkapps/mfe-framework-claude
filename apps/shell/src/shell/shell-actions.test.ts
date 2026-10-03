@@ -12,7 +12,7 @@ import { createMemoryRuntime, type MemoryRuntime } from '@company/mfe-react/test
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { EMPTY_LAYOUT } from './dashboard/layout-store.ts'
-import { shellActions } from './shell-actions.ts'
+import { shellActions, themeAction } from './shell-actions.ts'
 import { shellUi } from './ui-store.ts'
 
 const opened = vi.hoisted(() => ({ panels: [] as string[] }))
@@ -43,16 +43,17 @@ afterEach(() => {
 
 function registerShell(goToDashboard = vi.fn()) {
   const { runtime } = memory
+  const saveTheme = vi.fn(async (_theme: string) => {})
+  runtime.actions.registerHost(themeAction('dark', saveTheme))
   for (const registration of shellActions({
     runtime,
-    theme: 'dark',
     layout: EMPTY_LAYOUT,
     setLayout: () => undefined,
     goToDashboard,
   })) {
     runtime.actions.registerHost(registration)
   }
-  return { goToDashboard }
+  return { goToDashboard, saveTheme }
 }
 
 /** Presses one chord as the shell's document listener would receive it. */
@@ -97,8 +98,8 @@ describe('the shell’s keys', () => {
     expect(shellUi.getSnapshot()).toBe('settings')
   })
 
-  it('opens the developer tools, goes to the dashboard and switches the theme', () => {
-    const { goToDashboard } = registerShell()
+  it('opens the developer tools, goes to the dashboard and persists the requested theme', async () => {
+    const { goToDashboard, saveTheme } = registerShell()
 
     press({ key: 'g' })
     press({ key: 'r' })
@@ -110,6 +111,12 @@ describe('the shell’s keys', () => {
 
     expect(opened.panels).toEqual(['registry', 'overrides'])
     expect(goToDashboard).toHaveBeenCalledOnce()
+    await vi.waitFor(() => expect(saveTheme).toHaveBeenCalledWith('light'))
+  })
+
+  it('reserves the theme shortcut while preferences are unavailable', () => {
+    memory.runtime.actions.registerHost(themeAction('dark'))
+    expect(press({ key: 'j', ctrlKey: true }).status).not.toBe('unmatched')
     expect(memory.runtime.shellState.getSnapshot().theme).toBe('light')
   })
 

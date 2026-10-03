@@ -12,7 +12,6 @@ import {
   createAuthenticatedFetch,
   createBrowserNavigationBridge,
   createFederationContainerLoader,
-  createMfeRuntime,
   createNoopTelemetryProvider,
   createSpanEmitter,
   DiagnosticsHub,
@@ -31,7 +30,7 @@ import { shellSession } from './auth/gate.ts'
 import { installShellChat, LazyShellChat } from './chat/instance.ts'
 import { createFaroProvider } from './shell/faro.ts'
 import { routerNavigation } from './shell/navigation.ts'
-import { preferredTheme } from './shell/preferences.ts'
+import { createMfeRuntime } from '#mfe/user-context'
 import { ShellReady } from './shell/ready.tsx'
 import { createShellRouter } from './shell/router.tsx'
 import { createDevSession } from './shell/session.ts'
@@ -96,6 +95,7 @@ const overrideSource = overrideStorage()
 
 const { runtime, activeOverrides } = createMfeRuntime({
   userContext: createDemoUserContext(),
+  theme: { select: context => context.preferences.theme, cacheKey: 'portal:theme' },
   registryEntries: await fetchRegistryEntries(),
   // Every framework this shell serves, each listed: nothing is registered implicitly, and no
   // entry is read by an adapter it does not name.
@@ -110,9 +110,6 @@ const { runtime, activeOverrides } = createMfeRuntime({
   shellState: {
     user: session.identity.user,
     groups: session.identity.groups,
-    // Decided the same way the pre-paint script in index.html decided it, so shell state agrees
-    // with what the document is already painting.
-    theme: preferredTheme(),
   },
   telemetryProvider: telemetry,
   navigationBridge: createBrowserNavigationBridge(),

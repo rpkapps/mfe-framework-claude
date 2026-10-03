@@ -1,11 +1,10 @@
 import {
   UserContextError,
   type UserContextAdapter,
-  type UserContextOptions,
+  type HostUserContextOptions,
   type StateRecord,
   type UserContextErrorCode,
 } from '@company/mfe-runtime/user-context'
-import { schema } from './schema.js'
 
 async function request<T>(path: string, body: unknown, signal: AbortSignal): Promise<T> {
   const response = await fetch(`http://localhost:3010/api/user-context/${path}`, {
@@ -38,10 +37,11 @@ async function request<T>(path: string, body: unknown, signal: AbortSignal): Pro
 const adapter: UserContextAdapter = {
   hydrate: (scope, ids, signal) =>
     request<readonly StateRecord[]>('hydrate', { scope, ids }, signal),
-  write: (operation, signal) => request<StateRecord>('write', operation, signal),
+  write: (operation, signal) =>
+    request<StateRecord>(`write/${encodeURIComponent(operation.id)}`, operation, signal),
 }
 
-/** A fixed demo workspace lets the React and Angular examples read the same saved records. */
-export function createDemoUserContext(): UserContextOptions {
-  return { schema, scope: 'user-context-example', adapter }
+/** The runtime derives the scope from shell identity and loads contracts from the registry. */
+export function createDemoUserContext(): HostUserContextOptions {
+  return { adapter }
 }

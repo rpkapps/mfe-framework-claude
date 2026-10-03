@@ -13,12 +13,21 @@ import { wellInspection } from '../../fieldwork/src/mfe.ts'
 
 it('reads Lab context in Angular and restores the durable selection after remount', async () => {
   const { repository } = createTestUserContextRepository()
-  const adapter = createUserContextBackend({
-    schema,
-    repository,
-    resolveOwner: async () => 'lab',
-    authorize: async () => undefined,
-  })
+  const backend = (owner: string) =>
+    createUserContextBackend({
+      schema,
+      repository,
+      resolveOwner: async () => owner,
+      authorize: async () => undefined,
+    })
+  const lab = backend('lab')
+  const widget = backend('well-inspection')
+  // The fixture selects the fixed-owner backend used by each demo endpoint.
+  const adapter = {
+    hydrate: lab.hydrate,
+    write: (operation: Parameters<typeof lab.write>[0], signal: AbortSignal) =>
+      (operation.id === 'well-inspection' ? widget : lab).write(operation, signal),
+  }
   const options = {
     basePath: '/lab',
     initialEntries: ['/lab/user-context'],
@@ -51,11 +60,13 @@ it('reads Lab context in Angular and restores the durable selection after remoun
   expect(inspection.queryByText('North Ridge 42')).toBeNull()
   fireEvent.click(page.getByRole('button', { name: 'Reopen inspection panel' }))
   expect(await inspection.findByText('North Ridge 42')).toBeInTheDocument()
-  expect(inspection.queryByRole('region', { name: 'Inspection brief' })).toBeNull()
+  expect(await inspection.findByRole('region', { name: 'Inspection brief' })).toHaveTextContent(
+    'Baseline survey',
+  )
   const records = await adapter.hydrate('test', ['lab'], new AbortController().signal)
   expect(records[0]?.value).toEqual({
-    'display:units': 'imperial',
-    'well:selection': { wellId: 'well-42', runId: 'run-7', comparisonMode: 'overlay' },
+    units: 'imperial',
+    'well-selection': { wellId: 'well-42', runId: 'run-7', comparisonMode: 'overlay' },
   })
   await mounted.dispose()
 
@@ -63,7 +74,9 @@ it('reads Lab context in Angular and restores the durable selection after remoun
   const restored = within(reopened.element)
   expect(await restored.findByText('7,874 ft')).toBeInTheDocument()
   expect(restored.getByRole('switch', { name: 'Compare with baseline' })).toBeChecked()
-  expect(restored.queryByRole('region', { name: 'Inspection brief' })).toBeNull()
+  expect(await restored.findByRole('region', { name: 'Inspection brief' })).toHaveTextContent(
+    'Baseline survey',
+  )
   fireEvent.click(restored.getByRole('button', { name: 'Clear selected well' }))
   await waitFor(() => expect(restored.getByText('No survey selected')).toBeInTheDocument())
   await reopened.dispose()

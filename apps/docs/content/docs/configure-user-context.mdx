@@ -3,49 +3,144 @@ title: 'Configure user context in the shell'
 description: 'Connect owner contracts to authenticated persistence and scope changes.'
 ---
 
-The shell supplies the user-context service, authenticated scope and storage adapter. Definitions independently declare their own schemas and cross-owner reads. Build output contains compiled JSON contracts; the shell does not import authoring Zod code.
+The shell supplies the storage adapter and its authenticated user through the normal shell state. Definitions independently declare their own schemas and cross-owner reads. The runtime registers compiled owner contracts embedded in the generated registry; application code does not aggregate owner schemas or construct a storage scope.
 
-## Load compiled owner contracts
-
-Resolve the current owner contracts from your deployed containers. The generated `user-context.manifest.json` lists contract artifact paths; load the owner contracts from those paths and assemble a runtime manifest with `formatVersion: 1` and `contracts`. Do not register a reader's subset contract as the owner's current schema. `schema` accepts a runtime manifest or an array of runtime manifests, with one current contract per owner. The imports below represent loaded owner contract artifacts.
+## Configure the adapter
 
 ```ts shared title="src/runtime.ts"
 import { createMfeRuntime } from '@company/mfe-runtime'
-import operations from './deployment/operations-contract.json'
-import reports from './deployment/reports-contract.json'
 
-const runtime = createMfeRuntime({
-  registry,
+const { runtime } = createMfeRuntime({
+  ...hostOptions,
+  shellState: { user: authenticatedUser },
   userContext: {
-    scope: JSON.stringify([tenantId, userId, workspaceId]),
-    schema: { formatVersion: 1, contracts: [operations, reports] },
     adapter: userContextAdapter,
     onError: reportUserContextFailure,
   },
 })
 ```
 
-The shell configures infrastructure and the current deployed contracts. Authors do not need a common domain package or a global release-policy file. Definitions with only cross-owner reads still need the referenced owner's current contract available.
+`hostOptions` contains the host's usual registry entries, framework adapters and container loader. The generated registry embeds each definition's current owner contract. Before mounting a definition, the runtime checks the consumer's declared requirements against those contracts and hydrates the required slices. An unsupported read contract fails before render, loaders or resolvers run. Publish the generated registry with the container; standalone contract artifacts are also emitted for backend deployment and compatibility checks.
 
-Before mounting a definition, the runtime checks its generated requirements against the deployed owner contracts, then hydrates the required slices. An unsupported read contract fails before render, loaders or resolvers run.
+Each authenticated scope comes from the user's tenant ID, account ID and user ID. No storage calls run while `shellState.user` is `null`. Owners and readers use the same authenticated scope without receiving or assembling an identity key themselves.
+
+The persistence backend still needs current compiled owner contracts for authoritative validation. Load those from trusted deployment artifacts, including the shell's own contract if it owns context. A reader's subset is a consumer requirement, not the owner's full schema. Historical release baselines stay in build tooling.
 
 ## Implement persistence
 
-`UserContextAdapter` from `@company/mfe-core/user-context` has `hydrate(scope, ownerIds, signal)` and `write(operation, signal)`. Each record contains the owner's complete object slice, owner ID and monotonic record revision. `write` resolves only after durable acceptance and returns the authoritative record. An optional subscription supplies authoritative records from other clients.
+`UserContextAdapter` is exported by the React and Angular `/host` entries. It has `hydrate(scope, ownerIds, signal)` and `write(operation, signal)`. Each record contains the owner's complete object slice, owner ID and monotonic record revision. `write` resolves only after durable acceptance and returns the authoritative record. An optional subscription supplies authoritative records from other clients.
+
+For example, a browser adapter forwards the protocol to your application's authenticated API client:
+
+```ts shared title="src/user-context-adapter.ts"
+import type { UserContextAdapter } from '@company/mfe-react/host'
+import { api } from './authenticated-api'
+
+export const userContextAdapter: UserContextAdapter = {
+  hydrate: (scope, ownerIds, signal) => api.hydrateContext({ scope, ownerIds }, signal),
+  write: (operation, signal) => api.writeContext(operation, signal),
+}
+```
+
+The API client returns authoritative `StateRecord` values, forwards abort signals, and preserves backend failures rather than manufacturing successful records. Its authenticated connection determines access; the submitted scope and owner are protocol data.
 
 An owner write includes `scope`, `id`, `expectedRevision`, `operationId` and a structural object update. Preserve unknown fields when applying an older writer's update. Deduplicate operation IDs and compare revisions transactionally. Never trust an owner ID or opaque scope as authorization; authorize using the authenticated server session.
 
 For a backend implementation, use `createUserContextBackend` from `@company/mfe-runtime/user-context`. Supply current owner contracts, authenticated authorization, a `resolveOwner` callback derived from the trusted request identity, and a `UserContextRepository` whose `transact` resolves after durable commit. Its transaction applies recursive object merges, validates the resulting slice and stores the idempotency receipt together.
 
-The runtime keeps pending writes invisible. Once storage accepts a write, it publishes the accepted value to subscribers and resolves the caller's success result. Rejected writes return a structured failure without replacing the previous committed value.
+A request-scoped backend binds the authenticated writer independently of the submitted record:
 
-## Change the authenticated scope
+```ts shared title="server/user-context.ts"
+import { createUserContextBackend } from '@company/mfe-runtime/user-context'
+import operations from './deployment/operations-contract.json' with { type: 'json' }
+import shell from './deployment/shell-contract.json' with { type: 'json' }
+import { repository } from './context-repository'
+import { authenticate, authorizeContext } from './authentication'
 
-```ts shared title="src/runtime.ts (scope change)"
-runtime.userContext.setScope(JSON.stringify([tenantId, userId, nextWorkspaceId]))
+export async function contextForRequest(request: Request) {
+  const session = await authenticate(request)
+  return createUserContextBackend({
+    schema: { formatVersion: 1, contracts: [operations, shell] },
+    repository,
+    resolveOwner: async () => session.authorizedDefinitionId,
+    authorize: (scope, ownerId, operation) =>
+      authorizeContext(session, { scope, ownerId, operation }),
+  })
+}
 ```
 
-Remount affected Apps and Widgets after changing scope. Old bindings become unusable, pending operations return failure results, and late responses cannot publish into the new scope. Subscriptions are removed. A workspace is part of your application's scope policy; context is not automatically shared between different users.
+`authenticate`, `authorizeContext`, and the durable repository belong to your application. The authenticated definition ID must come from a trusted server policy or credential, not an arbitrary owner header. The JSON files are current contracts copied from generated deployment artifacts. A write route obtains its backend with `contextForRequest(request)`, then forwards the parsed operation and request abort signal to `backend.write`; a hydration route calls `backend.hydrate` after the same authorization setup.
+
+The runtime keeps pending writes invisible. Once storage accepts a write, it publishes the accepted value to subscribers and resolves the caller's success result. Rejected writes return a structured failure without replacing the previous committed value.
+
+## Follow the authenticated user
+
+Update the shell's authenticated user through its normal identity lifecycle:
+
+```ts shared title="src/session.ts"
+runtime.shellState.apply({ user: nextAuthenticatedUser, groups: nextGroups })
+// Sign-out follows the same path:
+runtime.shellState.apply({ user: null, groups: [] })
+```
+
+The runtime synchronously invalidates the previous context when the identity changes. It derives the next scope, invalidates old bindings, aborts pending work and removes old subscriptions. Late responses cannot publish into the next user's context. Remount affected Apps and Widgets as part of the host's session transition.
+
+A display-name change does not change the scope. Changing a tenant, account or user ID does. Signing out clears the current context instead of sharing an anonymous persisted slice.
+
+## Give the shell its own preferences
+
+The React shell in this repository hosts both React and Angular definitions. These host snippets apply to either kind of MFE. The shell can own context using the same authoring shape and generated React hook as an App. Its owner ID is `shell`. Declare the schema in the shell configuration:
+
+```ts shared title="src/mfe.config.ts"
+import { z } from 'zod'
+
+export const userContext = {
+  schema: z.object({
+    preferences: z
+      .object({
+        theme: z.enum(['light', 'dark', 'system']).default('system'),
+      })
+      .default({ theme: 'system' }),
+  }),
+}
+```
+
+Run the shell's generation command. Import its typed runtime factory from the generated module and select the preference that controls the theme:
+
+```ts shared title="src/runtime.ts"
+import { createMfeRuntime } from '#mfe/user-context'
+
+const { runtime } = createMfeRuntime({
+  ...hostOptions,
+  shellState: { user: authenticatedUser },
+  userContext: { adapter: userContextAdapter },
+  theme: {
+    select: context => context.preferences.theme,
+    cacheKey: 'portal:theme',
+  },
+})
+```
+
+A shell setting uses the same owner-inferred binding:
+
+```tsx shared title="React host: src/theme-setting.tsx"
+import { useUserContext } from '#mfe/user-context'
+
+export function ThemeSetting() {
+  const [theme, set] = useUserContext(context => context.preferences.theme)
+
+  async function chooseDark() {
+    const result = await set('preferences', { theme: 'dark' })
+    if (!result.ok) console.error(result.error.message)
+  }
+
+  return <button onClick={chooseDark}>Dark theme (current: {theme})</button>
+}
+```
+
+Mount the setting within a Suspense boundary and an error boundary, as its initial read waits for hydration. Other shell surfaces can keep reading the effective theme while that preference loads. Only accepted writes update the stored preference.
+
+The framework maintains a theme cache partitioned by authenticated tenant, account and user. The shell's prepaint bootstrap must use the same cache key and known identity. Before identity is available, use the system theme; do not apply another user's cached preference. A theme correction may be necessary after sign-in when the identity was unknown at first paint.
 
 ## Inspect context
 

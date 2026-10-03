@@ -36,5 +36,5 @@ export default createApp({
   id: 'lab',
   version: packageJson.version,
   router: makeRouter,
-  userContextSchema,
+  userContext: { schema: userContextSchema },
 })

@@ -1,5 +1,11 @@
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { Alert, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@tecton/react/components/accordion'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
 import {
@@ -32,7 +38,11 @@ import {
 } from '@tecton/react/tecton/panel'
 import { DatabaseIcon, SearchIcon, TriangleAlertIcon } from 'lucide-react'
 
-import type { UserContextInspectionEntry, UserContextStatus } from '@company/mfe-core/user-context'
+import type {
+  StateNode,
+  UserContextInspectionEntry,
+  UserContextStatus,
+} from '@company/mfe-core/user-context'
 import { useMfeRuntime } from '@company/mfe-react'
 
 import { useUserContextInspection } from './use-user-context-inspection.ts'
@@ -62,7 +72,13 @@ export function UserContextTab(): ReactNode {
   )
   const entries = useMemo(() => {
     const term = query.trim().toLowerCase()
-    return allEntries.filter(entry => entry.contract.id.toLowerCase().includes(term))
+    return allEntries.filter(
+      entry =>
+        entry.contract.id.toLowerCase().includes(term) ||
+        localKeys(entry.contract.node).some(key =>
+          `${entry.contract.id}:${key}`.toLowerCase().includes(term),
+        ),
+    )
   }, [allEntries, query])
   const keys = useMemo(() => allEntries.map(entry => entry.contract.id), [allEntries])
   const selected = allEntries.find(entry => entry.contract.id === selection) ?? allEntries[0]
@@ -93,7 +109,7 @@ export function UserContextTab(): ReactNode {
     return (
       <StateEmpty
         title="No user-context contracts"
-        description="Load compiled owner contracts in the shell runtime to make them available here."
+        description="Declare userContext.schema on an app, widget, or shell and include its generated metadata in the deployment."
       />
     )
 
@@ -150,7 +166,7 @@ export function UserContextTab(): ReactNode {
             <InputGroup>
               <InputGroupInput
                 aria-label="Search user-context owners"
-                placeholder="Filter owners…"
+                placeholder="Filter owners or keys…"
                 value={query}
                 onChange={event => setQuery(event.target.value)}
               />
@@ -162,7 +178,7 @@ export function UserContextTab(): ReactNode {
           {entries.length === 0 ? (
             <StateEmpty
               title="No owners match your search"
-              description="Search by owner ID or clear the search to see all contracts."
+              description="Search by owner ID or a namespaced key such as lab:units."
             />
           ) : (
             <nav
@@ -257,6 +273,7 @@ function StateDetail({ entry }: { readonly entry: UserContextInspectionEntry }):
               className="w-max"
             >
               <TabsTrigger value="effective">Current value</TabsTrigger>
+              <TabsTrigger value="keys">Keys</TabsTrigger>
               <TabsTrigger value="confirmed">Confirmed</TabsTrigger>
               <TabsTrigger value="contract">Contract</TabsTrigger>
             </TabsList>
@@ -271,6 +288,9 @@ function StateDetail({ entry }: { readonly entry: UserContextInspectionEntry }):
                   : 'The committed value visible to consumers of this owner slice.'
               }
             />
+          </TabsContent>
+          <TabsContent value="keys" className="min-h-0 overflow-auto">
+            <OwnerKeys entry={entry} />
           </TabsContent>
           <TabsContent value="confirmed" className="min-h-0 overflow-auto">
             <JsonValue
@@ -289,6 +309,58 @@ function StateDetail({ entry }: { readonly entry: UserContextInspectionEntry }):
         </Tabs>
       </PanelContent>
     </Panel>
+  )
+}
+
+/** Owner schemas can wrap the object in defaults or optional/nullable nodes. */
+function localKeys(node: StateNode): readonly string[] {
+  if (node.kind === 'default' || node.kind === 'optional' || node.kind === 'nullable')
+    return localKeys(node.inner)
+  return node.kind === 'object' ? Object.keys(node.fields).sort() : []
+}
+
+function OwnerKeys({ entry }: { readonly entry: UserContextInspectionEntry }): ReactNode {
+  const keys = localKeys(entry.contract.node)
+  const value = entry.confirmed
+  const record =
+    value !== null && typeof value === 'object' && !Array.isArray(value) ? value : undefined
+  return (
+    <div className="flex min-w-0 flex-col gap-2">
+      <p className="text-xs text-muted-foreground">
+        Addresses use owner:localKey. Only {entry.contract.id} can write these values; other apps
+        and widgets read their declared fields. This inspector is read only.
+      </p>
+      {keys.length === 0 ? (
+        <StateEmpty title="No local keys" description="This owner declares no context fields." />
+      ) : (
+        <Accordion multiple>
+          {keys.map(key => {
+            const address = `${entry.contract.id}:${key}`
+            return (
+              <AccordionItem key={key} value={key}>
+                <AccordionTrigger>
+                  <span className="min-w-0 break-all">{address}</span>
+                </AccordionTrigger>
+                <AccordionContent>
+                  {record !== undefined && !Object.hasOwn(record, key) ? (
+                    <StateEmpty
+                      title="Optional value is not set"
+                      description="This key is declared by the owner but has no committed value."
+                    />
+                  ) : (
+                    <JsonValue
+                      value={record?.[key]}
+                      label={`current value of ${address}`}
+                      description="Committed value, including nested fields. Pending writes are not shown."
+                    />
+                  )}
+                </AccordionContent>
+              </AccordionItem>
+            )
+          })}
+        </Accordion>
+      )}
+    </div>
   )
 }
 

@@ -11,3 +11,5 @@ export {
   type UserContextDefinition,
 } from './mount.ts'
 export * from '@company/mfe-core/user-context'
+
+export type { HostUserContextOptions, HostUserContextDefinition } from './host.ts'

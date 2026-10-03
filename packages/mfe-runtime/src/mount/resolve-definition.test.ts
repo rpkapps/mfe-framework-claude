@@ -90,7 +90,7 @@ describe('resolveDefinition', () => {
   it('refuses forged user-context ownership before preparing any slice', async () => {
     const definition = {
       ...REPORTS,
-      userContext: { protocolVersion: 1, ownerId: 'other-owner', contracts: [] },
+      __userContext: { protocolVersion: 1, ownerId: 'other-owner', contracts: [] },
     }
     const load = vi.fn(async () => loadedOf(definition))
     const runtime = runtimeWith([REPORTS], { load })

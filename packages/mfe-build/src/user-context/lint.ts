@@ -53,7 +53,7 @@ export function userContextRule(policyFile?: string) {
             ) {
               try {
                 const schema = userContextExpression(node.arguments[0])
-                const reads = userContextExpression(node.arguments[0], 'userContextReads')
+                const reads = userContextExpression(node.arguments[0], 'reads')
                 const id = objectProperty(node.arguments[0], 'id')
                 const ownerId =
                   (id ? stringLiteralValue(id.initializer) : undefined) ?? '<definition>'

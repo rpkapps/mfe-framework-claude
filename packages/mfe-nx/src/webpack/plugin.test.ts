@@ -244,7 +244,7 @@ describe('MfeWebpackPlugin on a production compile', () => {
   it('runs user-context replacement after Angular emission', () => {
     const root = reportsContainer({
       'src/mfe.ts': `import { z } from 'zod'; import { createApp } from '@company/mfe-angular';
-        export const reports = createApp({ id: 'reports', routes: [], userContextSchema: z.object({ units: z.string().default('metric') }) });`,
+        export const reports = createApp({ id: 'reports', routes: [], userContext: { schema: z.object({ units: z.string().default('metric') }) } });`,
     })
     const compiler = webpack(angularLikeConfig(root, 'development'))
     expect(compiler.options.module.rules).toContainEqual(

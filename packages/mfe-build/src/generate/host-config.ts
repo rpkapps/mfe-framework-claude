@@ -1,3 +1,13 @@
+import { userContextExpression } from '../user-context/transform.ts'
+import { findExportedExpression } from '../discovery/local-modules.ts'
+import { standaloneSources } from '../discovery/sources.ts'
+import { ts, unwrapExpression } from '../discovery/ts-ast.ts'
+import {
+  compileUserContext,
+  compileUserContextReads,
+  requirementsFor,
+} from '../user-context/compiler.ts'
+import { stateType } from '../user-context/generate.ts'
 /**
  * Runtime configuration for a host: the same `src/mfe.config.ts` declarations, deployment files and
  * local copy a container has, with a `#mfe/config` that validates without Zod. A host reads its
@@ -95,13 +105,20 @@ export function planHostConfig(options: HostConfigOptions): HostConfigPlan | nul
     defaults,
     runtimeConfigScriptFile(context),
   ].filter((file): file is GeneratedFile => file !== null)
+  const userContext = hostUserContextFiles(context)
+  files.push(...userContext)
   files.push(inventoryFile(resolved.generatedDir, files))
 
   return {
     options: resolved,
     configSource,
     files: [...files].sort((left, right) => (left.path < right.path ? -1 : 1)),
-    aliases: { [ALIASES.config]: generatedPath(resolved.generatedDir, 'config.ts') },
+    aliases: {
+      [ALIASES.config]: generatedPath(resolved.generatedDir, 'config.ts'),
+      ...(userContext.length
+        ? { '#mfe/user-context': generatedPath(resolved.generatedDir, 'user-context.ts') }
+        : {}),
+    },
     defaults,
   }
 }
@@ -218,3 +235,62 @@ const HOST_CONFIG_VALIDATE = [
   '  return Object.freeze(parsed) as MfeConfig',
   '}',
 ].join('\n')
+
+/** Host declarations are compiled without ever importing Zod into the browser. */
+function hostUserContextFiles(context: HostConfigContext): GeneratedFile[] {
+  const sources = standaloneSources()
+  const source = sources.parse(context.configSource.file)
+  const declared = findExportedExpression(source, 'userContext')
+  if (declared === null) return []
+  const declaration = unwrapExpression(declared)
+  if (!ts.isObjectLiteralExpression(declaration))
+    throw new Error('Host userContext must be an inline { schema?, reads? } declaration')
+  const wrapper = ts.factory.createObjectLiteralExpression([
+    ts.factory.createPropertyAssignment('userContext', declaration),
+  ])
+  const schema = userContextExpression(wrapper, 'schema')
+  const reads = userContextExpression(wrapper, 'reads')
+  const own =
+    schema === undefined
+      ? undefined
+      : compileUserContext(context.host.id, schema, source, sources).contracts[0]
+  const foreign =
+    reads === undefined ? [] : compileUserContextReads(context.host.id, reads, source, sources)
+  const requirements = requirementsFor(
+    { formatVersion: 1, contracts: [...(own ? [own] : []), ...foreign] },
+    context.host.id,
+  )
+  const registration = { ...(own ? { contract: own } : {}), requirements }
+  const values = own ? stateType(own.node) : 'Record<string, never>'
+  const readTypes = `{ ${foreign.map(contract => `${JSON.stringify(contract.id)}: ${stateType(contract.node)}`).join('; ')} }`
+  return [
+    ...(own
+      ? [
+          {
+            path: generatedPath(context.options.generatedDir, 'user-context.contract.json'),
+            contents: JSON.stringify(own, null, 2) + '\n',
+            asset: 'user-context.contract.json',
+          },
+        ]
+      : []),
+    {
+      path: generatedPath(context.options.generatedDir, 'user-context.ts'),
+      contents: [
+        banner(context.profile.generator, '#mfe/user-context'),
+        "import { createMfeRuntime as createRuntime, type CreateMfeRuntimeOptions, type UserContextThemeOptions } from '@company/mfe-react/host'",
+        "import { createHostUserContextBindings } from '@company/mfe-react/user-context'",
+        `export type UserContextValues = ${values}`,
+        `export type UserContextReads = ${readTypes}`,
+        `const registration = ${JSON.stringify(registration)} as const`,
+        'export const { useUserContext } = createHostUserContextBindings<UserContextValues, UserContextReads>(registration.requirements)',
+        "type Options = Omit<CreateMfeRuntimeOptions, '__userContext' | 'theme' | 'shellState'> & { readonly theme?: UserContextThemeOptions<UserContextValues>; readonly shellState: Omit<CreateMfeRuntimeOptions['shellState'], 'theme'> & {readonly theme?: 'light' | 'dark'} }",
+        'export function createMfeRuntime(options: Options) {',
+        '  const { theme, ...runtimeOptions } = options',
+        "  const initialTheme = options.shellState.theme ?? 'light'",
+        '  return createRuntime({ ...runtimeOptions, shellState: {...options.shellState, theme: initialTheme}, ...(theme ? {theme: theme as UserContextThemeOptions<unknown>} : {}), __userContext: registration })',
+        '}',
+        '',
+      ].join('\n'),
+    },
+  ]
+}

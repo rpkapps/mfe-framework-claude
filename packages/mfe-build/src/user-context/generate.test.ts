@@ -20,7 +20,7 @@ const profile = {
   definitions: { ...TEST_PROFILE.definitions, factoryModules: ['@company/mfe-react'] },
 }
 const schema = `z.object({ units: z.enum(['metric','imperial']).default('metric'), selection: z.strictObject({ id: z.string(), run: z.string().nullable(), mode: z.string().optional() }).nullable().default(null) })`
-const entry = `import {z} from 'zod'; import {createApp} from '@company/mfe-react'; export default createApp({id:'reader', router: makeRouter, userContextSchema: ${schema}})`
+const entry = `import {z} from 'zod'; import {createApp} from '@company/mfe-react'; export default createApp({id:'reader', router: makeRouter, userContext: { schema: ${schema} }})`
 function manifest(expression = schema) {
   const source = ts.createSourceFile(
     'schema.ts',
@@ -36,13 +36,24 @@ function manifest(expression = schema) {
 }
 
 describe('user-context generated bindings and production pipeline', () => {
-  it('generates definition aliases, per-owner assets and only references in registry metadata', () => {
+  it('does not publish a reader projection as a canonical owner contract', () => {
+    const root = createContainer({
+      'src/mfe.ts': `import {z} from 'zod'; import {createApp} from '@company/mfe-react';
+        export default createApp({id:'reader', router: makeRouter,
+          userContext: {reads: {producer: z.object({preferences: z.object({theme: z.string()})})}}})`,
+    })
+    const plan = planContainer(profile, { containerRoot: root })
+    const descriptor = plan.generated.descriptor.definitions[0]!
+    expect(descriptor.userContextContract).toBeUndefined()
+    expect(descriptor.userContext?.contracts.map(contract => contract.id)).toEqual(['producer'])
+  })
+  it('generates definition aliases, per-owner assets and canonical owner registry metadata', () => {
     const root = createContainer({ 'src/mfe.ts': entry })
     const plan = planContainer(profile, { containerRoot: root })
     expect(plan.aliases['#mfe/user-context']).toBe(join(root, '.mfe/user-context/reader.ts'))
     const descriptor = plan.generated.descriptor.definitions[0]!
     expect(descriptor.userContext?.contracts).toHaveLength(1)
-    expect(JSON.stringify(descriptor)).not.toContain('fields')
+    expect(descriptor.userContextContract).toEqual(manifest().contracts[0])
     const assets = plan.generated.files.filter(file => file.asset?.startsWith('user-context/'))
     expect(assets).toHaveLength(1)
     const binding = plan.generated.files.find(file => file.path.endsWith('user-context/reader.ts'))!
@@ -89,7 +100,7 @@ describe('user-context generated bindings and production pipeline', () => {
   })
   it('gives multiple definitions separate bindings without an ambiguous container-wide alias', () => {
     const root = createContainer({
-      'src/mfe.ts': `import {z} from 'zod'; import {createWidget} from '@company/mfe-react'; export const first=createWidget({id:'first',inputSchema:z.object({}),outputSchema:z.object({}),render:()=>null,userContextSchema:z.object({a:z.string().default('a')})}); export const second=createWidget({id:'second',inputSchema:z.object({}),outputSchema:z.object({}),render:()=>null,userContextSchema:z.object({b:z.boolean().default(false)})});`,
+      'src/mfe.ts': `import {z} from 'zod'; import {createWidget} from '@company/mfe-react'; export const first=createWidget({id:'first',inputSchema:z.object({}),outputSchema:z.object({}),render:()=>null,userContext:{schema:z.object({a:z.string().default('a')})}}); export const second=createWidget({id:'second',inputSchema:z.object({}),outputSchema:z.object({}),render:()=>null,userContext:{schema:z.object({b:z.boolean().default(false)})}});`,
     })
     const plan = planContainer(profile, { containerRoot: root })
     expect(plan.aliases['#mfe/user-context']).toBeUndefined()
@@ -103,7 +114,7 @@ describe('user-context generated bindings and production pipeline', () => {
   })
   it('keeps owner revisions independent and emits explicit read-only-owner requirements', () => {
     const root = createContainer({
-      'src/mfe.ts': `import {z} from 'zod'; import {createApp} from '@company/mfe-react'; export default createApp({id:'reader',router:makeRouter,userContextSchema:z.object({selected:z.string().default('')}),userContextReads:{'other-owner':z.object({selected:z.number().default(0)})}})`,
+      'src/mfe.ts': `import {z} from 'zod'; import {createApp} from '@company/mfe-react'; export default createApp({id:'reader',router:makeRouter,userContext:{schema:z.object({selected:z.string().default('')}),reads:{'other-owner':z.object({selected:z.number().default(0)})}}})`,
     })
     const plan = planContainer(profile, { containerRoot: root })
     const requirements = plan.generated.descriptor.definitions[0]!.userContext!
@@ -171,8 +182,8 @@ describe('user-context generated bindings and production pipeline', () => {
   it('typechecks generated React selectors, inferred owner reads and router context', () => {
     const root = createContainer({
       'src/mfe.ts': entry.replace(
-        'userContextSchema:',
-        "userContextReads:{'other-owner':z.object({selected:z.string().default('')})}, userContextSchema:",
+        'userContext: { schema:',
+        "userContext: { reads:{'other-owner':z.object({selected:z.string().default('')})}, schema:",
       ),
     })
     const plan = planContainer(profile, { containerRoot: root })
@@ -256,8 +267,8 @@ createApp({id:'reader',router:makeRouter});`,
   it('typechecks generated Angular signals and omits writes from foreign bindings', () => {
     const root = createContainer({
       'src/mfe.ts': entry.replace(
-        'userContextSchema:',
-        "userContextReads:{'other-owner':z.object({selected:z.string().default('')})}, userContextSchema:",
+        'userContext: { schema:',
+        "userContext: { reads:{'other-owner':z.object({selected:z.string().default('')})}, schema:",
       ),
     })
     const plan = planContainer({ ...profile, framework: 'angular' }, { containerRoot: root })

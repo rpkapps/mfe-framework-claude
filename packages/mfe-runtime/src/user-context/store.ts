@@ -9,6 +9,7 @@ import {
   UserContextError,
   stableJson,
   stateCapabilities,
+  userContextReadCapabilities,
   type Json,
   type UserContextAdapter,
   type UserContextManifest,
@@ -441,20 +442,30 @@ export class UserContextRuntime implements UserContextService {
         throw new UserContextError(
           'unsupported-contract',
           requested.id,
-          'State ID is unavailable in the shell schema or declared more than once',
+          'Owner is unavailable in deployment contracts or declared more than once',
         )
-      const available = this.#capabilities.get(requested.id)
+      const owned = requested.id === requirements.ownerId
+      const canonicalCapabilities = this.#capabilities.get(requested.id)
+      const available = owned
+        ? canonicalCapabilities
+        : new Set(userContextReadCapabilities([...(canonicalCapabilities ?? [])]))
+      const required =
+        Array.isArray(requested.capabilities) &&
+        requested.capabilities.every(capability => typeof capability === 'string')
+          ? owned
+            ? requested.capabilities
+            : userContextReadCapabilities(requested.capabilities)
+          : []
       if (
         !Array.isArray(requested.capabilities) ||
         !requested.capabilities.length ||
-        requested.capabilities.some(
-          capability => typeof capability !== 'string' || !available?.has(capability),
-        )
+        !required.length ||
+        required.some(capability => !available?.has(capability))
       )
         throw new UserContextError(
           'unsupported-contract',
           requested.id,
-          'Shell schema lacks required consumer fields or constraints; reload after upgrading the shell schema',
+          'Deployment contract lacks required consumer fields or constraints; reload after upgrading the owner',
         )
       contracts.set(requested.id, contract)
     }
@@ -466,7 +477,7 @@ export class UserContextRuntime implements UserContextService {
       throw new UserContextError(
         'unsupported-contract',
         id,
-        'No canonical contract in shell schema',
+        'No canonical owner contract in deployment metadata',
       )
     return entry
   }

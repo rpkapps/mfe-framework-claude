@@ -8,12 +8,12 @@
         "kind": "object",
         "strict": false,
         "fields": {
-          "display:units": {
+          "units": {
             "kind": "default",
             "inner": { "kind": "enum", "values": ["imperial", "metric"] },
             "value": "metric"
           },
-          "well:selection": {
+          "well-selection": {
             "kind": "default",
             "inner": {
               "kind": "nullable",
@@ -41,7 +41,7 @@
           }
         }
       },
-      "revision": "6473dc4b12081d0ff0bdd080bc1db9157ddb638adaf4e33ac89e8def2852587c"
+      "revision": "831ed5e1ec4adf75afb45a52c931fb126a835fc46bac3473e07ac5055e7c735c"
     }
   ]
 }

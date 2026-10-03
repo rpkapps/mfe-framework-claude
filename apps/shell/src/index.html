@@ -218,15 +218,27 @@
     </div>
     <!-- The theme before first paint, because a document that boots dark and flips to light on
          hydration is a flash every light-theme user sees on every load. It reads the same
-         shell-owned preference key as `preferences.ts`, before the runtime exists. -->
+         framework cache key, partitioned by authenticated user, before the runtime exists. -->
     <script>
       ;(function () {
         try {
-          var stored = window.localStorage.getItem('theme')
+          // A server may provide the authenticated ID. Without it, use system until sign-in.
+          var userId = document.documentElement.dataset.userId
+          var stored = userId
+            ? window.localStorage.getItem(
+                'portal:theme:' +
+                  encodeURIComponent(
+                    JSON.stringify([
+                      document.documentElement.dataset.tenantId || null,
+                      document.documentElement.dataset.accountId || null,
+                      userId,
+                    ]),
+                  ),
+              )
+            : null
           if (stored !== 'light' && stored !== 'dark') stored = null
           var theme =
-            stored ||
-            (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
+            stored || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
           document.documentElement.classList.toggle('dark', theme === 'dark')
           document.documentElement.style.colorScheme = theme
         } catch (error) {

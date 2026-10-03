@@ -2,8 +2,8 @@ import { z } from 'zod'
 
 /** Lab owns this slice. Other MFEs explicitly declare compatible read requirements. */
 export const userContextSchema = z.object({
-  'display:units': z.enum(['metric', 'imperial']).default('metric'),
-  'well:selection': z
+  units: z.enum(['metric', 'imperial']).default('metric'),
+  'well-selection': z
     .strictObject({
       wellId: z.string(),
       runId: z.string().nullable(),

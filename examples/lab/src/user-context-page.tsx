@@ -24,11 +24,11 @@ import { LabPage, LabSection, WidgetSkeleton } from './lab-page.tsx'
 
 export function UserContextPage(): ReactNode {
   const id = useId()
-  const [units, set] = useUserContext(context => context['display:units'])
-  const [selection] = useUserContext(context => context['well:selection'])
-  const setUnits = (value: 'metric' | 'imperial') => set('display:units', value)
-  const setSelection = (value: Parameters<typeof set<'well:selection'>>[1]) =>
-    set('well:selection', value)
+  const [units, set] = useUserContext(context => context.units)
+  const [selection] = useUserContext(context => context['well-selection'])
+  const setUnits = (value: 'metric' | 'imperial') => set('units', value)
+  const setSelection = (value: Parameters<typeof set<'well-selection'>>[1]) =>
+    set('well-selection', value)
   const loadedSelection = useLoaderData({ from: '/user-context' })
   const well = wells.find(candidate => candidate.id === selection?.wellId)
   const [error, setError] = useState('')
@@ -50,7 +50,7 @@ export function UserContextPage(): ReactNode {
       eyebrow="User context"
       title="Review a survey. Plan its inspection."
       description="Two independently mounted micro-frontends use the same selection. The React App reviews survey data; the Angular Widget prepares an inspection for that well."
-      tryThis="Choose a well on the left and watch the Angular panel update. Change the survey or units in React; Angular reads the updated selection and prepares a local inspection brief. Close and reopen the inspection panel; the selection stays."
+      tryThis="Choose a well on the left and watch the Angular panel update. Change the survey or units in React; Angular reads the updated selection and saves its own inspection brief. Close and reopen the inspection panel; the brief and selection stay."
     >
       <div className="grid gap-6 lg:grid-cols-2">
         <section aria-label="React survey app">
@@ -95,7 +95,7 @@ export function UserContextPage(): ReactNode {
                 onChange={event => {
                   const runId = event.target.value
                   if (well?.runs.some(run => run.id === runId))
-                    void save(() => set('well:selection', { runId }))
+                    void save(() => set('well-selection', { runId }))
                 }}
               >
                 <NativeSelectOption value="">Choose a survey</NativeSelectOption>
@@ -150,7 +150,7 @@ export function UserContextPage(): ReactNode {
         <summary>How the two MFEs share this selection</summary>
         <p>
           Lab declares and owns its user context schema. Fieldwork explicitly reads Lab’s slice; the
-          inspection brief stays local to the mounted panel. Each MFE uses generated bindings, and
+          Widget owns and saves its inspection brief. Each MFE uses generated bindings, and
           cross-MFE reads cannot write the other MFE’s state.
         </p>
         <p>
@@ -206,10 +206,10 @@ const InspectionPlanner = memo(function InspectionPanel(): ReactNode {
 })
 
 function SurveyResults(): ReactNode {
-  const [units] = useUserContext(context => context['display:units'])
-  const [wellId] = useUserContext(context => context['well:selection']?.wellId)
-  const [runId] = useUserContext(context => context['well:selection']?.runId)
-  const [comparisonMode] = useUserContext(context => context['well:selection']?.comparisonMode)
+  const [units] = useUserContext(context => context.units)
+  const [wellId] = useUserContext(context => context['well-selection']?.wellId)
+  const [runId] = useUserContext(context => context['well-selection']?.runId)
+  const [comparisonMode] = useUserContext(context => context['well-selection']?.comparisonMode)
   const well = wells.find(candidate => candidate.id === wellId)
   const run = well?.runs.find(candidate => candidate.id === runId)
   if (!well || !run)

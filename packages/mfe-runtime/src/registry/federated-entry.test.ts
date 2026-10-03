@@ -447,3 +447,26 @@ describe('an adapter for one framework’s federation builds', () => {
     expect(createFederatedAdapter({ kind: 'plain-dom', aroundLoad }).aroundLoad).toBe(aroundLoad)
   })
 })
+
+describe('user-context deployment metadata', () => {
+  const contract = {
+    formatVersion: 1,
+    id: 'reports',
+    revision: 'one',
+    node: { kind: 'object', strict: true, fields: { units: { kind: 'string' } } },
+  }
+  it('retains the generated owner contract before any container loads', () => {
+    expect(parse(entry({ userContextContract: contract })).userContextContract).toEqual(contract)
+  })
+  it('rejects another owner and malformed contract metadata', () => {
+    expect(
+      rejection(entry({ userContextContract: { ...contract, id: 'operations' } })).path,
+    ).toEqual(['userContextContract', 'id'])
+    expect(
+      rejection(entry({ userContextContract: { ...contract, formatVersion: 99 } })).path,
+    ).toEqual(['userContextContract'])
+    expect(
+      rejection(entry({ userContextContract: { ...contract, node: { kind: 'unknown' } } })).path,
+    ).toEqual(['userContextContract'])
+  })
+})
