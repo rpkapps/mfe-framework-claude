@@ -13,7 +13,8 @@ import { z } from 'zod'
 type UserContextAdapter = HostUserContextOptions['adapter']
 type StateRecord = Awaited<ReturnType<UserContextAdapter['write']>>
 import { toast } from 'sonner'
-import { ThemeAction } from './theme-action.tsx'
+import { useUserContext } from '#mfe/user-context'
+import { ThemeAction, UserPreferences } from './theme-action.tsx'
 
 vi.mock('@company/mfe-devtools', () => ({ devtools: { open: vi.fn() } }))
 vi.mock('sonner', () => ({ toast: { error: vi.fn(), success: vi.fn() } }))
@@ -42,7 +43,7 @@ function deferred<T>() {
   })
   return { promise, resolve, reject }
 }
-function setup() {
+async function setup() {
   const hydration = deferred<readonly StateRecord[]>()
   const commit = deferred<StateRecord>()
   const write = vi.fn<UserContextAdapter['write']>(() => commit.promise)
@@ -66,7 +67,7 @@ function setup() {
   document.body.append(container)
   const component = createRoot(container)
   roots.push(component)
-  act(() => {
+  await act(async () => {
     component.render(
       createElement(MfeProvider, { runtime: handle.runtime, children: createElement(ThemeAction) }),
     )
@@ -89,7 +90,7 @@ afterEach(() => {
 
 describe('persistent theme shortcut component', () => {
   it('reserves the shortcut during hydration and persists before publishing the changed theme', async () => {
-    const test = setup()
+    const test = await setup()
     expect(test.entries()).toHaveLength(1)
     expect(test.entries()[0]?.shortcut).toBe('mod+j')
     expect((await test.execute()).status).toBe('denied')
@@ -124,7 +125,7 @@ describe('persistent theme shortcut component', () => {
 
   it('keeps the unavailable shortcut registered when preferences fail to load', async () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const test = setup()
+    const test = await setup()
     await act(async () => {
       test.hydration.reject(new Error('API unavailable'))
     })
@@ -135,8 +136,45 @@ describe('persistent theme shortcut component', () => {
     error.mockRestore()
   })
 
+  it('loads the preferences again when a preferences boundary mounts after a failed load', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const test = await setup()
+    await act(async () => {
+      test.hydration.reject(new Error('API unavailable'))
+    })
+    expect(test.hydrate).toHaveBeenCalledTimes(1)
+    test.hydrate.mockResolvedValue([
+      { id: 'shell', revision: 1, value: { preferences: { theme: 'dark' } } },
+    ])
+    function SavedTheme() {
+      const [theme] = useUserContext(context => context.preferences.theme)
+      return theme
+    }
+    const container = document.createElement('div')
+    document.body.append(container)
+    const settings = createRoot(container)
+    roots.push(settings)
+    await act(async () => {
+      settings.render(
+        createElement(MfeProvider, {
+          runtime: test.runtime,
+          children: createElement(UserPreferences, {
+            pending: 'Loading',
+            failed: 'Unavailable',
+            children: createElement(SavedTheme),
+          }),
+        }),
+      )
+    })
+    await vi.waitFor(() => expect(container.textContent).toBe('dark'))
+    expect(test.hydrate).toHaveBeenCalledTimes(2)
+    await vi.waitFor(() => expect(test.entries()[0]?.decision.allowed).toBe(true))
+    expect(test.runtime.shellState.getTheme()).toBe('dark')
+    error.mockRestore()
+  })
+
   it('reports a persistence failure and keeps the previously confirmed theme', async () => {
-    const test = setup()
+    const test = await setup()
     await act(async () => {
       test.hydration.resolve([{ id: 'shell', revision: 0 }])
     })
@@ -155,7 +193,7 @@ describe('persistent theme shortcut component', () => {
   })
 
   it('rejects an in-flight old-user action and ignores its late persistence result', async () => {
-    const test = setup()
+    const test = await setup()
     await act(async () => {
       test.hydration.resolve([{ id: 'shell', revision: 0 }])
     })

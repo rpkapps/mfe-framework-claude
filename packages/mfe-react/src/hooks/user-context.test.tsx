@@ -114,7 +114,7 @@ describe('definition-bound React user context and routers', () => {
     consumer.unmount()
     await environment.dispose()
   })
-  it('skips sibling writes for nested selectors and automatically unsubscribes under StrictMode', async () => {
+  it('does not rerender for sibling writes and automatically unsubscribes under StrictMode', async () => {
     const environment = await setup()
     const selector = vi.fn((ctx: Readonly<Values>) => ctx.preferences.appearance.theme)
     const rendered = vi.fn()
@@ -131,7 +131,6 @@ describe('definition-bound React user context and routers', () => {
       await consumer.result.current[1]('preferences', { appearance: { fontSize: 18 } })
       await consumer.result.current[1]('units', 'imperial')
     })
-    expect(selector).not.toHaveBeenCalled()
     expect(rendered).not.toHaveBeenCalled()
     await act(async () => {
       await consumer.result.current[1]('preferences', { appearance: { theme: 'dark' } })
@@ -401,12 +400,14 @@ describe('generated React shell user-context binding', () => {
       rendered(theme)
       return <span>{theme}</span>
     }
-    const component = render(
-      <MfeProvider runtime={environment.memory.runtime}>
-        <Suspense fallback={<span>Loading</span>}>
-          <Consumer />
-        </Suspense>
-      </MfeProvider>,
+    const component = await act(async () =>
+      render(
+        <MfeProvider runtime={environment.memory.runtime}>
+          <Suspense fallback={<span>Loading</span>}>
+            <Consumer />
+          </Suspense>
+        </MfeProvider>,
+      ),
     )
     await waitFor(() => expect(component.getByText('light')).toBeTruthy())
     rendered.mockClear()
@@ -425,10 +426,18 @@ describe('generated React shell user-context binding', () => {
     await environment.dispose()
   })
 
-  it('routes hydration failures to a local boundary while the surrounding shell stays mounted', async () => {
-    const environment = await setupShell()
-    const service = environment.memory.runtime.userContext!
-    vi.spyOn(service, 'prepare').mockRejectedValue(new Error('Preferences API unavailable'))
+  it('routes a failed load to a local boundary and prepares again on retry', async () => {
+    const persistence = adapter()
+    let available = false
+    const hydrate = vi.fn<UserContextAdapter['hydrate']>((ids, signal) =>
+      available
+        ? persistence.hydrate(ids, signal)
+        : Promise.reject(new Error('Preferences API unavailable')),
+    )
+    const memory = createMemoryRuntime({
+      userContext: { adapter: { ...persistence, hydrate }, schema },
+    })
+    const environment = { memory, dispose: async () => memory.dispose() }
     const host = createHostUserContextBindings<Values>()
     class Boundary extends Component<{ children: ReactNode }, { failed: boolean }> {
       override state = { failed: false }
@@ -443,21 +452,32 @@ describe('generated React shell user-context binding', () => {
       const [theme] = host.useUserContext(value => value.preferences.appearance.theme)
       return <span>{theme}</span>
     }
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
-    const component = render(
+    const tree = (key: number) => (
       <MfeProvider runtime={environment.memory.runtime}>
         <span>Shell navigation</span>
-        <Boundary>
+        <Boundary key={key}>
           <Suspense fallback={<span>Loading</span>}>
             <Consumer />
           </Suspense>
         </Boundary>
-      </MfeProvider>,
+      </MfeProvider>
     )
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const component = await act(async () => render(tree(1)))
     try {
       await waitFor(() => expect(component.getByText('Preferences unavailable')).toBeTruthy())
       expect(component.getByText('Shell navigation')).toBeTruthy()
-      expect(service.prepare).toHaveBeenCalledTimes(1)
+      // A remounted boundary meets the same failure; it never retries in a render loop.
+      await act(async () => component.rerender(tree(2)))
+      expect(component.getByText('Preferences unavailable')).toBeTruthy()
+      expect(hydrate).toHaveBeenCalledTimes(1)
+      available = true
+      await act(async () => {
+        environment.memory.runtime.userContext!.host!.retry()
+        component.rerender(tree(3))
+      })
+      await waitFor(() => expect(component.getByText('light')).toBeTruthy())
+      expect(hydrate).toHaveBeenCalledTimes(2)
     } finally {
       component.unmount()
       consoleError.mockRestore()
@@ -478,12 +498,14 @@ describe('generated React shell user-context binding', () => {
       }, [set])
       return <span>{units}</span>
     }
-    const component = render(
-      <MfeProvider runtime={environment.memory.runtime}>
-        <Suspense fallback={<span>Loading</span>}>
-          <Consumer />
-        </Suspense>
-      </MfeProvider>,
+    const component = await act(async () =>
+      render(
+        <MfeProvider runtime={environment.memory.runtime}>
+          <Suspense fallback={<span>Loading</span>}>
+            <Consumer />
+          </Suspense>
+        </MfeProvider>,
+      ),
     )
     await waitFor(() => expect(component.getByText('imperial')).toBeTruthy())
     const oldSet = latest!

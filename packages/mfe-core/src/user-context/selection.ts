@@ -1,340 +1,99 @@
 import type { UserContextReader } from './index.ts'
 
-type Key = string | symbol
-type Path = readonly Key[]
-interface Read {
-  readonly source: unknown
-  readonly path: Path
-  readonly children: Map<Key, Read>
-  readonly has: Map<Key, boolean>
-  readonly own: Map<Key, boolean>
-  keys: readonly Key[] | undefined
-  whole: boolean
-  proxy?: object
+const unsupported = (): never => {
+  throw new TypeError(
+    'User-context selectors must return primitives, plain objects or arrays; functions, class instances and cyclic results are not supported',
+  )
 }
-
-const object = (value: unknown): value is object => value !== null && typeof value === 'object'
 const plain = (value: object): boolean =>
   Array.isArray(value) ||
   Object.getPrototypeOf(value) === Object.prototype ||
   Object.getPrototypeOf(value) === null
-const read = (source: unknown, path: Path): Read => ({
-  source,
-  path,
-  children: new Map(),
-  has: new Map(),
-  own: new Map(),
-  keys: undefined,
-  whole: false,
-})
-const sameKeys = (a: readonly Key[], b: readonly Key[]): boolean =>
-  a.length === b.length && a.every((key, index) => key === b[index])
 
-/** Preserve unchanged JSON branches even when persistence rematerializes the whole owner slice. */
-function share(previous: unknown, next: unknown, seen = new WeakMap<object, unknown>()): unknown {
-  if (Object.is(previous, next)) return previous
-  if (!object(next) || !plain(next)) return next
-  if (seen.has(next)) return seen.get(next)
-  const comparable =
-    object(previous) && Object.getPrototypeOf(previous) === Object.getPrototypeOf(next)
-  const keys = Reflect.ownKeys(next)
-  let equal = comparable && sameKeys(Reflect.ownKeys(previous), keys)
-  const result: object = Array.isArray(next)
-    ? []
-    : (Object.create(Object.getPrototypeOf(next) as object | null) as object)
-  seen.set(next, result)
+/**
+ * Freeze a selector result, keeping every branch equal to the previous result as it was, so an
+ * unchanged selection keeps its identity and nothing rerenders.
+ */
+function share(previous: unknown, next: unknown, visiting = new Set<object>()): unknown {
+  if (typeof next === 'function' || typeof next === 'symbol' || typeof next === 'bigint')
+    return unsupported()
+  if (Object.is(previous, next) || next === null || typeof next !== 'object') return next
+  if (!plain(next) || visiting.has(next)) return unsupported()
+  visiting.add(next)
+  const array = Array.isArray(next)
+  const before =
+    previous !== null && typeof previous === 'object' && Array.isArray(previous) === array
+      ? (previous as Record<string, unknown>)
+      : undefined
+  const keys = array ? [...(next as unknown[]).keys()].map(String) : Object.keys(next)
+  let equal = before !== undefined && Object.keys(before).length === keys.length
+  let unchanged = true
+  const result = (array ? [] : {}) as Record<string, unknown>
   for (const key of keys) {
-    if (Array.isArray(next) && key === 'length') continue
-    const value = share(
-      comparable ? Reflect.get(previous, key) : undefined,
-      Reflect.get(next, key),
-      seen,
-    )
-    if (!comparable || !Object.is(value, Reflect.get(previous, key))) equal = false
-    Object.defineProperty(result, key, {
-      value,
-      enumerable: true,
-      configurable: true,
-      writable: true,
-    })
+    const source = (next as Record<string, unknown>)[key]
+    const value = share(before?.[key], source, visiting)
+    if (!before || !Object.hasOwn(before, key) || !Object.is(value, before[key])) equal = false
+    if (!Object.is(value, source)) unchanged = false
+    result[key] = value
   }
-  if (Array.isArray(next)) (result as unknown[]).length = next.length
-  const shared = equal ? previous : Object.freeze(result)
-  seen.set(next, shared)
-  return shared
+  visiting.delete(next)
+  if (equal) return before
+  // A branch of the frozen runtime snapshot can be returned as it is.
+  return unchanged && Object.isFrozen(next) ? next : Object.freeze(result)
 }
 
-const readsParts = (dependency: Read): boolean =>
-  dependency.children.size > 0 ||
-  dependency.has.size > 0 ||
-  dependency.own.size > 0 ||
-  dependency.keys !== undefined
-
-function matches(dependency: Read, next: unknown): boolean {
-  if (Object.is(dependency.source, next)) return true
-  if (!dependency.path.length && !dependency.whole && !readsParts(dependency)) return true
-  if (!object(dependency.source) || !object(next)) return false
-  if (Object.getPrototypeOf(dependency.source) !== Object.getPrototypeOf(next)) return false
-  if (dependency.whole || !readsParts(dependency))
-    return Object.is(share(dependency.source, next), dependency.source)
-  if (dependency.keys && !sameKeys(dependency.keys, Reflect.ownKeys(next))) return false
-  for (const [key, present] of dependency.has) if (Reflect.has(next, key) !== present) return false
-  for (const [key, present] of dependency.own)
-    if (Object.hasOwn(next, key) !== present) return false
-  for (const [key, child] of dependency.children)
-    if (!matches(child, Reflect.get(next, key))) return false
-  return true
-}
-
-function track(root: Read): { value: object; unwrap: (value: unknown) => unknown } {
-  const proxies = new WeakMap<object, Read>()
-  const wrap = (dependency: Read): object => {
-    if (dependency.proxy) return dependency.proxy
-    const source = dependency.source as object
-    // A fresh target avoids Proxy invariants on the deeply frozen runtime snapshot.
-    const target: object = Array.isArray(source)
-      ? []
-      : (Object.create(Object.getPrototypeOf(source) as object | null) as object)
-    const mutation = (): never => {
-      throw new TypeError('User-context selectors must not mutate their input')
-    }
-    const property = (key: Key): unknown => {
-      let child = dependency.children.get(key)
-      if (!child) {
-        child = read(Reflect.get(source, key), [...dependency.path, key])
-        dependency.children.set(key, child)
-      }
-      return object(child.source) ? wrap(child) : child.source
-    }
-    const proxy = new Proxy(target, {
-      get: (_target, key) => property(key),
-      has: (_target, key) => {
-        const present = Reflect.has(source, key)
-        dependency.has.set(key, present)
-        return present
-      },
-      ownKeys: () => {
-        dependency.keys = Reflect.ownKeys(source)
-        return [...dependency.keys]
-      },
-      getOwnPropertyDescriptor: (_target, key) => {
-        const descriptor = Reflect.getOwnPropertyDescriptor(source, key)
-        dependency.own.set(key, descriptor !== undefined)
-        if (!descriptor) return undefined
-        if (Array.isArray(source) && key === 'length')
-          return { value: property(key), writable: true, enumerable: false, configurable: false }
-        return { ...descriptor, value: property(key), configurable: true }
-      },
-      set: mutation,
-      deleteProperty: mutation,
-      defineProperty: mutation,
-      setPrototypeOf: mutation,
-      preventExtensions: mutation,
-    })
-    dependency.proxy = proxy
-    proxies.set(proxy, dependency)
-    return proxy
-  }
-  const seen = new WeakMap<object, unknown>()
-  const visiting = new WeakSet<object>()
-  const unsupported = (): never => {
-    throw new TypeError(
-      'User-context selectors must return primitives, plain objects or arrays; functions, class instances and cyclic results are not supported',
-    )
-  }
-  const unwrap = (value: unknown): unknown => {
-    if (typeof value === 'function' || typeof value === 'symbol' || typeof value === 'bigint')
-      return unsupported()
-    if (!object(value)) return value
-    const dependency = proxies.get(value)
-    if (dependency) {
-      dependency.whole = true
-      return dependency.source
-    }
-    if (!plain(value) || visiting.has(value)) return unsupported()
-    if (seen.has(value)) return seen.get(value)
-    const result: object = Array.isArray(value)
-      ? []
-      : (Object.create(Object.getPrototypeOf(value) as object | null) as object)
-    seen.set(value, result)
-    visiting.add(value)
-    for (const key of Reflect.ownKeys(value)) {
-      if (Array.isArray(value) && key === 'length') continue
-      Object.defineProperty(result, key, {
-        value: unwrap(Reflect.get(value, key)),
-        enumerable: true,
-        configurable: true,
-        writable: true,
-      })
-    }
-    if (Array.isArray(value)) (result as unknown[]).length = value.length
-    visiting.delete(value)
-    return Object.freeze(result)
-  }
-  return { value: wrap(root), unwrap }
-}
-
-export interface UserContextSelection<T> {
-  readonly getSnapshot: () => T
+export interface UserContextSelection<V> {
+  /**
+   * Run the selector against the current snapshot. It reruns only when the record or the selector
+   * changed, and a result equal to the previous one keeps its identity, so a selector closure
+   * recreated on every render is cheap. Every call still validates the live scope.
+   */
+  readonly read: <T>(selector: (value: Readonly<V>) => T) => T
+  /** Observe the owner record; also calls back when it changed since the last read. */
   readonly subscribe: (listener: () => void) => () => void
 }
-type Seed = () => { readonly value: unknown } | undefined
 
 /**
- * A lifecycle-neutral selector subscription. Selectors synchronously read immutable JSON data;
- * only accessed owner fields are subscribed, and nested siblings do not rerun the selector.
- * Results must be primitives, plain objects or arrays; returned data is deeply immutable.
- * Framework bindings own the returned cleanup. Every read still validates the live scope.
+ * Selects from one owner's record. Selectors synchronously read immutable JSON data and return
+ * primitives, plain objects or arrays; returned data is deeply immutable. Framework bindings decide
+ * when to subscribe and own the returned cleanup.
  */
-export function createUserContextSelection<V, T>(
+export function createUserContextSelection<V>(
   store: UserContextReader<V>,
-  selector: (value: Readonly<V>) => T,
-): UserContextSelection<T> {
-  const { getSnapshot, subscribe } = select(store, selector)
-  return { getSnapshot, subscribe }
-}
-
-/**
- * Selections over one store for a selector closure re-created on every render: each new
- * selection structurally shares with the previous one, so an unchanged result keeps its identity.
- */
-export function createUserContextSelector<V>(
-  store: UserContextReader<V>,
-): <T>(selector: (value: Readonly<V>) => T) => UserContextSelection<T> {
-  let last: Seed | undefined
-  return selector => {
-    const { getSnapshot, subscribe, current } = select(store, selector, last)
-    last = current
-    return { getSnapshot, subscribe }
-  }
-}
-
-function select<V, T>(
-  store: UserContextReader<V>,
-  selector: (value: Readonly<V>) => T,
-  seed?: Seed,
-): UserContextSelection<T> & { readonly current: Seed } {
+): UserContextSelection<V> {
   let source: Readonly<V> | undefined
-  let dependency: Read | undefined
-  let value: T
-  let failed = false
-  let error: unknown
-  let initialized = false
-  const listeners = new Set<() => void>()
-  const subscriptions = new Map<string | null, () => void>()
-
-  const refresh = (): void => {
-    // Never short-circuit scope validation, including after all subscribers have detached.
-    const next = store.getSnapshot()
-    if (initialized && Object.is(source, next)) return
-    if (initialized && !failed && dependency && matches(dependency, next)) {
-      source = next
-      return
-    }
-    const nextDependency = read(next, [])
-    const tracked = track(nextDependency)
-    try {
-      const result = tracked.unwrap(selector(tracked.value as Readonly<V>))
-      const base = initialized && !failed ? { value } : seed?.()
-      value = (base ? share(base.value, result) : result) as T
-      failed = false
-    } catch (caught) {
-      error = caught
-      failed = true
-    }
-    initialized = true
-    seed = undefined
-    source = next
-    dependency = nextDependency
-  }
-  const desired = (): Set<string | null> => {
-    // Root enumeration/selection and constant selectors need the lifecycle observer. Key
-    // subscriptions already deliver owner-scope invalidation, so avoid a broad observer otherwise.
-    if (!dependency || dependency.whole || dependency.keys) return new Set([null])
-    const keys = [...dependency.children.keys(), ...dependency.has.keys(), ...dependency.own.keys()]
-    // Optional fields and prototype methods may not be legal store.subscribe keys. Observing
-    // the owner is safe here; dependency comparison still filters unrelated commits.
-    if (
-      !keys.length ||
-      keys.some(key => typeof key !== 'string' || !Object.hasOwn(source as object, key))
-    )
-      return new Set([null])
-    return new Set(keys as string[])
-  }
-  let reconciling = false
-  let pending = false
-  const changed = (): void => {
-    if (reconciling) {
-      pending = true
-      return
-    }
-    const previous = value
-    const previouslyFailed = failed
-    let invalid = false
-    try {
-      refresh()
-      reconcile()
-    } catch {
-      invalid = true
-    }
-    if (invalid || failed || previouslyFailed || !Object.is(previous, value))
-      for (const listener of [...listeners]) listener()
-  }
-  const reconcile = (): void => {
-    if (!listeners.size || reconciling) return
-    reconciling = true
-    try {
-      const keys = desired()
-      for (const [key, unsubscribe] of subscriptions) {
-        if (!keys.has(key)) {
-          unsubscribe()
-          subscriptions.delete(key)
-        }
-      }
-      for (const key of keys) {
-        if (!subscriptions.has(key))
-          subscriptions.set(
-            key,
-            key === null
-              ? store.observe(changed)
-              : store.subscribe(key as keyof V & string, changed),
-          )
-      }
-    } finally {
-      reconciling = false
-    }
-    if (pending) {
-      pending = false
-      changed()
-    }
-  }
-  const getSnapshot = (): T => {
-    refresh()
-    reconcile()
-    if (failed) throw error
-    return value
-  }
-  const release = (listener: () => void): void => {
-    listeners.delete(listener)
-    if (listeners.size) return
-    for (const unsubscribe of subscriptions.values()) unsubscribe()
-    subscriptions.clear()
-  }
+  let selected: unknown
+  let value: unknown
+  let failure: { readonly error: unknown } | undefined
   return {
-    getSnapshot,
-    current: () => (initialized && !failed ? { value } : seed?.()),
-    subscribe: listener => {
-      const previous = getSnapshot()
-      listeners.add(listener)
-      try {
-        reconcile()
-        // A commit between the render/read and subscribing must not be missed.
-        if (!Object.is(previous, getSnapshot())) listener()
-      } catch (caught) {
-        release(listener)
-        throw caught
+    read: <T>(selector: (value: Readonly<V>) => T): T => {
+      const next = store.getSnapshot()
+      if (next !== source || selector !== selected) {
+        try {
+          value = share(value, selector(next))
+          failure = undefined
+        } catch (error) {
+          failure = { error }
+        }
+        source = next
+        selected = selector
       }
-      return () => release(listener)
+      if (failure) throw failure.error
+      return value as T
+    },
+    subscribe: listener => {
+      const read = source
+      const stop = store.observe(listener)
+      let changed: boolean
+      try {
+        changed = store.getSnapshot() !== read
+      } catch {
+        // A reset or an invalid record: the listener reads again and meets the error.
+        changed = true
+      }
+      // A commit between the render that read and this subscription must not be missed.
+      if (read !== undefined && changed) listener()
+      return stop
     },
   }
 }

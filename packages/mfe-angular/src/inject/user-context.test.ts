@@ -89,13 +89,17 @@ describe('definition-bound Angular user context', () => {
     await remounted.dispose()
     environment.dispose()
   })
-  it('tracks nested keys without reevaluating selectors or effects for sibling changes', async () => {
-    const selector = vi.fn((context: Readonly<Values>) => context.preferences.appearance.theme)
+  it('keeps the selected value for sibling changes so computed signals and effects do not rerun', async () => {
+    const selector = (context: Readonly<Values>) => context.preferences.appearance.theme
     const render = vi.fn()
+    const labelled = vi.fn()
     @Component({ selector: 'nested-reader', template: '{{ label() }}' })
     class NestedReader {
       readonly theme = bindings.injectUserContext(selector)
-      readonly label = computed(() => `Theme: ${this.theme.value()}`)
+      readonly label = computed(() => {
+        labelled()
+        return `Theme: ${this.theme.value()}`
+      })
       constructor() {
         effect(() => {
           render(this.theme.value())
@@ -116,16 +120,15 @@ describe('definition-bound Angular user context', () => {
     const stableSetter = commands.set
     await mounted.whenStable()
     expect(mounted.element.textContent).toBe('Theme: light')
-    selector.mockClear()
     render.mockClear()
+    labelled.mockClear()
     await commands.set('preferences', { appearance: { theme: 'light', fontSize: 18 } })
     await mounted.whenStable()
-    expect(selector).not.toHaveBeenCalled()
     expect(render).not.toHaveBeenCalled()
+    expect(labelled).not.toHaveBeenCalled()
     expect(mounted.element.textContent).toBe('Theme: light')
     await commands.set('preferences', { appearance: { theme: 'dark', fontSize: 18 } })
     await mounted.whenStable()
-    expect(selector).toHaveBeenCalledTimes(1)
     expect(render).toHaveBeenCalledExactlyOnceWith('dark')
     expect(mounted.element.textContent).toBe('Theme: dark')
     expect(commands.set).toBe(stableSetter)

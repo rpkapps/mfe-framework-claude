@@ -2073,3 +2073,12 @@ stored, so a reader field the owner may not have written needs its own default, 
 optional or nullable. Two tabs editing the same key keep the later save, not a merge. A container
 can no longer check offline that its reads still match a published owner; a mismatch shows at
 runtime as `user-context/invalid-value` on that reader only.
+
+**Selections and the shell:** a binding observes the whole owner record and reruns its selector on
+every change of that record, sharing structure with the previous result so an unchanged selection
+keeps its identity and nothing rerenders. It replaced tracking each field a selector read through
+Proxies, which cost more code than the selector runs it saved. The shell's own slice is prepared
+through the same path as a mount's, once per signed-in user, and its generated binding only reads
+that preparation; a failed one stays failed, so rendering never retries in a loop, until
+`host.retry()` or the next user replaces it. The cost is a selector run per owner commit, so
+selectors should stay cheap.

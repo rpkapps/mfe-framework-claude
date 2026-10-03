@@ -143,8 +143,7 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
   const stopTheme =
     parts.theme && userContext?.host
       ? attachUserContextTheme({
-          service: userContext,
-          owner: userContext.host,
+          host: userContext.host,
           shellState,
           theme: parts.theme,
         })

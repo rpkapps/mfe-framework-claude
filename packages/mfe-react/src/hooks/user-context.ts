@@ -1,10 +1,9 @@
-import { useMemo, useSyncExternalStore } from 'react'
+import { use, useMemo, useSyncExternalStore } from 'react'
 import {
-  createUserContextSelector,
+  createUserContextSelection,
   UserContextError,
   type UserContextReader,
   type UserContextStore,
-  type UserContextService,
 } from '@company/mfe-core/user-context'
 import { useMfeMount, useOptionalMfeMount } from '../mount-context.tsx'
 import { useMfeRuntime } from '../runtime-context.tsx'
@@ -60,18 +59,11 @@ function useSelectedUserContext<V>(
   selector: unknown,
   writable: boolean,
 ): readonly [unknown] | readonly [unknown, UserContextStore<V>['set']] {
-  // Inline selectors are new closures each render; selections from one store's selector share
-  // structure with the previous one, so an unchanged derived value keeps its identity.
-  const select = useMemo(() => createUserContextSelector(store), [store])
-  const selection = useMemo(
-    () => select(selector as (context: Readonly<V>) => unknown),
-    [select, selector],
-  )
-  const value = useSyncExternalStore(
-    selection.subscribe,
-    selection.getSnapshot,
-    selection.getSnapshot,
-  )
+  const selection = useMemo(() => createUserContextSelection(store), [store])
+  // Inline selectors are new closures each render; an unchanged result keeps its identity, so
+  // React bails out of rendering for commits that leave the selected value as it was.
+  const read = (): unknown => selection.read(selector as (context: Readonly<V>) => unknown)
+  const value = useSyncExternalStore(selection.subscribe, read, read)
   const set = useMemo(
     () => (writable ? (store as UserContextStore<V>).set.bind(store) : undefined),
     [writable, store],
@@ -82,17 +74,6 @@ function useSelectedUserContext<V>(
     [set, value],
   )
 }
-
-type HostPreparation = {
-  readonly generation: number
-  readonly promise: Promise<void>
-  status: 'pending' | 'ready' | 'failed'
-  error?: unknown
-  readonly readers: Map<string, UserContextReader>
-  store?: UserContextStore
-}
-/** One hydration per runtime and signed-in user, shared by every component that reads it. */
-const hostPreparations = new WeakMap<UserContextService, HostPreparation>()
 
 /** @internal Generated shell binding; application components still call only useUserContext. */
 export function createHostUserContextBindings<
@@ -111,66 +92,23 @@ export function createHostUserContextBindings<
     foreignSelector?: unknown,
   ): readonly [unknown] | readonly [unknown, UserContextStore<V>['set']] {
     const mount = useOptionalMfeMount()
-    const runtime = useMfeRuntime('useUserContext()')
-    const service = runtime.userContext
-    const host = service?.host
+    const host = useMfeRuntime('useUserContext()').userContext?.host
     const ownerId = typeof selectorOrOwner === 'string' ? selectorOrOwner : undefined
     const selector = ownerId === undefined ? selectorOrOwner : foreignSelector
-    if (mount || !service || !host || typeof selector !== 'function')
+    if (mount || !host || typeof selector !== 'function')
       throw new UserContextError(
         'undeclared',
         host?.id ?? '<shell>',
         'Use the generated shell binding inside its MfeProvider, outside an App or Widget mount, with userContext declared on createMfeRuntime',
       )
-    const inspection = service.inspection
-    const observer = useMemo(
-      () => ({
-        subscribe: (listener: () => void) => inspection.subscribe(listener),
-        getSnapshot: () => inspection.getSnapshot().generation,
-      }),
-      [inspection],
-    )
-    const generation = useSyncExternalStore(
-      observer.subscribe,
-      observer.getSnapshot,
-      observer.getSnapshot,
-    )
-    let preparation = hostPreparations.get(service)
-    if (!preparation || preparation.generation !== generation) {
-      const current: HostPreparation = {
-        generation,
-        status: 'pending',
-        readers: new Map(),
-        promise: service.prepare(host).then(
-          () => {
-            current.status = 'ready'
-          },
-          (error: unknown) => {
-            current.status = 'failed'
-            current.error = error
-          },
-        ),
-      }
-      hostPreparations.set(service, current)
-      preparation = current
-    }
-    // React Suspense consumes the shared hydration promise and retries after it settles.
-    // eslint-disable-next-line @typescript-eslint/only-throw-error
-    if (preparation.status === 'pending') throw preparation.promise
-    if (preparation.status === 'failed') throw preparation.error
-    let store: UserContextReader
-    if (ownerId === undefined) {
-      preparation.store ??= service.bind(host)
-      store = preparation.store
-    } else {
-      let reader = preparation.readers.get(ownerId)
-      if (!reader) {
-        reader = service.bindReadOnly(host, ownerId)
-        preparation.readers.set(ownerId, reader)
-      }
-      store = reader
-    }
-    return useSelectedUserContext(store as UserContextReader<V>, selector, ownerId === undefined)
+    // The runtime prepares the shell's slice like a mount's, once per signed-in user; Suspense
+    // waits for it and an error boundary receives a failed load.
+    const preparation = useSyncExternalStore(host.subscribe, host.prepared, host.prepared)
+    const prepared = use(preparation)
+    const store = (
+      ownerId === undefined ? prepared.userContext : prepared.resolveUserContext(ownerId)
+    ) as UserContextReader<V>
+    return useSelectedUserContext(store, selector, ownerId === undefined)
   }
   return { useUserContext }
 }

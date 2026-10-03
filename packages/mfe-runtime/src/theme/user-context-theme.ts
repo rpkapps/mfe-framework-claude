@@ -1,9 +1,5 @@
 import type { ShellTheme, ShellUser } from '@company/mfe-core'
-import type {
-  UserContextOwner,
-  UserContextService,
-  UserContextStore,
-} from '@company/mfe-core/user-context'
+import type { UserContextHost, UserContextStore } from '@company/mfe-core/user-context'
 import type { ShellStateStore } from '../shell-state/shell-state-store.ts'
 import { userScope } from '../user-context/host.ts'
 
@@ -47,16 +43,16 @@ export function resolveTheme(value: ThemePreference): ShellTheme {
 
 /** Keep shellState, the document, and the selected-value cache in step with stored records. */
 export function attachUserContextTheme(options: {
-  readonly service: UserContextService
-  readonly owner: UserContextOwner
+  readonly host: UserContextHost
   readonly shellState: ShellStateStore
   readonly theme: UserContextThemeOptions<unknown>
 }): () => void {
-  const { service, owner, shellState, theme } = options
+  const { host, shellState, theme } = options
   let current: ThemePreference = 'system'
   let stopped = false
   let store: UserContextStore | undefined
   let stopObserving: (() => void) | undefined
+  let attempt = 0
   const apply = (): void => {
     const value = resolveTheme(current)
     shellState.apply({ theme: value })
@@ -85,27 +81,27 @@ export function attachUserContextTheme(options: {
       /* Keep the last usable theme. */
     }
   }
+  // The host starts a new preparation for every signed-in user and after a retried failure.
   const initialize = (): void => {
     stopObserving?.()
     stopObserving = undefined
     store = undefined
+    const mine = ++attempt
     current = readCachedTheme(theme.cacheKey, shellState.getUser())
     apply()
     if (shellState.getUser() === null) return
-    service
-      .prepare(owner)
-      .then(() => {
-        if (stopped) return
-        store = service.bind(owner)
+    host
+      .prepared()
+      .then(prepared => {
+        if (stopped || mine !== attempt) return
+        store = prepared.userContext
         stopObserving = store.observe(read)
         read()
       })
-      // A user change while loading starts over through the identity observer below.
+      // A failed load keeps the cached theme; a retry or the next user starts over.
       .catch(() => undefined)
   }
-  const stopIdentity = shellState.observeTransitions(change => {
-    if (change.transitions.some(transition => transition.kind === 'identity')) initialize()
-  })
+  const stopHost = host.subscribe(initialize)
   const media =
     typeof matchMedia === 'function' ? matchMedia('(prefers-color-scheme: dark)') : undefined
   const changed = (): void => {
@@ -116,7 +112,7 @@ export function attachUserContextTheme(options: {
   return () => {
     stopped = true
     stopObserving?.()
-    stopIdentity()
+    stopHost()
     media?.removeEventListener('change', changed)
   }
 }

@@ -71,11 +71,28 @@ export interface UserContextAdapter {
   /** Full records from other tabs or devices; a record older than the one held is ignored. */
   subscribe?(listener: (record: StateRecord) => void, signal: AbortSignal): () => void
 }
+/** What a prepared mount reads and writes through; the shell gets the same from its host. */
+export interface PreparedUserContext {
+  readonly userContext: UserContextStore
+  readonly resolveUserContext: (ownerId: string) => UserContextReader
+}
+/**
+ * The shell's own declaration, prepared like a mount's once per signed-in user and shared by its
+ * generated binding and the theme.
+ */
+export interface UserContextHost extends UserContextOwner {
+  /** The same preparation until the user changes or `retry` replaces a failed one. */
+  readonly prepared: () => Promise<PreparedUserContext>
+  /** Prepare again after a failed load; a pending or ready preparation is kept. */
+  readonly retry: () => void
+  /** Called when `prepared()` starts returning a new preparation. */
+  readonly subscribe: (listener: () => void) => () => void
+}
 export interface UserContextService {
   /** Read-only diagnostics. Observing never hydrates or binds state. */
   readonly inspection: UserContextInspection
-  /** The shell's own declaration, bound by its generated host binding and theme. */
-  readonly host?: UserContextOwner | undefined
+  /** The shell's own declaration, when it has one. */
+  readonly host?: UserContextHost | undefined
   prepare(owner: UserContextOwner, signal?: AbortSignal): Promise<void>
   bind<V = StateValues>(owner: UserContextOwner, signal?: AbortSignal): UserContextStore<V>
   bindReadOnly<V = StateValues>(
@@ -193,8 +210,4 @@ export function mergeStateValue(current: unknown, supplied: Json): Json {
   return output
 }
 
-export {
-  createUserContextSelection,
-  createUserContextSelector,
-  type UserContextSelection,
-} from './selection.ts'
+export { createUserContextSelection, type UserContextSelection } from './selection.ts'

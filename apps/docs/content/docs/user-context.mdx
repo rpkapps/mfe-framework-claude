@@ -149,7 +149,7 @@ The setter always addresses an owned top-level key, regardless of the selector. 
 
 ### Select nested values
 
-Select a nested property directly to subscribe only to the paths you read:
+Select a nested property directly to read only the value you need:
 
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">
@@ -169,7 +169,7 @@ readonly selection = injectUserContext(context => context.selection.wellId)
 </Tab>
 </Tabs>
 
-Changing `units` does not update these consumers. If `selection` also has a `label` property, changing only `label` does not update a consumer selecting `wellId`. Replacing a parent object is detected when it changes the selected value. You can also derive a value, such as `context => context.selection.wellId !== null`; keep selectors pure and synchronous, and never mutate the JSON context they receive. Primitive selected values use `Object.is` equality.
+Changing `units` does not rerender these consumers. If `selection` also has a `label` property, changing only `label` does not rerender a consumer selecting `wellId`: the selector runs again on every change of the owner's record, and a result equal to the previous one keeps its identity, so keep selectors cheap. You can also derive a value, such as `context => context.selection.wellId !== null`; keep selectors pure and synchronous, and never mutate the JSON context they receive. Primitive selected values use `Object.is` equality.
 
 Selectors return strings, numbers, booleans, `null`, `undefined`, plain objects or arrays. Returned data is immutable; functions, class instances such as `Map` or `Date`, promises and cyclic results are unsupported.
 

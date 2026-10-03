@@ -23,8 +23,6 @@ import {
 
 export interface UserContextOptions {
   readonly adapter: UserContextAdapter
-  /** The shell's own declaration, if it has one. */
-  readonly host?: UserContextOwner | undefined
   readonly onError?: (error: unknown, id: string) => void
 }
 interface Entry {
@@ -47,7 +45,6 @@ interface Entry {
  * the abort signal it captured.
  */
 export class UserContextRuntime implements UserContextService {
-  readonly host: UserContextOwner | undefined
   readonly #options: UserContextOptions
   readonly #entries = new Map<string, Entry>()
   /** Owner schemas this page has seen, which validate their records whoever reads them. */
@@ -91,7 +88,6 @@ export class UserContextRuntime implements UserContextService {
 
   constructor(options: UserContextOptions) {
     this.#options = options
-    this.host = options.host
   }
 
   async prepare(owner: UserContextOwner, signal?: AbortSignal): Promise<void> {
@@ -359,8 +355,9 @@ export class UserContextRuntime implements UserContextService {
       )
   }
 
+  /** A failed owner loads again, so the next mount or shell preparation can recover. */
   #hydrate(entry: Entry, generation: number): Promise<void> {
-    if (entry.status !== 'hydrating') return Promise.resolve()
+    if (entry.status === 'ready') return Promise.resolve()
     entry.hydration ??= this.#load(entry, generation)
       .catch((error: unknown) => {
         if (generation === this.#generation && !this.#disposed) this.#invalid(entry, error)

@@ -58,21 +58,18 @@ export function createUserContextBindings<
     const store = (
       ownerId === undefined ? mount.userContext : mount.resolveUserContext?.(ownerId)
     ) as UserContextReader<V>
-    const selection = createUserContextSelection(
-      store,
-      selector as (context: Readonly<V>) => unknown,
-    )
+    const selection = createUserContextSelection(store)
     // Capture scope failures so the next signal read reaches Angular error handling.
-    const snapshot = signalFromStore(
-      listener => selection.subscribe(listener),
-      () => {
-        try {
-          return { ok: true as const, value: selection.getSnapshot() }
-        } catch (error) {
-          return { ok: false as const, error }
+    const snapshot = signalFromStore(selection.subscribe, () => {
+      try {
+        return {
+          ok: true as const,
+          value: selection.read(selector as (context: Readonly<V>) => unknown),
         }
-      },
-    )
+      } catch (error) {
+        return { ok: false as const, error }
+      }
+    })
     const selected = computed(() => {
       const current = snapshot()
       if (!current.ok) throw current.error

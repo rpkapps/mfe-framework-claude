@@ -26,11 +26,13 @@ export function UserPreferences({
   readonly children: ReactNode
 }): ReactNode {
   const user = useUser()
+  const host = useMfeRuntime('the user preferences').userContext?.host
   // Keyed by identity, so a sign-in after a failed load hydrates again.
   return (
     <PreferenceBoundary
       key={JSON.stringify([user?.tenantId, user?.accountId, user?.id])}
       failed={failed}
+      host={host}
     >
       <Suspense fallback={pending}>{children}</Suspense>
     </PreferenceBoundary>
@@ -78,13 +80,33 @@ function RegisterThemeAction({
   return null
 }
 
+type UserContextHost = NonNullable<ReturnType<typeof useMfeRuntime>['userContext']>['host']
+
+/**
+ * A boundary that mounts after the preferences failed to load, for example in the settings sheet,
+ * loads them again, and every boundary shows its children again once a new load starts.
+ */
 class PreferenceBoundary extends Component<
-  { readonly failed: ReactNode; readonly children: ReactNode },
+  {
+    readonly failed: ReactNode
+    readonly host: UserContextHost
+    readonly children: ReactNode
+  },
   { failed: boolean }
 > {
   override state = { failed: false }
+  #stop: (() => void) | undefined
   static getDerivedStateFromError(): { failed: boolean } {
     return { failed: true }
+  }
+  override componentDidMount(): void {
+    this.#stop = this.props.host?.subscribe(() => {
+      if (this.state.failed) this.setState({ failed: false })
+    })
+    if (this.state.failed) this.props.host?.retry()
+  }
+  override componentWillUnmount(): void {
+    this.#stop?.()
   }
   override render(): ReactNode {
     return this.state.failed ? this.props.failed : this.props.children

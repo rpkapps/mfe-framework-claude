@@ -100,20 +100,38 @@ describe('host user context', () => {
     host.dispose()
   })
 
-  it("exposes the shell's own declaration as the host owner", async () => {
+  it("prepares the shell's own slice once per user, keeps a failure and prepares again on retry", async () => {
     const shellState = new ShellStateStore({ user, groups: [], theme: 'light' })
     const schema = z.object({ theme: z.string().default('system') })
-    const host = createHostUserContext({
-      persistence: {
-        schema,
-        adapter: { hydrate: async ids => ids.map(id => ({ id, revision: 0 })), write: vi.fn() },
-      },
+    let available = false
+    const hydrate = vi.fn<UserContextAdapter['hydrate']>(async ids => {
+      if (!available) throw new Error('offline')
+      return ids.map(id => ({ id, revision: 0 }))
+    })
+    const managed = createHostUserContext({
+      persistence: { schema, adapter: { hydrate, write: vi.fn() } },
       shellState,
     })
-    expect(host.service.host).toEqual({ id: 'shell', userContext: { schema } })
-    await host.service.prepare(host.service.host!)
-    expect(host.service.bind(host.service.host!).get('theme')).toBe('system')
-    host.dispose()
+    const host = managed.service.host!
+    const changed = vi.fn()
+    host.subscribe(changed)
+    expect(host).toMatchObject({ id: 'shell', userContext: { schema } })
+    const failed = host.prepared()
+    await expect(failed).rejects.toThrow('offline')
+    expect(host.prepared()).toBe(failed)
+    available = true
+    host.retry()
+    expect(changed).toHaveBeenCalledTimes(1)
+    const prepared = await host.prepared()
+    expect(prepared.userContext.get('theme')).toBe('system')
+    host.retry()
+    expect(await host.prepared()).toBe(prepared)
+    expect(hydrate).toHaveBeenCalledTimes(2)
+    shellState.apply({ user: { ...user, id: 'two' } })
+    expect(changed).toHaveBeenCalledTimes(2)
+    expect(() => prepared.userContext.get('theme')).toThrow('previous signed-in user')
+    expect((await host.prepared()).userContext.get('theme')).toBe('system')
+    managed.dispose()
     expect(setup().service.host).toBeUndefined()
   })
 })

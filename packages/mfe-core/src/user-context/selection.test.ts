@@ -1,35 +1,18 @@
 import { describe, expect, it, vi } from 'vitest'
-import {
-  createUserContextSelection,
-  createUserContextSelector,
-  immutable,
-  stableJson,
-  type UserContextReader,
-} from './index.ts'
+import { createUserContextSelection, immutable, type UserContextReader } from './index.ts'
 
 function fixture<V extends object>(initial: V) {
   let value = immutable(structuredClone(initial))
   let invalid = false
-  const keyed = new Map<keyof V & string, Set<() => void>>()
   const broad = new Set<() => void>()
-  let onSubscribe: (() => void) | undefined
   const store: UserContextReader<V> = {
     getSnapshot: () => {
       if (invalid) throw new Error('scope disposed')
       return value
     },
     get: key => value[key],
-    subscribe: (key, listener) => {
-      const listeners = keyed.get(key) ?? new Set<() => void>()
-      keyed.set(key, listeners)
-      listeners.add(listener)
-      const race = onSubscribe
-      onSubscribe = undefined
-      race?.()
-      return () => {
-        listeners.delete(listener)
-        if (!listeners.size) keyed.delete(key)
-      }
+    subscribe: () => {
+      throw new Error('Selections observe the owner record')
     },
     observe: listener => {
       broad.add(listener)
@@ -40,22 +23,13 @@ function fixture<V extends object>(initial: V) {
   }
   return {
     store,
-    keyed,
     broad,
-    race: (callback: () => void) => {
-      onSubscribe = callback
-    },
     commit: (next: V) => {
-      const previous = value
       value = immutable(structuredClone(next))
-      for (const [key, listeners] of [...keyed])
-        if (stableJson(previous[key]) !== stableJson(value[key]))
-          for (const listener of [...listeners]) listener()
       for (const listener of [...broad]) listener()
     },
     invalidate: () => {
       invalid = true
-      for (const listeners of [...keyed.values()]) for (const listener of [...listeners]) listener()
       for (const listener of [...broad]) listener()
     },
   }
@@ -71,250 +45,168 @@ const initial = {
 }
 
 describe('createUserContextSelection', () => {
-  it('tracks nested reads on frozen snapshots without rerunning on siblings', () => {
+  it('keeps the selected value for sibling commits and observes the owner only once subscribed', () => {
     const data = fixture(initial)
-    const selector = vi.fn((value: typeof initial) => value.preferences.appearance.theme)
-    const selected = createUserContextSelection(data.store, selector)
-    const listener = vi.fn()
-    expect(selected.getSnapshot()).toBe('light')
-    const stop = selected.subscribe(listener)
-    expect([...data.keyed.keys()]).toEqual(['preferences'])
+    const selection = createUserContextSelection(data.store)
+    const selector = (value: typeof initial) => value.preferences.appearance.theme
+    expect(selection.read(selector)).toBe('light')
     expect(data.broad.size).toBe(0)
+    const listener = vi.fn()
+    const stop = selection.subscribe(listener)
+    expect(data.broad.size).toBe(1)
     data.commit({ ...initial, count: 2 })
-    data.commit({
-      ...initial,
-      preferences: { ...initial.preferences, appearance: { theme: 'light', font: 14 } },
-    })
-    expect(selector).toHaveBeenCalledTimes(1)
-    expect(listener).not.toHaveBeenCalled()
+    expect(selection.read(selector)).toBe('light')
     data.commit({
       ...initial,
       preferences: { ...initial.preferences, appearance: { theme: 'dark', font: 14 } },
     })
-    expect(selected.getSnapshot()).toBe('dark')
-    expect(selector).toHaveBeenCalledTimes(2)
-    expect(listener).toHaveBeenCalledTimes(1)
+    expect(selection.read(selector)).toBe('dark')
+    expect(listener).toHaveBeenCalledTimes(2)
     stop()
-    expect(data.keyed.size).toBe(0)
+    expect(data.broad.size).toBe(0)
   })
 
-  it('reuses selected object branches and unwraps returned proxies', () => {
+  it('reruns only when the record or the selector changes', () => {
     const data = fixture(initial)
-    const selected = createUserContextSelection(data.store, value => ({
-      appearance: value.preferences.appearance,
-    }))
-    const before = selected.getSnapshot()
+    const selection = createUserContextSelection(data.store)
+    const selector = vi.fn((value: typeof initial) => value.count)
+    selection.read(selector)
+    selection.read(selector)
+    expect(selector).toHaveBeenCalledTimes(1)
+    data.commit({ ...initial, count: 2 })
+    expect(selection.read(selector)).toBe(2)
+    expect(selector).toHaveBeenCalledTimes(2)
+  })
+
+  it('returns snapshot branches as they are and keeps them across sibling commits', () => {
+    const data = fixture(initial)
+    const selection = createUserContextSelection(data.store)
+    const selector = (value: typeof initial) => ({ appearance: value.preferences.appearance })
+    const before = selection.read(selector)
     expect(before.appearance).toBe(data.store.getSnapshot().preferences.appearance)
     data.commit({ ...initial, preferences: { ...initial.preferences, language: 'fr' } })
-    expect(selected.getSnapshot()).toBe(before)
+    expect(selection.read(selector)).toBe(before)
     data.commit({
       ...initial,
       preferences: { ...initial.preferences, appearance: { theme: 'dark', font: 12 } },
     })
-    expect(selected.getSnapshot()).toEqual({ appearance: { theme: 'dark', font: 12 } })
-    expect(selected.getSnapshot()).not.toBe(before)
+    expect(selection.read(selector)).toEqual({ appearance: { theme: 'dark', font: 12 } })
+    expect(selection.read(selector)).not.toBe(before)
   })
 
-  it('changes subscriptions when a conditional dependency changes', () => {
-    const data = fixture(initial)
-    const selector = vi.fn((value: typeof initial) =>
-      value.alternate ? value.count : value.preferences.appearance.theme,
-    )
-    const selected = createUserContextSelection(data.store, selector)
-    const listener = vi.fn()
-    const stop = selected.subscribe(listener)
-    expect([...data.keyed.keys()]).toEqual(['alternate', 'preferences'])
-    data.commit({ ...initial, alternate: true })
-    expect(selected.getSnapshot()).toBe(1)
-    expect([...data.keyed.keys()]).toEqual(['alternate', 'count'])
-    data.commit({
-      ...initial,
-      alternate: true,
-      preferences: { ...initial.preferences, language: 'fr' },
-    })
-    expect(selector).toHaveBeenCalledTimes(2)
-    stop()
-  })
-
-  it('tracks missing optional paths and replacement of their parent', () => {
+  it('follows optional paths when their parent appears, changes and disappears', () => {
     const data = fixture<{ settings?: { theme: string; font: number } }>({})
-    const selector = vi.fn(
-      (value: { settings?: { theme: string; font: number } }) => value.settings?.theme ?? 'default',
-    )
-    const selected = createUserContextSelection(data.store, selector)
-    const stop = selected.subscribe(vi.fn())
-    expect(selected.getSnapshot()).toBe('default')
+    const selection = createUserContextSelection(data.store)
+    const selector = (value: { settings?: { theme: string; font: number } }) =>
+      value.settings?.theme ?? 'default'
+    expect(selection.read(selector)).toBe('default')
     data.commit({ settings: { theme: 'dark', font: 12 } })
-    expect(selected.getSnapshot()).toBe('dark')
-    data.commit({ settings: { theme: 'dark', font: 14 } })
-    expect(selector).toHaveBeenCalledTimes(2)
+    expect(selection.read(selector)).toBe('dark')
     data.commit({})
-    expect(selected.getSnapshot()).toBe('default')
-    stop()
+    expect(selection.read(selector)).toBe('default')
   })
 
-  it('tracks array indices, iteration and length without unrelated element fields', () => {
+  it('keeps derived arrays and objects whose contents did not change', () => {
     const data = fixture(initial)
-    const selector = vi.fn((value: typeof initial) => value.items.map(item => item.id))
-    const selected = createUserContextSelection(data.store, selector)
-    const listener = vi.fn()
-    const stop = selected.subscribe(listener)
-    const before = selected.getSnapshot()
+    const selection = createUserContextSelection(data.store)
+    const ids = (value: typeof initial) => value.items.map(item => item.id)
+    const even = (value: typeof initial) => ({ even: value.count % 2 === 0 })
+    const beforeIds = selection.read(ids)
     data.commit({ ...initial, items: [{ id: 1, label: 'renamed' }, initial.items[1]!] })
-    expect(selected.getSnapshot()).toBe(before)
-    expect(selector).toHaveBeenCalledTimes(1)
+    expect(selection.read(ids)).toBe(beforeIds)
     data.commit({ ...initial, items: [...initial.items, { id: 3, label: 'third' }] })
-    expect(selected.getSnapshot()).toEqual([1, 2, 3])
-    expect(listener).toHaveBeenCalledTimes(1)
-    stop()
-  })
-
-  it('notifies only when derived values change', () => {
-    const data = fixture(initial)
-    const selected = createUserContextSelection(data.store, value => ({
-      even: value.count % 2 === 0,
-    }))
-    const listener = vi.fn()
-    const stop = selected.subscribe(listener)
-    const before = selected.getSnapshot()
+    expect(selection.read(ids)).toEqual([1, 2, 3])
+    const beforeEven = selection.read(even)
     data.commit({ ...initial, count: 3 })
-    expect(selected.getSnapshot()).toBe(before)
-    expect(listener).not.toHaveBeenCalled()
+    expect(selection.read(even)).toBe(beforeEven)
     data.commit({ ...initial, count: 4 })
-    expect(listener).toHaveBeenCalledTimes(1)
-    stop()
+    expect(selection.read(even)).toEqual({ even: true })
   })
 
   it('keeps an unchanged derived value across re-created selector closures', () => {
     const data = fixture(initial)
-    const select = createUserContextSelector(data.store)
-    const before = select(value => ({ count: value.count })).getSnapshot()
-    select(value => ({ count: value.count }))
-    expect(select(value => ({ count: value.count })).getSnapshot()).toBe(before)
-    const negated = select(value => ({ count: -value.count })).getSnapshot()
+    const selection = createUserContextSelection(data.store)
+    const before = selection.read(value => ({ count: value.count }))
+    expect(selection.read(value => ({ count: value.count }))).toBe(before)
+    const negated = selection.read(value => ({ count: -value.count }))
     expect(negated).toEqual({ count: -1 })
     expect(Object.isFrozen(negated)).toBe(true)
   })
 
-  it('observes root enumeration and notices new keys', () => {
+  it('selects root enumeration and notices new keys', () => {
     const data = fixture<Record<string, number>>({ a: 1 })
-    const selected = createUserContextSelection(data.store, value => Object.keys(value))
-    const stop = selected.subscribe(vi.fn())
-    expect(data.broad.size).toBe(1)
+    const selection = createUserContextSelection(data.store)
+    const keys = (value: Record<string, number>) => Object.keys(value)
+    expect(selection.read(keys)).toEqual(['a'])
     data.commit({ a: 1, b: 2 })
-    expect(selected.getSnapshot()).toEqual(['a', 'b'])
-    stop()
+    expect(selection.read(keys)).toEqual(['a', 'b'])
   })
 
-  it('invalidates constant selectors and validates retained reads after cleanup', () => {
+  it('notifies on invalidation and validates retained reads after cleanup', () => {
     const data = fixture(initial)
-    const selector = vi.fn(() => 'constant')
-    const selected = createUserContextSelection(data.store, selector)
+    const selection = createUserContextSelection(data.store)
+    const selector = () => 'constant'
     const listener = vi.fn()
-    const stop = selected.subscribe(listener)
-    data.commit({ ...initial, count: 2 })
-    expect(selector).toHaveBeenCalledTimes(1)
+    selection.read(selector)
+    const stop = selection.subscribe(listener)
     data.invalidate()
     expect(listener).toHaveBeenCalledTimes(1)
-    expect(() => selected.getSnapshot()).toThrow('scope disposed')
+    expect(() => selection.read(selector)).toThrow('scope disposed')
     stop()
     expect(data.broad.size).toBe(0)
-    expect(() => selected.getSnapshot()).toThrow('scope disposed')
+    expect(() => selection.read(selector)).toThrow('scope disposed')
   })
 
-  it('notices commits while registering subscriptions', () => {
+  it('notices commits between a read and subscribing', () => {
     const data = fixture(initial)
-    const selected = createUserContextSelection(data.store, value => value.count)
-    expect(selected.getSnapshot()).toBe(1)
-    data.race(() => data.commit({ ...initial, count: 2 }))
+    const selection = createUserContextSelection(data.store)
+    expect(selection.read(value => value.count)).toBe(1)
+    data.commit({ ...initial, count: 2 })
     const listener = vi.fn()
-    const stop = selected.subscribe(listener)
-    expect(selected.getSnapshot()).toBe(2)
-    expect(listener).toHaveBeenCalled()
+    const stop = selection.subscribe(listener)
+    expect(listener).toHaveBeenCalledTimes(1)
+    expect(selection.read(value => value.count)).toBe(2)
     stop()
   })
 
-  it('recovers from selector errors after relevant values change', () => {
+  it('recovers from selector errors after the record changes', () => {
     const data = fixture(initial)
-    const selected = createUserContextSelection(data.store, value => {
+    const selection = createUserContextSelection(data.store)
+    const selector = (value: typeof initial) => {
       if (value.count === 2) throw new Error('invalid count')
       return value.count
-    })
-    const listener = vi.fn()
-    const stop = selected.subscribe(listener)
+    }
+    expect(selection.read(selector)).toBe(1)
     data.commit({ ...initial, count: 2 })
-    expect(() => selected.getSnapshot()).toThrow('invalid count')
+    expect(() => selection.read(selector)).toThrow('invalid count')
+    expect(() => selection.read(selector)).toThrow('invalid count')
     data.commit({ ...initial, count: 3 })
-    expect(selected.getSnapshot()).toBe(3)
-    expect(listener).toHaveBeenCalledTimes(2)
-    stop()
+    expect(selection.read(selector)).toBe(3)
   })
 
-  it('shares one subscription across listeners and cleans up only after the last one', () => {
-    const data = fixture(initial)
-    const selected = createUserContextSelection(data.store, value => value.count)
-    const stopA = selected.subscribe(vi.fn())
-    const stopB = selected.subscribe(vi.fn())
-    expect(data.keyed.get('count')?.size).toBe(1)
-    stopA()
-    expect(data.keyed.get('count')?.size).toBe(1)
-    stopB()
-    expect(data.keyed.size).toBe(0)
-  })
   it('keeps derived and updated selections deeply immutable', () => {
     const data = fixture(initial)
-    const selected = createUserContextSelection(data.store, value => ({
+    const selection = createUserContextSelection(data.store)
+    const selector = (value: typeof initial) => ({
       preferences: value.preferences,
       count: value.count,
-    }))
-    const before = selected.getSnapshot()
+    })
+    const before = selection.read(selector)
     expect(Object.isFrozen(before)).toBe(true)
     expect(Object.isFrozen(before.preferences.appearance)).toBe(true)
     data.commit({
       ...initial,
       preferences: { ...initial.preferences, appearance: { theme: 'dark', font: 14 } },
     })
-    const after = selected.getSnapshot()
+    const after = selection.read(selector)
     expect(Object.isFrozen(after)).toBe(true)
     expect(Object.isFrozen(after.preferences.appearance)).toBe(true)
     expect(() => {
       after.preferences.appearance.theme = 'corrupt'
     }).toThrow(TypeError)
-    expect(selected.getSnapshot().preferences.appearance.theme).toBe('dark')
-  })
-
-  it('tracks descriptor values and nested reads through descriptors', () => {
-    const data = fixture(initial)
-    const selected = createUserContextSelection(data.store, value => {
-      const descriptor = Object.getOwnPropertyDescriptor(value.preferences.appearance, 'theme')
-      return descriptor?.value as string | undefined
-    })
-    const listener = vi.fn()
-    const stop = selected.subscribe(listener)
-    data.commit({
-      ...initial,
-      preferences: { ...initial.preferences, appearance: { theme: 'dark', font: 12 } },
-    })
-    expect(selected.getSnapshot()).toBe('dark')
-    expect(listener).toHaveBeenCalledTimes(1)
-    stop()
-  })
-
-  it('uses the owner observer for inherited methods and absent root properties', () => {
-    const data = fixture(initial)
-    const subscribe = data.store.subscribe.bind(data.store)
-    data.store.subscribe = (key, listener) => {
-      if (!Object.hasOwn(initial, key)) throw new Error('undeclared field')
-      return subscribe(key, listener)
-    }
-    const selected = createUserContextSelection(data.store, value =>
-      Object.prototype.hasOwnProperty.call(value, 'missing') ? 0 : value.count,
-    )
-    const stop = selected.subscribe(vi.fn())
-    expect(data.broad.size).toBe(1)
-    data.commit({ ...initial, count: 2 })
-    expect(selected.getSnapshot()).toBe(2)
-    stop()
+    expect(selection.read(selector).preferences.appearance.theme).toBe('dark')
+    const unfrozen = selection.read(() => Object.freeze({ nested: { value: 1 } }))
+    expect(Object.isFrozen(unfrozen.nested)).toBe(true)
   })
 
   it.each([
@@ -334,10 +226,10 @@ describe('createUserContextSelection', () => {
         return value
       },
     ],
-  ])('rejects unsupported %s outputs without leaking tracked proxies', (_name, selector) => {
+  ])('rejects unsupported %s outputs', (_name, selector) => {
     const data = fixture(initial)
-    const selected = createUserContextSelection<typeof initial, unknown>(data.store, selector)
-    expect(() => selected.getSnapshot()).toThrow(
+    const selection = createUserContextSelection(data.store)
+    expect(() => selection.read<unknown>(selector)).toThrow(
       'User-context selectors must return primitives, plain objects or arrays',
     )
   })
