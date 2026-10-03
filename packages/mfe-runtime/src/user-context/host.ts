@@ -42,10 +42,12 @@ export interface HostUserContextDefinition {
 }
 
 /** An opaque transport partition, never an authorization credential. */
+export function userScope(user: ShellUser): string {
+  return JSON.stringify([user.tenantId ?? null, user.accountId ?? null, user.id])
+}
+
 function identity(user: ShellUser | null): string {
-  return user === null
-    ? '@signed-out'
-    : JSON.stringify([user.tenantId ?? null, user.accountId ?? null, user.id])
+  return user === null ? '@signed-out' : userScope(user)
 }
 
 /**

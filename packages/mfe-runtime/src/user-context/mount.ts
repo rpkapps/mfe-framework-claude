@@ -2,7 +2,6 @@ import {
   emptyUserContextRequirements,
   UserContextError,
   type UserContextRequirements,
-  type UserContextService,
   type UserContextStore,
   type UserContextReader,
 } from '@company/mfe-core/user-context'
@@ -45,64 +44,63 @@ export async function prepareUserContextMount(
       definition.id,
       'Unsupported user-context protocol; upgrade the shell',
     )
-  const service = (context.runtime as { userContext?: UserContextService }).userContext
-  if (!service && requirements.contracts.length)
+  // A definition without a contract never touches the service, so it mounts while signed out.
+  if (!requirements.contracts.length) return { ...context, userContext: emptyUserContextStore() }
+  const service = context.runtime.userContext
+  if (!service)
     throw new UserContextError(
       'unsupported-contract',
       definition.id,
       'Shell lacks user-context protocol 1. Configure the persistence adapter and rebuild deployment metadata before mounting',
     )
-  if (service) {
-    if (
-      service.protocolVersion !== 1 ||
-      typeof service.prepare !== 'function' ||
-      typeof service.bind !== 'function' ||
-      typeof service.bindReadOnly !== 'function'
+  if (
+    service.protocolVersion !== 1 ||
+    typeof service.prepare !== 'function' ||
+    typeof service.bind !== 'function' ||
+    typeof service.bindReadOnly !== 'function'
+  )
+    throw new UserContextError(
+      'unsupported-contract',
+      definition.id,
+      'Unsupported shell user-context ABI; upgrade the shell',
     )
-      throw new UserContextError(
-        'unsupported-contract',
-        definition.id,
-        'Unsupported shell user-context ABI; upgrade the shell',
-      )
-    await service.prepare(requirements, context.signal)
-    const readers = new Map<string, UserContextReader>()
-    const generation = service.inspection?.getSnapshot().generation
-    let invalidated = false
-    const stopInspection = service.inspection?.subscribe(() => {
-      const next = service.inspection?.getSnapshot().generation
-      if (next !== generation) {
-        readers.clear()
-        invalidated = true
-      }
-    })
-    context.signal.addEventListener(
-      'abort',
-      () => {
-        readers.clear()
-        stopInspection?.()
-      },
-      { once: true },
-    )
-    return {
-      ...context,
-      userContext: service.bind(context.definitionId, requirements, context.signal),
-      resolveUserContext: ownerId => {
-        if (invalidated || context.signal.aborted)
-          throw new UserContextError(
-            'scope-disposed',
-            ownerId,
-            'This mount belongs to a disposed scope',
-          )
-        let reader = readers.get(ownerId)
-        if (!reader) {
-          reader = service.bindReadOnly(context.definitionId, requirements, ownerId, context.signal)
-          readers.set(ownerId, reader)
-        }
-        return reader
-      },
+  await service.prepare(requirements, context.signal)
+  const readers = new Map<string, UserContextReader>()
+  const generation = service.inspection?.getSnapshot().generation
+  let invalidated = false
+  const stopInspection = service.inspection?.subscribe(() => {
+    const next = service.inspection?.getSnapshot().generation
+    if (next !== generation) {
+      readers.clear()
+      invalidated = true
     }
+  })
+  context.signal.addEventListener(
+    'abort',
+    () => {
+      readers.clear()
+      stopInspection?.()
+    },
+    { once: true },
+  )
+  return {
+    ...context,
+    userContext: service.bind(context.definitionId, requirements, context.signal),
+    resolveUserContext: ownerId => {
+      if (invalidated || context.signal.aborted)
+        throw new UserContextError(
+          'scope-disposed',
+          ownerId,
+          'This mount belongs to a disposed scope',
+        )
+      let reader = readers.get(ownerId)
+      if (!reader) {
+        reader = service.bindReadOnly(context.definitionId, requirements, ownerId, context.signal)
+        readers.set(ownerId, reader)
+      }
+      return reader
+    },
   }
-  return { ...context, userContext: emptyUserContextStore() }
 }
 export function emptyUserContextStore(): UserContextStore {
   const fail = (key: string): never => {

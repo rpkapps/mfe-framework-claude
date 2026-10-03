@@ -1,6 +1,7 @@
 import type { ShellTheme, ShellUser } from '@company/mfe-core'
 import type { UserContextRequirements, UserContextService } from '@company/mfe-core/user-context'
 import type { ShellStateStore } from '../shell-state/shell-state-store.ts'
+import { userScope } from '../user-context/host.ts'
 
 export type ThemePreference = 'light' | 'dark' | 'system'
 export interface UserContextThemeOptions<V> {
@@ -10,7 +11,7 @@ export interface UserContextThemeOptions<V> {
 }
 
 export function themeCacheKey(cacheKey: string, user: ShellUser): string {
-  return `${cacheKey}:${encodeURIComponent(JSON.stringify([user.tenantId ?? null, user.accountId ?? null, user.id]))}`
+  return `${cacheKey}:${encodeURIComponent(userScope(user))}`
 }
 
 function preference(value: unknown): ThemePreference | undefined {

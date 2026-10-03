@@ -67,7 +67,10 @@ export class UserContextRuntime implements UserContextService {
   readonly #entries = new Map<string, Entry>()
   readonly #sending = new Set<Entry>()
   readonly #inflight = new Set<Pending>()
-  readonly #capabilities = new Map<string, ReadonlySet<string>>()
+  readonly #capabilities = new Map<
+    string,
+    { readonly owned: ReadonlySet<string>; readonly read: ReadonlySet<string> }
+  >()
   #scope: string
   #generation = 0
   #controller = new AbortController()
@@ -123,19 +126,18 @@ export class UserContextRuntime implements UserContextService {
       )
     for (const contract of manifests.flatMap(manifest => manifest.contracts)) {
       assertStateContract(contract)
-      if (
-        contract.formatVersion !== 1 ||
-        !isValidDefinitionId(contract.id) ||
-        this.#contracts.has(contract.id) ||
-        !objectNode(contract.node)
-      )
+      if (this.#contracts.has(contract.id) || !objectNode(contract.node))
         throw new UserContextError(
           'unsupported-contract',
           contract.id,
-          'Schema needs one current contract per state ID in format 1',
+          'Schema needs one current contract per owner ID',
         )
       this.#contracts.set(contract.id, immutable(structuredClone(contract)))
-      this.#capabilities.set(contract.id, new Set(stateCapabilities(contract.node)))
+      const capabilities = stateCapabilities(contract.node)
+      this.#capabilities.set(contract.id, {
+        owned: new Set(capabilities),
+        read: new Set(userContextReadCapabilities(capabilities)),
+      })
     }
     this.#resetEntries()
     this.#listen()
@@ -183,7 +185,7 @@ export class UserContextRuntime implements UserContextService {
     writable: boolean,
   ): UserContextReader<V> | UserContextStore<V> {
     const contracts = this.#check(requirements)
-    if (definitionId !== requirements.ownerId || !isValidDefinitionId(definitionId))
+    if (definitionId !== requirements.ownerId)
       throw new UserContextError(
         'unauthorized-owner',
         definitionId,
@@ -293,12 +295,6 @@ export class UserContextRuntime implements UserContextService {
       set: async (key, value) => {
         try {
           const entry = field(key)
-          if (ownerId !== definitionId)
-            throw new UserContextError(
-              'unauthorized-owner',
-              ownerId,
-              'Only the mounted owner may write its slice',
-            )
           assertJson(value, ownerId)
           const patch = { [key]: value }
           applyStateWrite(entry.canonical, entry.effective, patch)
@@ -381,15 +377,9 @@ export class UserContextRuntime implements UserContextService {
   }
   #resetEntries(): void {
     this.#entries.clear()
-    for (const canonical of this.#contracts.values()) {
-      if (this.#entries.has(canonical.id))
-        throw new UserContextError(
-          'unsupported-contract',
-          canonical.id,
-          'Duplicate canonical state ID',
-        )
+    for (const canonical of this.#contracts.values())
       this.#entries.set(canonical.id, {
-        canonical: this.#contracts.get(canonical.id) ?? canonical,
+        canonical,
         status: 'absent',
         recordRevision: 0,
         confirmed: undefined,
@@ -399,7 +389,6 @@ export class UserContextRuntime implements UserContextService {
         listeners: new Set(),
         pending: [],
       })
-    }
   }
   #listen(): void {
     const generation = this.#generation
@@ -442,30 +431,23 @@ export class UserContextRuntime implements UserContextService {
           'Contract references need a valid owner ID and nonempty revision',
         )
       const contract = this.#contracts.get(requested.id)
-      if (!contract || !this.#entries.has(requested.id) || contracts.has(requested.id))
+      const capabilities = this.#capabilities.get(requested.id)
+      if (!contract || !capabilities || contracts.has(requested.id))
         throw new UserContextError(
           'unsupported-contract',
           requested.id,
           'Owner is unavailable in deployment contracts or declared more than once',
         )
       const owned = requested.id === requirements.ownerId
-      const canonicalCapabilities = this.#capabilities.get(requested.id)
-      const available = owned
-        ? canonicalCapabilities
-        : new Set(userContextReadCapabilities([...(canonicalCapabilities ?? [])]))
+      const declared: unknown = requested.capabilities
       const required =
-        Array.isArray(requested.capabilities) &&
-        requested.capabilities.every(capability => typeof capability === 'string')
+        Array.isArray(declared) && declared.every(capability => typeof capability === 'string')
           ? owned
-            ? requested.capabilities
-            : userContextReadCapabilities(requested.capabilities)
+            ? declared
+            : userContextReadCapabilities(declared)
           : []
-      if (
-        !Array.isArray(requested.capabilities) ||
-        !requested.capabilities.length ||
-        !required.length ||
-        required.some(capability => !available?.has(capability))
-      )
+      const available = owned ? capabilities.owned : capabilities.read
+      if (!required.length || required.some(capability => !available.has(capability)))
         throw new UserContextError(
           'unsupported-contract',
           requested.id,
