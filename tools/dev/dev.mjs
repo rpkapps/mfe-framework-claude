@@ -175,7 +175,7 @@ function startStandIn(script, label, colour) {
  */
 function generateContainers(services) {
   const containers = services.filter(service => !service.isShell)
-  if (!containers.length) return Promise.resolve()
+  if (containers.length === 0) return Promise.resolve()
 
   return new Promise((resolve, reject) => {
     const filters = containers.flatMap(service => ['--filter', service.packageName])

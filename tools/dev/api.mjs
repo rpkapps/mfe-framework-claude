@@ -15,9 +15,6 @@ import {
 } from '../../examples/user-context/server.mjs'
 import { DEV_API_PORT } from './api-port.mjs'
 
-/** Exported so `pnpm dev` checks and waits on this port without a second copy of the number. */
-export { DEV_API_PORT } from './api-port.mjs'
-
 const ASSETS = {
   north: [
     { id: 'a-1041', name: 'Booster pump 4', status: 'operational' },
@@ -56,8 +53,7 @@ const userContext = createDemoBackend(
 
 // Explicit demo routes choose the permitted writer; a submitted record id does not grant it.
 const contextWriters = new Map([
-  ['/api/user-context/write', userContext],
-  ['/api/user-context/write/lab', userContext],
+  ['/api/user-context/write/lab', userContext.forOwner('lab')],
   ['/api/user-context/write/well-inspection', userContext.forOwner('well-inspection')],
   ['/api/user-context/write/shell', userContext.forOwner('shell')],
 ])
