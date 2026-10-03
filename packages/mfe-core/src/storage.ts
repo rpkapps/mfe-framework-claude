@@ -132,7 +132,7 @@ function declare<T>(
       JSON.stringify(owner),
       'Pass the id the owning app is registered under.',
     )
-  const version = options.version ?? 1
+  const version = options.version ?? DEFAULT_SCHEMA_VERSION
   if (!Number.isInteger(version) || version < 1)
     fail(
       'an integer schema version of 1 or more',
@@ -197,19 +197,6 @@ export function isStoredKey(value: unknown): value is AnyStoredKey<unknown> {
 // ---------------------------------------------------------------------------------------------
 // The browser record format, shared by the runtime's browser store and devtools.
 
-export type StorageScope = 'definition' | 'instance'
-
-export interface StorageScopeOptions {
-  /** Definition-wide by default. Instance state requires a stable host-supplied instanceId. */
-  readonly scope?: StorageScope
-}
-
-export interface StorageKeyOptions<T> extends StorageScopeOptions {
-  readonly version?: number
-  /** Synchronous, side-effect-free conversion from a known older version. */
-  readonly migrate?: (value: unknown, fromVersion: number) => T
-}
-
 /** The persisted record; the field names are short because they are written into every key. */
 export interface StorageEnvelope {
   readonly v: number
@@ -262,7 +249,10 @@ export interface StoredValue {
 }
 
 export interface StoredRow extends StoredValue {
-  /** Bumped by the server on every save of this key; a lower revision never replaces a higher. */
+  /**
+   * Raised by the server on every save of this key, and never reused after a removal; a row at a
+   * revision this tab has already held never replaces what it holds now.
+   */
   readonly revision: number
 }
 

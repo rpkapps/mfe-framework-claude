@@ -134,18 +134,12 @@ describe('reaching the host scope through the definition surface', () => {
     expect(() => store.bind(HOST_SCOPE, { name: 'theme', schema: themeSchema })).toThrow(/bindHost/)
   })
 
-  it('is refused by clearDefinition() for the same reason', () => {
-    const { store } = harness()
-
-    expect(() => store.clearDefinition(HOST_SCOPE)).toThrow(/bindHost/)
-  })
-
   it('reports the refusal as a structured storage failure', () => {
     const { store, reported } = harness()
 
     let thrown: unknown
     try {
-      store.clearDefinition(HOST_SCOPE)
+      store.bind(HOST_SCOPE, { name: 'theme', schema: themeSchema })
     } catch (error) {
       thrown = error
     }

@@ -25,6 +25,8 @@ export function createMemoryUserStorage(initial: UserStorageState = {}): MemoryU
   const rows = new Map<string, Map<string, StoredRow>>()
   for (const [owner, keys] of Object.entries(initial))
     rows.set(owner, new Map(Object.entries(keys)))
+  // Kept across removals, so a re-created key never reuses a revision.
+  const revisions = new Map<string, number>()
   const handles = new Set<UserStorageHandle>()
   const saves: { owner: string; key: string; value: StoredValue | null }[] = []
 
@@ -36,7 +38,9 @@ export function createMemoryUserStorage(initial: UserStorageState = {}): MemoryU
       keys = new Map()
       rows.set(owner, keys)
     }
-    const revision = (keys.get(key)?.revision ?? 0) + 1
+    const id = `${owner}\u0000${key}`
+    const revision = Math.max(revisions.get(id) ?? 0, keys.get(key)?.revision ?? 0) + 1
+    revisions.set(id, revision)
     if (value === null) {
       keys.delete(key)
       return null

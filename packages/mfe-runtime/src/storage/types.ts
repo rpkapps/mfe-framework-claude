@@ -2,13 +2,7 @@
 
 import type { z } from 'zod'
 
-import type {
-  Listener,
-  BrowserStorageArea,
-  StorageScopeOptions,
-  StorageSnapshot,
-  Unsubscribe,
-} from '@company/mfe-core'
+import type { Listener, BrowserStorageArea, StorageSnapshot, Unsubscribe } from '@company/mfe-core'
 
 import type { DiagnosticsHub } from '../diagnostics.ts'
 
@@ -47,8 +41,8 @@ export interface MfeStorageStoreOptions {
 }
 
 /** `storage` defaults to `'local'` and `version` to `1`. */
-export interface StorageKeyBinding<T> extends StorageScopeOptions {
-  /** Only used for instance scope. Adapters obtain it from the mount's host control property. */
+export interface StorageKeyBinding<T> {
+  /** One value per placed copy instead of one per definition; the host supplies the id. */
   readonly instanceId?: string
   readonly name: string
   readonly storage?: BrowserStorageArea

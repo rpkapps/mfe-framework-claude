@@ -562,7 +562,7 @@ and a user change without a reload clears nothing.
 
 Three shell files were exempted from `mfe/no-raw-storage` by name, each with the
 same comment: this state belongs to the page, not to any definition on it.
-`bindHost()` and `hostStorage()` are the only ways into a reserved scope,
+`bindHost()` and keys read outside a mount (§57; `hostStorage()` is gone) are the only ways into a reserved scope,
 `HOST_SCOPE`, `'@host'`; the `@` reserves it, because a definition id is
 lower-case letters, digits and single hyphens, so no registry entry can claim that
 name — where a shell using `"shell"` could not be told from a definition.

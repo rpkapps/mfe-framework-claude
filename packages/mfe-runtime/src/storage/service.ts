@@ -63,6 +63,10 @@ export class StorageService {
   readonly user: UserStorageStore | undefined
   readonly #writeErrors = new Map<string, StorageError>()
   readonly #writeListeners = new Map<string, Set<Listener>>()
+  /** The write that failed, sent again by `retry()`. */
+  readonly #failedWrites = new Map<string, () => void>()
+  /** Bindings per browser key; its write error goes with the last one. */
+  readonly #writeBindings = new Map<string, number>()
 
   constructor(options: StorageServiceOptions) {
     this.browser = options.browser
@@ -164,6 +168,8 @@ export class StorageService {
     this.browser.dispose()
     this.#writeErrors.clear()
     this.#writeListeners.clear()
+    this.#failedWrites.clear()
+    this.#writeBindings.clear()
   }
 
   // -------------------------------------------------------------------------------------------
@@ -277,13 +283,14 @@ export class StorageService {
       defaultValue: key.defaultValue,
       version: key.version,
       ...(key.migrate === undefined ? {} : { migrate: key.migrate }),
-      ...(instanceId === undefined ? {} : { scope: 'instance' as const, instanceId }),
+      ...(instanceId === undefined ? {} : { instanceId }),
     } as const
     const bound: BoundStorageKey<T> =
       owner === HOST_SCOPE
         ? this.browser.bindHost<T>(declaration)
         : this.browser.bind<T>(owner, declaration)
     const writeId = `${area}|${bound.key}`
+    this.#writeBindings.set(writeId, (this.#writeBindings.get(writeId) ?? 0) + 1)
 
     const readErrors = new WeakMap<Error, StorageError>()
     let lastInner: StorageSnapshot<T> | undefined
@@ -338,12 +345,14 @@ export class StorageService {
           cause,
         )
         this.#setWriteError(writeId, error)
+        this.#failedWrites.set(writeId, apply)
         return Promise.reject(error)
       }
       this.#setWriteError(writeId, undefined)
       return Promise.resolve()
     }
 
+    let released = false
     return {
       getSnapshot,
       subscribe: listener => {
@@ -357,7 +366,16 @@ export class StorageService {
       set: next =>
         write(() => {
           this.#assertWritable(caller, owner, key)
-          bound.set(this.#candidate(owner, key, getSnapshot(), next))
+          const current = getSnapshot()
+          if (typeof next !== 'function') {
+            bound.set(this.#candidate(owner, key, current, next))
+            return
+          }
+          this.#assertUpdatable(owner, key, current)
+          // The store re-reads the stored value first, so an update made in another tab counts.
+          bound.set((stored: T) =>
+            this.#candidate(owner, key, { value: stored, status: 'ready', error: undefined }, next),
+          )
         }),
       reset: () =>
         write(() => {
@@ -365,11 +383,22 @@ export class StorageService {
           bound.remove()
         }),
       retry: () => {
-        this.#setWriteError(writeId, undefined)
-        return Promise.resolve()
+        const failed = this.#failedWrites.get(writeId)
+        if (failed === undefined) return Promise.resolve()
+        return write(failed)
       },
       release: () => {
+        if (released) return
+        released = true
         bound.release()
+        const left = (this.#writeBindings.get(writeId) ?? 1) - 1
+        if (left > 0) {
+          this.#writeBindings.set(writeId, left)
+          return
+        }
+        this.#writeBindings.delete(writeId)
+        this.#failedWrites.delete(writeId)
+        this.#writeErrors.delete(writeId)
       },
     }
   }
@@ -383,12 +412,7 @@ export class StorageService {
   ): T {
     let candidate: unknown = next
     if (typeof next === 'function') {
-      if (current.status === 'error' && current.error?.code === 'storage/invalid-value')
-        throw createStorageError('invalid-value', owner, key.name, 'update a stored value', {
-          expected: 'a readable current value for the update function to apply to',
-          observed: current.error.message,
-          repair: 'Write an explicit value, or reset() the key first.',
-        })
+      this.#assertUpdatable(owner, key, current)
       candidate = (next as (previous: T) => T)(current.value)
     }
     const parsed = key.schema.safeParse(candidate)
@@ -422,7 +446,21 @@ export class StorageService {
       })
   }
 
+  #assertUpdatable(
+    owner: string,
+    key: AnyStoredKey<unknown>,
+    current: StoredSnapshot<unknown>,
+  ): void {
+    if (current.status === 'error' && current.error?.code === 'storage/invalid-value')
+      throw createStorageError('invalid-value', owner, key.name, 'update a stored value', {
+        expected: 'a readable current value for the update function to apply to',
+        observed: current.error.message,
+        repair: 'Write an explicit value, or reset() the key first.',
+      })
+  }
+
   #setWriteError(id: string, error: StorageError | undefined): void {
+    if (error === undefined) this.#failedWrites.delete(id)
     const previous = this.#writeErrors.get(id)
     if (previous === error) return
     if (error === undefined) this.#writeErrors.delete(id)

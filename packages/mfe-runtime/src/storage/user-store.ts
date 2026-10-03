@@ -31,6 +31,10 @@ export interface UserRowState {
 
 interface Slot {
   row: StoredRow | undefined
+  /** The highest revision this tab has held, kept after a removal so the removed row stays gone. */
+  seen: number
+  /** Confirmed by a save since the last full state, which may have been read before it landed. */
+  savedSinceReplace?: boolean
   /** In flight. */
   sending?: { readonly value: StoredValue | null }
   /** Waiting behind the one in flight; only the latest is kept. */
@@ -101,9 +105,16 @@ export class UserStorageStore {
     return this.#phase === 'error' ? this.#loadError : undefined
   }
 
-  /** Settles once the current load has; never rejects, since a failed load still mounts apps. */
-  whenLoaded(): Promise<void> {
-    return this.#loaded
+  /**
+   * Settles once the current load has; never rejects, since a failed load still mounts apps. A
+   * load replaced by `reset()` while awaited is followed to the new one.
+   */
+  async whenLoaded(): Promise<void> {
+    let loading: Promise<void>
+    do {
+      loading = this.#loaded
+      await loading
+    } while (loading !== this.#loaded)
   }
 
   read(owner: string, key: string): UserRowState {
@@ -235,15 +246,23 @@ export class UserStorageStore {
     const changed: string[] = []
     for (const [id, row] of incoming) {
       const slot = this.#slot(id)
-      if (slot.row !== undefined && slot.row.revision > row.revision) continue
-      if (slot.row?.revision === row.revision && slot.row.v === row.v) continue
+      slot.savedSinceReplace = false
+      // Only the row held at that revision may be re-read, e.g. rewritten at a newer version.
+      const rewritten = slot.row?.revision === row.revision && slot.row.v !== row.v
+      if (row.revision <= slot.seen && !rewritten) continue
       slot.row = row
+      slot.seen = Math.max(slot.seen, row.revision)
       changed.push(id)
     }
-    // Absent from a full state means removed, unless this tab is saving it.
+    // Absent from a full state means removed, unless this tab is saving it or has just saved it:
+    // a state read before that save landed would otherwise remove it again.
     for (const [id, slot] of this.#slots) {
       if (incoming.has(id) || slot.row === undefined) continue
       if (slot.sending !== undefined || slot.queued !== undefined) continue
+      if (slot.savedSinceReplace === true) {
+        slot.savedSinceReplace = false
+        continue
+      }
       slot.row = undefined
       changed.push(id)
     }
@@ -299,7 +318,11 @@ export class UserStorageStore {
     const loading = new Promise<UserStorageState>(resolve => {
       resolve(this.#adapter.load(signal))
     })
-    this.#loaded = loading
+    // An aborted load may never settle, so whoever awaits it moves on to the next one.
+    const aborted = new Promise<void>(resolve => {
+      signal.addEventListener('abort', () => resolve(), { once: true })
+    })
+    const settled = loading
       .then(
         state => {
           if (this.#disposed || generation !== this.#generation) return
@@ -319,6 +342,7 @@ export class UserStorageStore {
         if (this.#disposed || generation !== this.#generation) return
         this.#fail(error)
       })
+    this.#loaded = Promise.race([settled, aborted])
   }
 
   #fail(error: unknown): void {
@@ -375,6 +399,7 @@ export class UserStorageStore {
     const generation = this.#generation
     const signal = this.#controller.signal
     slot.sending = { value }
+    const replacing = slot.row?.revision ?? -1
     const saving = new Promise<StoredRow | null>(resolve => {
       resolve(this.#adapter.save(owner, key, value, signal))
     })
@@ -383,8 +408,16 @@ export class UserStorageStore {
         if (this.#disposed || generation !== this.#generation) throw signal.reason
         if (row !== null && !isRow(row))
           throw new TypeError('save() must resolve with the stored row, or null once removed')
-        if (row === null) slot.row = undefined
-        else if (slot.row === undefined || row.revision >= slot.row.revision) slot.row = row
+        // A newer row another tab wrote while this save was in flight stays.
+        if (row === null) {
+          if (slot.row !== undefined && slot.row.revision > replacing) return
+          slot.row = undefined
+        } else {
+          if (slot.row !== undefined && slot.row.revision > row.revision) return
+          slot.row = row
+          slot.seen = Math.max(slot.seen, row.revision)
+        }
+        slot.savedSinceReplace = true
       })
       .then(
         () => {
@@ -430,7 +463,7 @@ export class UserStorageStore {
   #slot(id: string): Slot {
     let slot = this.#slots.get(id)
     if (slot === undefined) {
-      slot = { row: undefined }
+      slot = { row: undefined, seen: -1 }
       this.#slots.set(id, slot)
     }
     return slot

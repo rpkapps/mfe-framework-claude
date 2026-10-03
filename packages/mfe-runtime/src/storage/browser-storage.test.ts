@@ -152,15 +152,42 @@ describe('writing', () => {
     expect(binding.getSnapshot()).toEqual({ value: false, status: 'ready', error: undefined })
   })
 
-  it('clears a refused write’s error on retry', async () => {
+  it('sends a refused write again on retry', async () => {
     const { service, storage, local } = setup()
     const binding = service.bind(REPORTS, sidebarOpen)
     local.full = true
     await expect(storage.set(sidebarOpen, false)).rejects.toBeDefined()
+    await expect(binding.retry()).rejects.toMatchObject({ code: 'storage/persistence-failed' })
 
+    local.full = false
     await binding.retry()
 
-    expect(binding.getSnapshot().status).toBe('ready')
+    expect(binding.getSnapshot()).toEqual({ value: false, status: 'ready', error: undefined })
+    expect(local.getItem(physicalStorageKey('reports', 'sidebar-open'))).toBe(envelope(false))
+  })
+
+  it('forgets a refused write once the last binding of the key goes', async () => {
+    const { service, storage, local } = setup()
+    const binding = service.bind(REPORTS, sidebarOpen)
+    local.full = true
+    await expect(storage.set(sidebarOpen, false)).rejects.toBeDefined()
+    local.full = false
+    binding.release()
+
+    expect(service.bind(REPORTS, sidebarOpen).getSnapshot().status).toBe('ready')
+  })
+
+  it('applies a functional update to what is stored now, not what this tab last read', async () => {
+    const { service, storage, session } = setup()
+    const binding = service.bind(REPORTS, counter)
+    binding.subscribe(() => {})
+    await storage.set(counter, 1)
+    // Another tab's write, before its storage event arrives here.
+    session.setItem(physicalStorageKey('reports', 'counter'), envelope(5))
+
+    await storage.set(counter, previous => previous + 1)
+
+    expect(binding.getSnapshot().value).toBe(6)
   })
 
   it('rejects a value that fails the schema without touching the status or the store', async () => {

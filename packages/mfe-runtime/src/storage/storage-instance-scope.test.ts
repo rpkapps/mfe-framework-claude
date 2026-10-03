@@ -22,7 +22,6 @@ function bind(instanceId?: string, definitionId = 'chart') {
     name: 'zoom',
     schema,
     defaultValue: 1,
-    scope: 'instance',
     ...(instanceId === undefined ? {} : { instanceId }),
   })
 }
@@ -34,7 +33,6 @@ describe('instance-scoped storage', () => {
       name: 'zoom:zoom',
       schema,
       defaultValue: 1,
-      scope: 'instance',
       instanceId: 'north',
     })
     const otherDefinition = bind('north:zoom', 'chart-legacy')
@@ -60,36 +58,13 @@ describe('instance-scoped storage', () => {
     expect(bind('south').read()).toBe(1)
   })
 
-  it('rejects missing, empty and host-scoped instance identities without falling back', () => {
-    expect(() => bind()).toThrow(/instanceId/)
+  it('rejects empty and host-scoped instance identities without falling back', () => {
     expect(() => bind('')).toThrow(/instanceId/)
     expect(() => bind('  ')).toThrow(/instanceId/)
-    expect(() =>
-      store.bindHost({ name: 'zoom', schema, scope: 'instance', instanceId: 'north' }),
-    ).toThrow(/instanceId/)
+    expect(() => store.bindHost({ name: 'zoom', schema, instanceId: 'north' })).toThrow(
+      /instanceId/,
+    )
     expect(local.snapshot()).toEqual({})
-  })
-
-  it('definition clearing removes all its own scopes and nothing of another definition', () => {
-    const north = bind('north')
-    const south = bind('south')
-    const other = bind('north', 'chart-legacy')
-    const shared = store.bind('chart', { name: 'zoom', schema, defaultValue: 1 })
-    north.set(2)
-    south.set(3)
-    other.set(4)
-    shared.set(5)
-
-    expect(store.clearDefinition('chart')).toBe(3)
-    expect([north.read(), south.read(), shared.read(), other.read()]).toEqual([1, 1, 1, 4])
-  })
-
-  it('refuses invalid definition prefixes before an administrative clear can touch instances', () => {
-    const north = bind('north')
-    north.set(3)
-    expect(() => store.clearDefinition('')).toThrow(/non-empty definition id/)
-    expect(() => store.clearDefinition(':')).toThrow(/without a colon/)
-    expect(north.read()).toBe(3)
   })
 
   it('separates local and session records and migrates only the chosen instance', () => {
@@ -100,7 +75,6 @@ describe('instance-scoped storage', () => {
       schema,
       defaultValue: 1,
       storage: 'session',
-      scope: 'instance',
       instanceId: 'north',
       version: 2,
       migrate: value => Number(value) + 1,

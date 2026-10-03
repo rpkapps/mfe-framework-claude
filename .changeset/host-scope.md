@@ -7,7 +7,7 @@
 
 The host page has its own scope, `HOST_SCOPE` (`'@host'`): it stores state, registers commands and breadcrumbs, and reads the registry as itself.
 
-- **Storage:** `MfeStorageStore.bindHost`, `hostStorage(area?)`, `useStoredState` outside a mount.
+- **Storage:** `MfeStorageStore.bindHost`, and `useStoredState` or `useMfeStorage()` outside a mount.
 - **Commands/breadcrumbs/selectors:** `CommandRegistry.registerHost`, `useCommand`/`useBreadcrumbs` outside a mount, `useRegistryEntries`, `useApps`, `useWidgets`, `useCapabilityPages(name?)`, `useActiveDefinition(pathname)`.
 - **Diagnostics:** `createMfeRuntime({ diagnostics })` adopts a hub the host built; `telemetryDiagnosticsSink(provider)` and `DiagnosticsHub` (re-exported from `@company/mfe-runtime`).
 - `createMfeRuntime` now builds the store itself; the `storage` option is gone, and `useTheme`/`useUser`/`useGroups` no longer require a mount.

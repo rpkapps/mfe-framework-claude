@@ -589,48 +589,6 @@ describe('cross-tab storage events', () => {
   })
 })
 
-describe('clearing a definition', () => {
-  it('clears only the exact prefix and notifies every mount of that definition', () => {
-    const { store, local } = harness()
-    track(store)
-    local.setItem('acme-orders:theme', envelope('dark'))
-    local.setItem('acme-orders:filters', envelope({ status: 'open', page: 1 }))
-    local.setItem('acme-orders-legacy:theme', envelope('dark'))
-    local.setItem('shell:theme', 'shell-owned')
-    local.setItem('third-party-widget', 'not ours')
-
-    const mountA = store.bind(ORDERS, { name: 'theme', schema: themeSchema, defaultValue: 'light' })
-    const mountB = store.bind(ORDERS, { name: 'theme', schema: themeSchema, defaultValue: 'light' })
-    const seenA = vi.fn()
-    const seenB = vi.fn()
-    mountA.subscribe(seenA)
-    mountB.subscribe(seenB)
-
-    expect(store.clearDefinition(ORDERS)).toBe(2)
-
-    expect(Object.keys(local.snapshot()).sort()).toEqual([
-      'acme-orders-legacy:theme',
-      'shell:theme',
-      'third-party-widget',
-    ])
-    expect(seenA).toHaveBeenCalledTimes(1)
-    expect(seenB).toHaveBeenCalledTimes(1)
-    expect(mountA.getSnapshot()).toEqual({ status: 'default', value: 'light' })
-  })
-
-  it('clears each store separately', () => {
-    const { store, local, session } = harness()
-    track(store)
-    local.setItem('acme-orders:theme', envelope('dark'))
-    session.setItem('acme-orders:theme', envelope('dark'))
-
-    store.clearDefinition(ORDERS, 'session')
-
-    expect(Object.keys(local.snapshot())).toEqual(['acme-orders:theme'])
-    expect(session.snapshot()).toEqual({})
-  })
-})
-
 describe('declaration conflicts', () => {
   it('fails the conflicting declaration rather than the one that rendered first', () => {
     const { store } = harness()

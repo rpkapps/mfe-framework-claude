@@ -859,6 +859,29 @@ describe('select', () => {
     expect(renders.current()).toBe(baseline + 1)
     expect(screen.getByRole('status')).toHaveTextContent('A-7')
   })
+
+  it('applies a changed selector at once, without waiting for the value to change', () => {
+    const env = setup()
+
+    function Field({ field }: { readonly field: 'well' | 'status' }): ReactNode {
+      const state = useStoredState(filtersKey, { select: filters => filters[field] })
+      return <output>{state.value ?? 'none'}</output>
+    }
+
+    const { rerender } = render(
+      <env.wrapper>
+        <Field field="well" />
+      </env.wrapper>,
+    )
+    expect(screen.getByRole('status')).toHaveTextContent('none')
+
+    rerender(
+      <env.wrapper>
+        <Field field="status" />
+      </env.wrapper>,
+    )
+    expect(screen.getByRole('status')).toHaveTextContent('open')
+  })
 })
 
 describe('perInstance keys in the user area', () => {

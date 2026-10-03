@@ -9,7 +9,7 @@ import type { ActionRegistrationHandle } from '@company/mfe-react/host'
 import { toast } from 'sonner'
 
 import { themeKey } from '../storage.ts'
-import type { ShellTheme } from './preferences.ts'
+import type { ShellTheme } from '@company/mfe-react'
 import { themeAction } from './shell-actions.ts'
 
 export function ThemeAction(): ReactNode {

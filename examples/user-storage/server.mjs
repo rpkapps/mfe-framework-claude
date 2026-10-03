@@ -17,7 +17,7 @@ function own(map, name) {
   return Object.hasOwn(map, name) ? map[name] : undefined
 }
 
-export class DemoStorageError extends Error {
+class DemoStorageError extends Error {
   constructor(message) {
     super(message)
     this.name = 'DemoStorageError'
@@ -105,7 +105,12 @@ export function createDemoBackend(file) {
         const row =
           value === null
             ? null
-            : { v: value.v, d: value.d, revision: (previous?.revision ?? 0) + 1 }
+            : {
+                v: value.v,
+                d: value.d,
+                // Revisions only grow, also across a removal, so a stale copy never wins later.
+                revision: Math.max((previous?.revision ?? 0) + 1, Date.now()),
+              }
         const keys = row === null ? others : { ...others, [key]: row }
         const next = { ...owners }
         delete next[owner]

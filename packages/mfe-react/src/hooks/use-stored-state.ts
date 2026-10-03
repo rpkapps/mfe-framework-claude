@@ -4,7 +4,7 @@
  * loading or after an error), an awaitable `set`, and the key's status.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useSyncExternalStore } from 'react'
+import { useCallback, useMemo, useRef, useSyncExternalStore } from 'react'
 import {
   HOST_SCOPE,
   type AnyStoredKey,
@@ -47,6 +47,7 @@ type ReadonlyStoredSnapshot<R> = Pick<ReadonlyStoredState<R>, 'value' | 'status'
 
 interface Selected<R> {
   readonly snapshot: StoredSnapshot<unknown>
+  readonly select: ((value: never) => R) | undefined
   readonly result: ReadonlyStoredSnapshot<R>
 }
 
@@ -77,19 +78,16 @@ export function useStoredState<T, R = T>(
   const { read, subscribe, withBinding } = useBinding(open)
 
   const select = options?.select
-  const latestSelect = useRef(select)
-  useEffect(() => {
-    latestSelect.current = select
-  })
   const selected = useRef<Selected<R> | null>(null)
 
+  // The selector comes from this render, so a changed one (or a new key) is applied at once.
   const getSnapshot = useCallback((): ReadonlyStoredSnapshot<R> => {
     const snapshot = read()
-    const selector = latestSelect.current
-    if (selector === undefined) return snapshot as unknown as ReadonlyStoredSnapshot<R>
+    if (select === undefined) return snapshot as unknown as ReadonlyStoredSnapshot<R>
     const previous = selected.current
-    if (previous !== null && previous.snapshot === snapshot) return previous.result
-    const value = selector(snapshot.value)
+    if (previous !== null && previous.snapshot === snapshot && previous.select === select)
+      return previous.result
+    const value = select(snapshot.value)
     // An unchanged selection keeps its identity, so React bails out of the render.
     const result =
       previous !== null &&
@@ -98,9 +96,9 @@ export function useStoredState<T, R = T>(
       previous.result.error === snapshot.error
         ? previous.result
         : { value, status: snapshot.status, error: snapshot.error }
-    selected.current = { snapshot, result }
+    selected.current = { snapshot, select, result }
     return result
-  }, [read])
+  }, [read, select])
 
   const current = useSyncExternalStore(subscribe, getSnapshot, getSnapshot)
 
@@ -161,22 +159,21 @@ function useBinding<T>(open: () => StoredBinding<T>): {
     return current !== null && current.open === open ? current.binding.getSnapshot() : initial
   }, [open, initial])
 
-  const latestOpen = useRef(open)
-  useEffect(() => {
-    latestOpen.current = open
-  }, [open])
-
-  // A child's mount effect runs before this component subscribes, and may already write.
-  const withBinding = useCallback(<R>(run: (binding: StoredBinding<T>) => R): R => {
-    const current = held.current
-    if (current !== null) return run(current.binding)
-    const transient = latestOpen.current()
-    try {
-      return run(transient)
-    } finally {
-      transient.release()
-    }
-  }, [])
+  // A child's mount effect runs before this component subscribes (or re-subscribes after the
+  // key changed), and may already write; the held binding is used only when it is this key's.
+  const withBinding = useCallback(
+    <R>(run: (binding: StoredBinding<T>) => R): R => {
+      const current = held.current
+      if (current !== null && current.open === open) return run(current.binding)
+      const transient = open()
+      try {
+        return run(transient)
+      } finally {
+        transient.release()
+      }
+    },
+    [open],
+  )
 
   return { read, subscribe, withBinding }
 }

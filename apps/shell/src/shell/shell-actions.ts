@@ -16,7 +16,7 @@ import { shellChat } from '../chat/instance.ts'
 import { EMPTY_LAYOUT, type DashboardLayout } from './dashboard/layout-store.ts'
 import { collectDiagnostics, formatReport } from './diagnostics.ts'
 import type { StoredSetter } from './hooks.ts'
-import type { ShellTheme } from './preferences.ts'
+import type { ShellTheme } from '@company/mfe-react'
 import { shellUi } from './ui-store.ts'
 
 /** What a shell action reads at the render it was built in. */

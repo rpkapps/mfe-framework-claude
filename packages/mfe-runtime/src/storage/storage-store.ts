@@ -10,9 +10,7 @@ import {
   describeThrown,
   describeValue,
   HOST_SCOPE,
-  instanceStoragePrefix,
   physicalStorageKey,
-  storagePrefix,
   toMfeError,
   type Listener,
   type MfeError,
@@ -203,70 +201,6 @@ export class MfeStorageStore {
     return handle as unknown as BoundStorageKey<T | null>
   }
 
-  /**
-   * The prefix is exact, so `acme-orders` never touches `acme-orders-legacy:`, the shell's keys,
-   * or a third party's.
-   */
-  clearDefinition(definitionId: string, area?: BrowserStorageArea): number {
-    this.#assertDefinitionScope(definitionId, 'clear storage')
-    return this.#clearScope(definitionId, area, [
-      storagePrefix(definitionId),
-      instanceStoragePrefix(definitionId),
-    ])
-  }
-
-  #clearScope(
-    definitionId: string,
-    area: BrowserStorageArea | undefined,
-    prefixes: readonly string[],
-  ): number {
-    this.#assertUsable('clear storage')
-    const areas = area === undefined ? AREAS : [area]
-    const describedPrefixes = prefixes.join("' or '")
-    let removed = 0
-
-    for (const target of areas) {
-      try {
-        const store = this.#resolveAreaOrFail(definitionId, target, 'clear', null)
-        let names: readonly string[]
-        try {
-          names = this.#listKeys(store).filter(name =>
-            prefixes.some(prefix => name.startsWith(prefix)),
-          )
-        } catch (error) {
-          throw this.#fail(definitionId, target, 'clear', null, {
-            expected: `to enumerate ${target} storage for keys under '${describedPrefixes}'`,
-            observed: describeThrown(error),
-            repair: 'The framework never clears a store it cannot enumerate.',
-            cause: error,
-          })
-        }
-        for (const name of names) {
-          try {
-            store.removeItem(name)
-            removed += 1
-          } catch (error) {
-            throw this.#fail(definitionId, target, 'clear', null, {
-              expected: `to remove '${name}'`,
-              observed: describeThrown(error),
-              repair: `Retry; nothing outside '${describedPrefixes}' was touched.`,
-              cause: error,
-            })
-          }
-        }
-      } finally {
-        for (const entry of this.#entries.values()) {
-          if (
-            entry.area === target &&
-            prefixes.some(prefix => entry.physicalKey.startsWith(prefix))
-          )
-            this.#refresh(entry)
-        }
-      }
-    }
-    return removed
-  }
-
   dispose(): void {
     if (this.#disposed) return
     this.#disposed = true
@@ -347,13 +281,7 @@ export class MfeStorageStore {
       })
     }
 
-    const instanceId = this.#resolveInstance(
-      definitionId,
-      area,
-      declaration.scope,
-      declaration.instanceId,
-      name,
-    )
+    const instanceId = this.#resolveInstance(definitionId, area, declaration.instanceId, name)
 
     const version = declaration.version ?? DEFAULT_SCHEMA_VERSION
     if (!Number.isInteger(version) || version < 1) {
@@ -675,15 +603,6 @@ export class MfeStorageStore {
     }
   }
 
-  #listKeys(store: StorageAreaLike): readonly string[] {
-    const names: string[] = []
-    for (let index = 0; index < store.length; index += 1) {
-      const name = store.key(index)
-      if (name !== null) names.push(name)
-    }
-    return names
-  }
-
   #envelopeContext(entry: KeyEntry): EnvelopeContext {
     return {
       declaration: entry.declaration,
@@ -780,23 +699,23 @@ export class MfeStorageStore {
   #resolveInstance(
     definitionId: string,
     area: BrowserStorageArea,
-    scope: string | undefined,
-    instanceId?: string,
-    name?: string,
+    instanceId: string | undefined,
+    name: string,
   ): string | undefined {
-    if (scope === undefined || scope === 'definition') return undefined
+    if (instanceId === undefined) return undefined
     if (
-      scope !== 'instance' ||
       definitionId === HOST_SCOPE ||
       typeof instanceId !== 'string' ||
       instanceId.trim().length === 0
     ) {
-      throw this.#fail(definitionId, area, 'bind', name ?? null, {
-        expected:
-          'definition scope, or instance scope with a stable non-empty host-supplied instanceId',
-        observed: scope === 'instance' ? describeValue(instanceId) : describeValue(scope),
+      throw this.#fail(definitionId, area, 'bind', name, {
+        expected: 'a stable non-empty instanceId supplied by the host that placed the app',
+        observed:
+          definitionId === HOST_SCOPE
+            ? `an instanceId in the host scope`
+            : describeValue(instanceId),
         repair:
-          "Pass instanceId on the Widget host and use scope: 'instance' inside its mount; keep the same id across remounts.",
+          'Pass instanceId where the host places the widget and keep it across remounts; the host page itself has no instances.',
       })
     }
     return instanceId

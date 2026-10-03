@@ -356,7 +356,67 @@ describe('replace', () => {
   })
 })
 
+describe('replace racing saves', () => {
+  it('keeps a value just saved when a state read before the save lands arrives', async () => {
+    const { service, saves, handles, accept } = await loaded()
+    const binding = service.bind(REPORTS, units)
+    const saving = binding.set('imperial')
+    accept(saves[0])
+    await saving
+
+    handles[0]?.replace({})
+    expect(binding.getSnapshot()).toMatchObject({ value: 'imperial', status: 'ready' })
+
+    // The next state is newer than the save; one without the key now means it was removed.
+    handles[0]?.replace({})
+    expect(binding.getSnapshot().value).toBe('metric')
+  })
+
+  it('does not bring back a removed row from a state read before the removal', async () => {
+    const { service, saves, handles, accept } = await loaded({
+      reports: { units: row('imperial', 5) },
+    })
+    const binding = service.bind(REPORTS, units)
+    const removing = binding.reset()
+    accept(saves[0])
+    await removing
+
+    handles[0]?.replace({ reports: { units: row('imperial', 5) } })
+    expect(binding.getSnapshot().value).toBe('metric')
+
+    handles[0]?.replace({ reports: { units: row('imperial', 12) } })
+    expect(binding.getSnapshot().value).toBe('imperial')
+  })
+
+  it('keeps a newer row another tab wrote while this tab’s removal was in flight', async () => {
+    const { service, saves, handles } = await loaded({ reports: { units: row('imperial', 5) } })
+    const binding = service.bind(REPORTS, units)
+    const removing = binding.reset()
+    handles[0]?.replace({ reports: { units: row('imperial', 7) } })
+    saves[0]?.resolve(null)
+    await removing
+
+    expect(binding.getSnapshot().value).toBe('imperial')
+  })
+})
+
 describe('changing user', () => {
+  it('holds whenLoaded() for the next user’s load when the user changes during a load', async () => {
+    const { service, loads, storage } = setup()
+    let settled = false
+    const waiting = service.whenLoaded().then(() => {
+      settled = true
+    })
+    service.resetUser()
+    await flush()
+    expect(settled).toBe(false)
+
+    loads[1]?.resolve({ reports: { units: row('imperial') } })
+    await waiting
+    expect(storage.status(units)).toBe('ready')
+    expect(storage.peek(units)).toBe('imperial')
+  })
+
   it('drops the previous user’s values and loads again', async () => {
     const { service, loads, storage } = await loaded({ reports: { units: row('imperial') } })
     expect(storage.peek(units)).toBe('imperial')

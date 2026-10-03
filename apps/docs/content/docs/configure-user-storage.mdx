@@ -20,7 +20,7 @@ create table user_storage (
   key      text    not null,  -- a perInstance key is stored as <name>@<instanceId>
   version  integer not null,
   data     jsonb   not null,
-  revision integer not null,  -- bumped by the server on every save of this key
+  revision bigint  not null,  -- grows on every save of this key, also after it was removed
   primary key (user_id, owner, key)
 );
 ```
@@ -72,7 +72,8 @@ const { runtime } = createMfeRuntime({
 
 `load` returns the whole table for the signed-in user, as `{ [owner]: { [key]: { v, d, revision } } }`.
 `save` sends one key, with `{ v, d }` or `null` to remove it, and resolves with the stored row, or
-`null` once removed.
+`null` once removed. A key's revision only ever grows, also when it is removed and written again (a
+timestamp or a sequence works), so a copy of the state read before a change never undoes it.
 
 </Step>
 <Step>
