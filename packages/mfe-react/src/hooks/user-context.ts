@@ -1,6 +1,6 @@
 import { useMemo, useSyncExternalStore } from 'react'
 import {
-  createUserContextSelection,
+  createUserContextSelector,
   UserContextError,
   type UserContextReader,
   type UserContextStore,
@@ -59,9 +59,12 @@ function useSelectedUserContext<V>(
   selector: unknown,
   writable: boolean,
 ): readonly [unknown] | readonly [unknown, UserContextStore<V>['set']] {
+  // Inline selectors are new closures each render; selections from one store's selector share
+  // structure with the previous one, so an unchanged derived value keeps its identity.
+  const select = useMemo(() => createUserContextSelector(store), [store])
   const selection = useMemo(
-    () => createUserContextSelection(store, selector as (context: Readonly<V>) => unknown),
-    [store, selector],
+    () => select(selector as (context: Readonly<V>) => unknown),
+    [select, selector],
   )
   const value = useSyncExternalStore(
     selection.subscribe,

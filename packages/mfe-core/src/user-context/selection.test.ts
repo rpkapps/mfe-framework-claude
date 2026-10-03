@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import {
   createUserContextSelection,
+  createUserContextSelector,
   immutable,
   stableJson,
   type UserContextReader,
@@ -182,6 +183,17 @@ describe('createUserContextSelection', () => {
     data.commit({ ...initial, count: 4 })
     expect(listener).toHaveBeenCalledTimes(1)
     stop()
+  })
+
+  it('keeps an unchanged derived value across re-created selector closures', () => {
+    const data = fixture(initial)
+    const select = createUserContextSelector(data.store)
+    const before = select(value => ({ count: value.count })).getSnapshot()
+    select(value => ({ count: value.count }))
+    expect(select(value => ({ count: value.count })).getSnapshot()).toBe(before)
+    const negated = select(value => ({ count: -value.count })).getSnapshot()
+    expect(negated).toEqual({ count: -1 })
+    expect(Object.isFrozen(negated)).toBe(true)
   })
 
   it('observes root enumeration and notices new keys', () => {

@@ -475,4 +475,8 @@ export function assertStateContract(value: unknown): asserts value is StateContr
   if (root.kind !== 'object') fail()
 }
 
-export { createUserContextSelection } from './selection.ts'
+export {
+  createUserContextSelection,
+  createUserContextSelector,
+  type UserContextSelection,
+} from './selection.ts'

@@ -209,6 +209,22 @@ describe('definition-bound React user context and routers', () => {
     consumer.unmount()
     await environment.dispose()
   })
+  it('keeps an inline derived selection referentially stable across rerenders', async () => {
+    const environment = await setup()
+    const consumer = renderHook(
+      () => bindings.useUserContext(ctx => ({ theme: ctx.preferences.appearance.theme })),
+      { wrapper: environment.wrapper },
+    )
+    const initial = consumer.result.current
+    consumer.rerender()
+    expect(consumer.result.current).toBe(initial)
+    await act(async () => {
+      await initial[1]('preferences', { appearance: { theme: 'dark' } })
+    })
+    expect(consumer.result.current[0]).toEqual({ theme: 'dark' })
+    consumer.unmount()
+    await environment.dispose()
+  })
   it('moves subscriptions when a new selector reads a different field', async () => {
     const environment = await setup()
     const rendered = vi.fn()

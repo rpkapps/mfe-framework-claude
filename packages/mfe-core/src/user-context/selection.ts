@@ -64,23 +64,18 @@ function share(previous: unknown, next: unknown, seen = new WeakMap<object, unkn
   return shared
 }
 
+const readsParts = (dependency: Read): boolean =>
+  dependency.children.size > 0 ||
+  dependency.has.size > 0 ||
+  dependency.own.size > 0 ||
+  dependency.keys !== undefined
+
 function matches(dependency: Read, next: unknown): boolean {
   if (Object.is(dependency.source, next)) return true
-  if (
-    !dependency.path.length &&
-    !dependency.whole &&
-    !dependency.children.size &&
-    !dependency.has.size &&
-    !dependency.own.size &&
-    !dependency.keys
-  )
-    return true
+  if (!dependency.path.length && !dependency.whole && !readsParts(dependency)) return true
   if (!object(dependency.source) || !object(next)) return false
   if (Object.getPrototypeOf(dependency.source) !== Object.getPrototypeOf(next)) return false
-  if (
-    dependency.whole ||
-    (!dependency.children.size && !dependency.has.size && !dependency.own.size && !dependency.keys)
-  )
+  if (dependency.whole || !readsParts(dependency))
     return Object.is(share(dependency.source, next), dependency.source)
   if (dependency.keys && !sameKeys(dependency.keys, Reflect.ownKeys(next))) return false
   for (const [key, present] of dependency.has) if (Reflect.has(next, key) !== present) return false
@@ -179,6 +174,12 @@ function track(root: Read): { value: object; unwrap: (value: unknown) => unknown
   return { value: wrap(root), unwrap }
 }
 
+export interface UserContextSelection<T> {
+  readonly getSnapshot: () => T
+  readonly subscribe: (listener: () => void) => () => void
+}
+type Seed = () => { readonly value: unknown } | undefined
+
 /**
  * A lifecycle-neutral selector subscription. Selectors synchronously read immutable JSON data;
  * only accessed owner fields are subscribed, and nested siblings do not rerun the selector.
@@ -188,7 +189,31 @@ function track(root: Read): { value: object; unwrap: (value: unknown) => unknown
 export function createUserContextSelection<V, T>(
   store: UserContextReader<V>,
   selector: (value: Readonly<V>) => T,
-): { readonly getSnapshot: () => T; readonly subscribe: (listener: () => void) => () => void } {
+): UserContextSelection<T> {
+  const { getSnapshot, subscribe } = select(store, selector)
+  return { getSnapshot, subscribe }
+}
+
+/**
+ * Selections over one store for a selector closure re-created on every render: each new
+ * selection structurally shares with the previous one, so an unchanged result keeps its identity.
+ */
+export function createUserContextSelector<V>(
+  store: UserContextReader<V>,
+): <T>(selector: (value: Readonly<V>) => T) => UserContextSelection<T> {
+  let last: Seed | undefined
+  return selector => {
+    const { getSnapshot, subscribe, current } = select(store, selector, last)
+    last = current
+    return { getSnapshot, subscribe }
+  }
+}
+
+function select<V, T>(
+  store: UserContextReader<V>,
+  selector: (value: Readonly<V>) => T,
+  seed?: Seed,
+): UserContextSelection<T> & { readonly current: Seed } {
   let source: Readonly<V> | undefined
   let dependency: Read | undefined
   let value: T
@@ -209,14 +234,16 @@ export function createUserContextSelection<V, T>(
     const nextDependency = read(next, [])
     const tracked = track(nextDependency)
     try {
-      const selected = tracked.unwrap(selector(tracked.value as Readonly<V>))
-      value = (initialized && !failed ? share(value, selected) : selected) as T
+      const result = tracked.unwrap(selector(tracked.value as Readonly<V>))
+      const base = initialized && !failed ? { value } : seed?.()
+      value = (base ? share(base.value, result) : result) as T
       failed = false
     } catch (caught) {
       error = caught
       failed = true
     }
     initialized = true
+    seed = undefined
     source = next
     dependency = nextDependency
   }
@@ -287,8 +314,15 @@ export function createUserContextSelection<V, T>(
     if (failed) throw error
     return value
   }
+  const release = (listener: () => void): void => {
+    listeners.delete(listener)
+    if (listeners.size) return
+    for (const unsubscribe of subscriptions.values()) unsubscribe()
+    subscriptions.clear()
+  }
   return {
     getSnapshot,
+    current: () => (initialized && !failed ? { value } : seed?.()),
     subscribe: listener => {
       const previous = getSnapshot()
       listeners.add(listener)
@@ -297,20 +331,10 @@ export function createUserContextSelection<V, T>(
         // A commit between the render/read and subscribing must not be missed.
         if (!Object.is(previous, getSnapshot())) listener()
       } catch (caught) {
-        listeners.delete(listener)
-        if (!listeners.size) {
-          for (const unsubscribe of subscriptions.values()) unsubscribe()
-          subscriptions.clear()
-        }
+        release(listener)
         throw caught
       }
-      return () => {
-        listeners.delete(listener)
-        if (!listeners.size) {
-          for (const unsubscribe of subscriptions.values()) unsubscribe()
-          subscriptions.clear()
-        }
-      }
+      return () => release(listener)
     },
   }
 }

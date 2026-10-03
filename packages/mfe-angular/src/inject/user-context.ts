@@ -40,7 +40,7 @@ export function createUserContextBindings<
   ): ReadonlyUserContextSelection<unknown> {
     assertInInjectionContext(injectUserContext)
     const ownerId = typeof ownerOrSelector === 'string' ? ownerOrSelector : undefined
-    const selector = typeof ownerOrSelector === 'function' ? ownerOrSelector : foreignSelector
+    const selector = ownerId === undefined ? ownerOrSelector : foreignSelector
     const mount = injectMfeMount('injectUserContext()')
     if (
       mount.definitionId !== definitionId ||
