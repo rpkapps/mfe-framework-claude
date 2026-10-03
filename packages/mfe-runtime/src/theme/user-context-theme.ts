@@ -1,17 +1,57 @@
 import type { ShellTheme, ShellUser } from '@company/mfe-core'
 import type { UserContextHost, UserContextStore } from '@company/mfe-core/user-context'
 import type { ShellStateStore } from '../shell-state/shell-state-store.ts'
-import { userScope } from '../user-context/host.ts'
 
-export type ThemePreference = 'light' | 'dark' | 'system'
-export interface UserContextThemeOptions<V> {
-  readonly select: (context: Readonly<V>) => ThemePreference
-  /** Framework-owned startup cache, automatically partitioned by authenticated user ID. */
-  readonly cacheKey: string
+type ThemePreference = 'light' | 'dark' | 'system'
+export type ThemeSelector<V> = (context: Readonly<V>) => ThemePreference
+
+// `cacheKey`, `resolveTheme` and `paint` also run before first paint, inlined by their source into
+// `themeBootstrapScript()`, so each is self-contained and the runtime and the script cannot disagree.
+
+/** Partitioned by tenant, account and user, so nobody starts with another user's preference. */
+function cacheKey(tenantId: string | null, accountId: string | null, userId: string): string {
+  return 'mfe:theme:' + encodeURIComponent(JSON.stringify([tenantId, accountId, userId]))
 }
 
-export function themeCacheKey(cacheKey: string, user: ShellUser): string {
-  return `${cacheKey}:${encodeURIComponent(userScope(user))}`
+function resolveTheme(stored: unknown): ShellTheme {
+  if (stored === 'light' || stored === 'dark') return stored
+  return typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches
+    ? 'dark'
+    : 'light'
+}
+
+/** `dark` is what the design system's variant keys off. */
+function paint(theme: ShellTheme): void {
+  if (typeof document === 'undefined') return
+  document.documentElement.classList.toggle('dark', theme === 'dark')
+  document.documentElement.style.colorScheme = theme
+}
+
+function prepaint(key: typeof cacheKey, resolve: typeof resolveTheme, apply: typeof paint): void {
+  try {
+    // A server may provide the authenticated identity. Without it, use system until sign-in.
+    const { userId, tenantId, accountId } = document.documentElement.dataset
+    apply(
+      resolve(
+        userId ? localStorage.getItem(key(tenantId ?? null, accountId ?? null, userId)) : null,
+      ),
+    )
+  } catch {
+    // Storage blocked: the class in <html> already stands.
+  }
+}
+
+/**
+ * The inline `<script>` body a host puts before its first paint, so a reload starts in the cached
+ * preference of the user the server names in `<html data-user-id data-tenant-id data-account-id>`.
+ */
+export function themeBootstrapScript(): string {
+  return `;(${prepaint.toString()})(${cacheKey.toString()}, ${resolveTheme.toString()}, ${paint.toString()})`
+}
+
+/** Not exported from the package; the tests seed the cache with it. */
+export function themeCacheKey(user: ShellUser): string {
+  return cacheKey(user.tenantId ?? null, user.accountId ?? null, user.id)
 }
 
 function preference(value: unknown): ThemePreference | undefined {
@@ -19,35 +59,30 @@ function preference(value: unknown): ThemePreference | undefined {
 }
 
 /** Safe before React mounts; unknown identities never read a previous user's preference. */
-export function readCachedTheme(
-  cacheKey: string,
-  user: ShellUser | null | undefined,
-): ThemePreference {
+function readCachedTheme(user: ShellUser | null | undefined): ThemePreference {
   try {
     return (
       (user == null
         ? undefined
-        : preference(globalThis.localStorage?.getItem(themeCacheKey(cacheKey, user)))) ?? 'system'
+        : preference(globalThis.localStorage?.getItem(themeCacheKey(user)))) ?? 'system'
     )
   } catch {
     return 'system'
   }
 }
 
-export function resolveTheme(value: ThemePreference): ShellTheme {
-  if (value !== 'system') return value
-  return typeof matchMedia === 'function' && matchMedia('(prefers-color-scheme: dark)').matches
-    ? 'dark'
-    : 'light'
+/** The theme a runtime starts with, before its user context has loaded. */
+export function cachedTheme(user: ShellUser | null | undefined): ShellTheme {
+  return resolveTheme(readCachedTheme(user))
 }
 
 /** Keep shellState, the document, and the selected-value cache in step with stored records. */
 export function attachUserContextTheme(options: {
   readonly host: UserContextHost
   readonly shellState: ShellStateStore
-  readonly theme: UserContextThemeOptions<unknown>
+  readonly select: ThemeSelector<unknown>
 }): () => void {
-  const { host, shellState, theme } = options
+  const { host, shellState, select } = options
   let current: ThemePreference = 'system'
   let stopped = false
   let store: UserContextStore | undefined
@@ -56,23 +91,20 @@ export function attachUserContextTheme(options: {
   const apply = (): void => {
     const value = resolveTheme(current)
     shellState.apply({ theme: value })
-    if (typeof document !== 'undefined') {
-      document.documentElement.classList.toggle('dark', value === 'dark')
-      document.documentElement.style.colorScheme = value
-    }
+    paint(value)
   }
   const read = (): void => {
     if (stopped || store === undefined) return
     // Selectors are author code; a bad selector or an invalid record keeps the last usable theme.
     try {
-      const selected = preference(theme.select(store.getSnapshot()))
+      const selected = preference(select(store.getSnapshot()))
       if (selected === undefined) return
       current = selected
       apply()
       const identity = shellState.getUser()
       if (identity !== null) {
         try {
-          globalThis.localStorage?.setItem(themeCacheKey(theme.cacheKey, identity), selected)
+          globalThis.localStorage?.setItem(themeCacheKey(identity), selected)
         } catch {
           /* Storage can be blocked. */
         }
@@ -87,7 +119,7 @@ export function attachUserContextTheme(options: {
     stopObserving = undefined
     store = undefined
     const mine = ++attempt
-    current = readCachedTheme(theme.cacheKey, shellState.getUser())
+    current = readCachedTheme(shellState.getUser())
     apply()
     if (shellState.getUser() === null) return
     host

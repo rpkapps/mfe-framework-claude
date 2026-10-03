@@ -3,7 +3,7 @@ import { z } from 'zod'
 import type { StateRecord, UserContextHost } from '@company/mfe-core/user-context'
 import { ShellStateStore } from '../shell-state/shell-state-store.ts'
 import { createHostUserContext } from '../user-context/host.ts'
-import { attachUserContextTheme, readCachedTheme, themeCacheKey } from './user-context-theme.ts'
+import { attachUserContextTheme, cachedTheme, themeCacheKey } from './user-context-theme.ts'
 
 const schema = z.object({ theme: z.enum(['light', 'dark', 'system']).default('system') })
 const user = { id: 'u', name: 'User', tenantId: 'a' }
@@ -35,15 +35,12 @@ function attach(host: UserContextHost, shellState: ShellStateStore) {
   return attachUserContextTheme({
     host,
     shellState,
-    theme: {
-      cacheKey: 'portal:theme',
-      select: context => (context as { theme: 'light' | 'dark' | 'system' }).theme,
-    },
+    select: context => (context as { theme: 'light' | 'dark' | 'system' }).theme,
   })
 }
 describe('user-context theme', () => {
   it('exposes cached theme during API hydration, then applies and caches confirmed writes', async () => {
-    localStorage.setItem(themeCacheKey('portal:theme', user), 'dark')
+    localStorage.setItem(themeCacheKey(user), 'dark')
     let finish!: (records: readonly StateRecord[]) => void
     const { host, shellState } = setup(
       () =>
@@ -59,10 +56,10 @@ describe('user-context theme', () => {
     const result = await (await host.prepared()).userContext.set('theme', 'dark')
     expect(result.ok).toBe(true)
     expect(shellState.getTheme()).toBe('dark')
-    expect(localStorage.getItem(themeCacheKey('portal:theme', user))).toBe('dark')
+    expect(localStorage.getItem(themeCacheKey(user))).toBe('dark')
   })
   it('retains cached theme and cache contents on hydration failure, then applies a retried load', async () => {
-    localStorage.setItem(themeCacheKey('portal:theme', user), 'dark')
+    localStorage.setItem(themeCacheKey(user), 'dark')
     let available = false
     const { host, shellState } = setup(async () => {
       if (!available) throw new Error('offline')
@@ -70,20 +67,21 @@ describe('user-context theme', () => {
     })
     await expect(host.prepared()).rejects.toThrow()
     expect(shellState.getTheme()).toBe('dark')
-    expect(localStorage.getItem(themeCacheKey('portal:theme', user))).toBe('dark')
+    expect(localStorage.getItem(themeCacheKey(user))).toBe('dark')
     available = true
     host.retry()
     await host.prepared()
     expect(shellState.getTheme()).toBe('light')
   })
   it('partitions caches by tenant/account/user and ignores malformed or unknown identities', () => {
-    localStorage.setItem(themeCacheKey('portal:theme', user), 'dark')
-    expect(readCachedTheme('portal:theme', user)).toBe('dark')
-    expect(readCachedTheme('portal:theme', { ...user, tenantId: 'b' })).toBe('system')
-    expect(readCachedTheme('portal:theme', { ...user, accountId: 'b' })).toBe('system')
-    expect(readCachedTheme('portal:theme', undefined)).toBe('system')
-    localStorage.setItem(themeCacheKey('portal:theme', user), 'invalid')
-    expect(readCachedTheme('portal:theme', user)).toBe('system')
+    vi.stubGlobal('matchMedia', () => ({ matches: false }))
+    localStorage.setItem(themeCacheKey(user), 'dark')
+    expect(cachedTheme(user)).toBe('dark')
+    expect(cachedTheme({ ...user, tenantId: 'b' })).toBe('light')
+    expect(cachedTheme({ ...user, accountId: 'b' })).toBe('light')
+    expect(cachedTheme(undefined)).toBe('light')
+    localStorage.setItem(themeCacheKey(user), 'invalid')
+    expect(cachedTheme(user)).toBe('light')
   })
   it('follows system changes only when the persisted preference is system', async () => {
     let dark = false
@@ -112,10 +110,10 @@ describe('user-context theme', () => {
 })
 
 it('replaces a cached preference with the default after a confirmed absent record', async () => {
-  localStorage.setItem(themeCacheKey('portal:theme', user), 'dark')
+  localStorage.setItem(themeCacheKey(user), 'dark')
   const { host, shellState } = setup(async () => [{ id: 'shell', revision: 0 }])
   await host.prepared()
-  expect(localStorage.getItem(themeCacheKey('portal:theme', user))).toBe('system')
+  expect(localStorage.getItem(themeCacheKey(user))).toBe('system')
   expect(shellState.getTheme()).toBe('light')
 })
 
@@ -137,9 +135,9 @@ it('ignores delayed hydration across identity changes and never hydrates after s
     },
     shellState,
   })
-  localStorage.setItem(themeCacheKey('portal:theme', user), 'dark')
+  localStorage.setItem(themeCacheKey(user), 'dark')
   const nextUser = { ...user, tenantId: 'b' }
-  localStorage.setItem(themeCacheKey('portal:theme', nextUser), 'light')
+  localStorage.setItem(themeCacheKey(nextUser), 'light')
   const stop = attach(managed.service.host!, shellState)
   cleanups.push(
     stop,
@@ -153,7 +151,7 @@ it('ignores delayed hydration across identity changes and never hydrates after s
   requests[1]?.resolve([{ id: 'shell', revision: 1, value: { theme: 'light' } }])
   await managed.service.host!.prepared()
   expect(shellState.getTheme()).toBe('light')
-  expect(localStorage.getItem(themeCacheKey('portal:theme', nextUser))).toBe('light')
+  expect(localStorage.getItem(themeCacheKey(nextUser))).toBe('light')
   shellState.apply({ user: null })
   await Promise.resolve()
   expect(hydrate).toHaveBeenCalledTimes(2)
@@ -163,8 +161,8 @@ it('ignores delayed hydration across identity changes and never hydrates after s
 it('never caches a record delivered for the next user under the previous identity', async () => {
   const shellState = new ShellStateStore({ user, groups: [], theme: 'light' })
   const nextUser = { ...user, id: 'two' }
-  localStorage.setItem(themeCacheKey('portal:theme', user), 'dark')
-  localStorage.setItem(themeCacheKey('portal:theme', nextUser), 'light')
+  localStorage.setItem(themeCacheKey(user), 'dark')
+  localStorage.setItem(themeCacheKey(nextUser), 'light')
   const managed = createHostUserContext({
     persistence: {
       schema,
@@ -193,6 +191,6 @@ it('never caches a record delivered for the next user under the previous identit
   )
   shellState.apply({ user: nextUser })
   await managed.service.host!.prepared()
-  expect(localStorage.getItem(themeCacheKey('portal:theme', user))).toBe('dark')
-  expect(localStorage.getItem(themeCacheKey('portal:theme', nextUser))).toBe('light')
+  expect(localStorage.getItem(themeCacheKey(user))).toBe('dark')
+  expect(localStorage.getItem(themeCacheKey(nextUser))).toBe('light')
 })

@@ -135,19 +135,13 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
   const navigate = useNavigate()
   const surface = useShellSurface()
   // Shell state is the theme's one source of truth, so a mounted App reads the same value
-  // through the same hook.
+  // through the same hook; the runtime applies it to the document.
   const theme = useTheme()
   useAnnounceShellNavigation()
   // The shell's own actions and their keys, and the one listener every action's keys go
   // through — a mounted App's included, which renders in a React root of its own.
   useShellActions()
   useActionShortcuts()
-
-  useEffect(() => {
-    // `dark` is what the design system's variant keys off.
-    document.documentElement.classList.toggle('dark', theme === 'dark')
-    document.documentElement.style.colorScheme = theme
-  }, [theme])
 
   // `action` is forwarded rather than dropped, because refusing the back button while allowing a
   // redirect is a distinction an App is entitled to make.

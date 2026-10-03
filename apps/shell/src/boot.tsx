@@ -95,7 +95,7 @@ installShellAuth({
 const overrideSource = overrideStorage()
 
 const { runtime, activeOverrides } = createMfeRuntime({
-  theme: { select: context => context.preferences.theme, cacheKey: 'portal:theme' },
+  theme: context => context.preferences.theme,
   registryEntries: await fetchRegistryEntries(),
   // Every framework this shell serves, each listed: nothing is registered implicitly, and no
   // entry is read by an adapter it does not name.

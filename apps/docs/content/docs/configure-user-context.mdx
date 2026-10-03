@@ -124,14 +124,11 @@ const { runtime } = createMfeRuntime({
       }),
     },
   },
-  theme: {
-    select: context => context.preferences.theme,
-    cacheKey: 'portal:theme',
-  },
+  theme: context => context.preferences.theme,
 })
 ```
 
-The runtime validates the shell's slice with this schema. The build discovers this call from the shell entry and copies the declaration so the generated `#mfe/user-context` hook infers its types; run the shell's generation command to generate it. `theme.select` infers the owned shape from `schema`. The adapter remains a normal local module. `reads` declares only the foreign fields the shell uses; here, it needs Lab's selected well ID without importing Lab's full schema, and defaults it to `null` until Lab has saved one.
+The runtime validates the shell's slice with this schema. The build discovers this call from the shell entry and copies the declaration so the generated `#mfe/user-context` hook infers its types; run the shell's generation command to generate it. The `theme` selector infers the owned shape from `schema`. The adapter remains a normal local module. `reads` declares only the foreign fields the shell uses; here, it needs Lab's selected well ID without importing Lab's full schema, and defaults it to `null` until Lab has saved one.
 
 A shell setting uses the same owner-inferred binding:
 
@@ -157,7 +154,26 @@ export function SelectedWell() {
 
 Mount these components within a Suspense boundary and an error boundary, as their initial reads wait for hydration. After a failed load, call `runtime.userContext.host.retry()` when the boundary resets or mounts again to load once more. The foreign Lab binding returns a one-element tuple with no setter. A component rerenders only when its selected value changes, and subscriptions clean up automatically. Other shell surfaces can keep reading the effective theme while that preference loads. Only accepted writes update the stored preference.
 
-The framework maintains a theme cache partitioned by authenticated tenant, account and user. The shell's prepaint bootstrap must use the same cache key and known identity: `themeCacheKey(cacheKey, user)` from the `/host` entry builds that key, and `readCachedTheme(cacheKey, user)` reads it safely. Before identity is available, use the system theme; do not apply another user's cached preference. A theme correction may be necessary after sign-in when the identity was unknown at first paint.
+With `theme`, the runtime owns the effective theme: it applies it to `runtime.shellState` and the document's `dark` class and `colorScheme`, follows the system preference for `system`, and keeps a startup cache partitioned by authenticated tenant, account and user. The shell does not toggle the document class itself. To apply that cache before first paint, inline the script `themeBootstrapScript()` from the `/host` entry returns, for example as an HTML template parameter at build time:
+
+```ts shared title="rsbuild.config.ts"
+import { themeBootstrapScript } from '@company/mfe-react/host'
+
+export default defineConfig({
+  html: {
+    template: './src/index.html',
+    templateParameters: { themeBootstrap: themeBootstrapScript() },
+  },
+})
+```
+
+```html shared title="src/index.html"
+<script>
+  <%= themeBootstrap %>
+</script>
+```
+
+The script reads the cache of the user the server names with `data-user-id` (and `data-tenant-id`, `data-account-id`) on `<html>`. Without a known identity it uses the system theme and never another user's cached preference, so a theme correction may be necessary after sign-in.
 
 ## Inspect context
 

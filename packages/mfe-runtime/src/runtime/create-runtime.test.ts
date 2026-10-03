@@ -560,7 +560,7 @@ describe('user context on the host factory', () => {
       const options: CreateMfeRuntimeOptions = {
         ...baseOptions(),
         diagnostics,
-        theme: { cacheKey: 'test:theme', select: () => 'dark' },
+        theme: () => 'dark',
         ...(missing === 'missing-adapter'
           ? {}
           : { userContext: { adapter: { hydrate: vi.fn(), write: vi.fn(), subscribe } } }),
@@ -583,22 +583,46 @@ describe('user context on the host factory', () => {
         }),
         adapter: { hydrate, write: vi.fn() },
       },
-      theme: {
-        cacheKey: 'test:theme',
-        select: context => {
-          expectTypeOf(context.preferences.theme).toEqualTypeOf<'light' | 'dark' | 'system'>()
-          // @ts-expect-error: the selector is constrained to the owner's declared output
-          void context.notDeclared
-          // @ts-expect-error: nested unknown fields are rejected too
-          void context.preferences.other
-          return context.preferences.theme
-        },
+      theme: context => {
+        expectTypeOf(context.preferences.theme).toEqualTypeOf<'light' | 'dark' | 'system'>()
+        // @ts-expect-error: the selector is constrained to the owner's declared output
+        void context.notDeclared
+        // @ts-expect-error: nested unknown fields are rejected too
+        void context.preferences.other
+        return context.preferences.theme
       },
     })
     expect(created.runtime.userContext?.host?.id).toBe('shell')
     await vi.waitFor(() => expect(created.runtime.shellState.getTheme()).toBe('dark'))
+    // The runtime, not the host's UI, applies the theme to the document.
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
+    expect(document.documentElement.style.colorScheme).toBe('dark')
     expect(hydrate).toHaveBeenCalledWith(['shell'], expect.any(AbortSignal))
     created.dispose()
+  })
+
+  it('paints the system theme while nobody is signed in', () => {
+    document.documentElement.classList.remove('dark')
+    vi.stubGlobal('matchMedia', () => ({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }))
+    const hydrate = vi.fn()
+    const created = createMfeRuntime({
+      ...baseOptions(),
+      shellState: { user: null, groups: [] },
+      userContext: {
+        schema: z.object({ theme: z.enum(['light', 'dark', 'system']).default('system') }),
+        adapter: { hydrate, write: vi.fn() },
+      },
+      theme: context => context.theme,
+    })
+    expect(created.runtime.shellState.getTheme()).toBe('dark')
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
+    expect(hydrate).not.toHaveBeenCalled()
+    created.dispose()
+    vi.unstubAllGlobals()
   })
 
   it('supports a host without context or an explicit initial theme', () => {

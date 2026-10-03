@@ -1,9 +1,5 @@
 import type { z } from 'zod'
-import {
-  readCachedTheme,
-  resolveTheme,
-  type UserContextThemeOptions,
-} from '../theme/user-context-theme.ts'
+import { cachedTheme, type ThemeSelector } from '../theme/user-context-theme.ts'
 import type { UserContextService } from '@company/mfe-core/user-context'
 import type { HostUserContextOptions } from '../user-context/host.ts'
 /**
@@ -78,9 +74,13 @@ export interface MfeRuntime {
 export interface CreateMfeRuntimeOptions<
   Schema extends z.ZodObject | undefined = z.ZodObject | undefined,
 > {
-  readonly theme?: UserContextThemeOptions<
-    NoInfer<Schema extends z.ZodObject ? z.output<Schema> : unknown>
-  >
+  /**
+   * Selects the theme preference from the shell's own slice. The runtime then owns the effective
+   * theme: `shellState`, the document's `dark` class and `colorScheme`, `system` following
+   * `prefers-color-scheme`, and a per-user startup cache that `themeBootstrapScript()` reads
+   * before first paint.
+   */
+  readonly theme?: ThemeSelector<NoInfer<Schema extends z.ZodObject ? z.output<Schema> : unknown>>
   /** The shell's own slice and reads beside its persistence; identity comes from shellState. */
   readonly userContext?: HostUserContextOptions<Schema>
   /** Raw registry entries, usually fetched by the shell at boot. */
@@ -176,7 +176,7 @@ export function createMfeRuntime<Schema extends z.ZodObject | undefined = undefi
     options.theme
       ? {
           ...options.shellState,
-          theme: resolveTheme(readCachedTheme(options.theme.cacheKey, options.shellState.user)),
+          theme: cachedTheme(options.shellState.user),
         }
       : { ...options.shellState, theme: options.shellState.theme ?? 'light' },
   )
@@ -228,7 +228,7 @@ export function createMfeRuntime<Schema extends z.ZodObject | undefined = undefi
 
   const assembled = assembleRuntime({
     registry,
-    theme: options.theme as UserContextThemeOptions<unknown> | undefined,
+    theme: options.theme as ThemeSelector<unknown> | undefined,
     userContext: options.userContext,
     loader: options.loader,
     adapters: options.adapters,

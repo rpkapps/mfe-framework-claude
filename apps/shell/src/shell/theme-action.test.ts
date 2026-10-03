@@ -60,7 +60,7 @@ async function setup() {
     telemetryProvider: createRecordingTelemetryProvider(),
     navigationBridge: createMemoryNavigationBridge(['/']),
     userContext: { schema, adapter: { hydrate, write } },
-    theme: { select: value => (value as Values).preferences.theme, cacheKey: 'theme-action-test' },
+    theme: context => context.preferences.theme,
   })
   disposals.push(handle.dispose)
   const container = document.createElement('div')

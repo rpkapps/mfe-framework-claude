@@ -279,10 +279,13 @@ class and `colorScheme` aligned. Chrome, mounted Apps and the design system's
 `Toaster` read that effective value through `useTheme()`. Hydrating the setting
 never blocks the rest of the shell: it has its own Suspense and error boundaries.
 
-The framework maintains a startup cache under `portal:theme`, partitioned by tenant,
-account and user identity. The inline script in `src/index.html` can read it before
-first paint only when the server has supplied `data-user-id` and, where applicable,
-`data-tenant-id` and `data-account-id` on `<html>`. Without a known identity it uses
+The runtime is the theme's one owner: nothing in the shell toggles the document
+class. It maintains a startup cache partitioned by tenant, account and user
+identity, and writes the inline script `src/index.html` runs before first paint:
+`rsbuild.config.ts` passes `themeBootstrapScript()` to the template, so the script
+never copies the cache key. It can read the cache only when the server has supplied
+`data-user-id` and, where applicable, `data-tenant-id` and `data-account-id` on
+`<html>`. Without a known identity it uses
 the system theme, then the authenticated runtime applies the correct user's cache
 and confirmed preference. The current static shell does not inject those identity
 attributes, so a correction after sign-in is possible; it does not promise to

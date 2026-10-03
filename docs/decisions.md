@@ -584,10 +584,12 @@ The legacy interoperation rationale above is historical.
 
 **User-context amendment:** the shell now persists `preferences.theme` as its own
 context and exposes the effective theme through shell state. The framework owns a
-startup cache partitioned by tenant, account and user. Pre-paint use requires a
-known identity in the document; otherwise the page starts with the system theme
-and may correct it after sign-in. The bare key and shell-local storage helpers
-above are historical. See [the user-context protocol](./user-context.md).
+startup cache partitioned by tenant, account and user, applies the theme to the
+document, and writes the pre-paint script (`themeBootstrapScript()`) so no host
+copies the cache key. Pre-paint use requires a known identity in the document;
+otherwise the page starts with the system theme and may correct it after sign-in.
+The bare key and shell-local storage helpers above are historical. See
+[the user-context protocol](./user-context.md).
 
 ---
 

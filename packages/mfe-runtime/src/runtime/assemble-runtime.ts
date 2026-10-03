@@ -1,7 +1,4 @@
-import {
-  attachUserContextTheme,
-  type UserContextThemeOptions,
-} from '../theme/user-context-theme.ts'
+import { attachUserContextTheme, type ThemeSelector } from '../theme/user-context-theme.ts'
 import { createHostUserContext, type HostUserContextOptions } from '../user-context/host.ts'
 /**
  * The wiring `createMfeRuntime` and the memory runtime share, so a test runs on a runtime put
@@ -51,7 +48,7 @@ export function reportRejectedEntries(registry: Registry, diagnostics: Diagnosti
 }
 
 export interface RuntimeParts {
-  readonly theme?: UserContextThemeOptions<unknown> | undefined
+  readonly theme?: ThemeSelector<unknown> | undefined
   readonly userContext?: HostUserContextOptions | undefined
   readonly registry: Registry
   /** Wrapped in each entry's adapter's `aroundLoad`, then shared. */
@@ -145,7 +142,7 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
       ? attachUserContextTheme({
           host: userContext.host,
           shellState,
-          theme: parts.theme,
+          select: parts.theme,
         })
       : undefined
   const runtime: MfeRuntime = {

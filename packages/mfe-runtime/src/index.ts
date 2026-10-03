@@ -244,13 +244,7 @@ export type { Diagnostic, DiagnosticSeverity, DiagnosticsSink } from '@company/m
 
 export { capabilityRoute } from './registry/capability-route.ts'
 
-export {
-  readCachedTheme,
-  resolveTheme,
-  themeCacheKey,
-  type ThemePreference,
-  type UserContextThemeOptions,
-} from './theme/user-context-theme.ts'
+export { themeBootstrapScript } from './theme/user-context-theme.ts'
 
 export { HOST_USER_CONTEXT_ID, type HostUserContextOptions } from './user-context/host.ts'
 
