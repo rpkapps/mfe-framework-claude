@@ -22,20 +22,20 @@ import {
   type TelemetryProvider,
 } from '@company/mfe-react/host'
 import { reactAdapter } from '@company/mfe-react/registry'
-import { createDemoSharedState } from '@example/shared-state-demo/browser'
 import { loadRemote, registerRemotes } from '@module-federation/runtime'
 import { toast } from 'sonner'
+import { z } from 'zod'
 
 import { angularAdapter } from './angular/index.ts'
 import { shellSession } from './auth/gate.ts'
 import { installShellChat, LazyShellChat } from './chat/instance.ts'
 import { createFaroProvider } from './shell/faro.ts'
 import { routerNavigation } from './shell/navigation.ts'
-import { preferredTheme } from './shell/preferences.ts'
 import { ShellReady } from './shell/ready.tsx'
 import { createShellRouter } from './shell/router.tsx'
 import { createDevSession } from './shell/session.ts'
 import { notices } from './shell/workspace.ts'
+import { userContextAdapter } from './user-context-adapter.ts'
 import './styles/app.css'
 
 /** A registry that will not load is a diagnostic, not a crash: the shell still boots. */
@@ -95,7 +95,7 @@ installShellAuth({
 const overrideSource = overrideStorage()
 
 const { runtime, activeOverrides } = createMfeRuntime({
-  sharedState: createDemoSharedState(),
+  theme: context => context.preferences.theme,
   registryEntries: await fetchRegistryEntries(),
   // Every framework this shell serves, each listed: nothing is registered implicitly, and no
   // entry is read by an adapter it does not name.
@@ -110,14 +110,21 @@ const { runtime, activeOverrides } = createMfeRuntime({
   shellState: {
     user: session.identity.user,
     groups: session.identity.groups,
-    // Decided the same way the pre-paint script in index.html decided it, so shell state agrees
-    // with what the document is already painting.
-    theme: preferredTheme(),
   },
   telemetryProvider: telemetry,
   navigationBridge: createBrowserNavigationBridge(),
   diagnostics,
   ...(overrideSource === undefined ? {} : { overrideStorage: overrideSource }),
+  userContext: {
+    adapter: userContextAdapter,
+    schema: z.object({
+      preferences: z
+        .object({
+          theme: z.enum(['light', 'dark', 'system']).default('system'),
+        })
+        .default({ theme: 'system' }),
+    }),
+  },
   notifyActionDenial: notice => toast.warning(notice.label, { description: notice.reason }),
 })
 

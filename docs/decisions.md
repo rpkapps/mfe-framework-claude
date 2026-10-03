@@ -582,6 +582,15 @@ retention (§56); the host scope keeps the tab's session identity record in its 
 The theme key remains a pre-paint shell preference, read before the runtime starts.
 The legacy interoperation rationale above is historical.
 
+**User-context amendment:** the shell now persists `preferences.theme` as its own
+context and exposes the effective theme through shell state. The framework owns a
+startup cache partitioned by tenant, account and user, applies the theme to the
+document, and writes the pre-paint script (`themeBootstrapScript()`) so no host
+copies the cache key. Pre-paint use requires a known identity in the document;
+otherwise the page starts with the system theme and may correct it after sign-in.
+The bare key and shell-local storage helpers above are historical. See
+[the user-context protocol](./user-context.md).
+
 ---
 
 ## 25. The runtime adopts the shell's hub, and owns everything else
@@ -2032,6 +2041,46 @@ record — leaves it for the next person on a shared browser profile, and the fr
 nothing to stop it. Clearing it is the container's own work until retention comes back, and
 bringing it back is an optional field, so it would not break anyone who stores today.
 
-## Shared-state contracts and persistence
+## 57. User context validates with runtime Zod and saves each key last-write-wins
 
-Shared-state authoring uses one domain Zod object with actual state IDs as its root keys. Generated bindings expose a typed hook/injector and an imperative store for routes. Contract compilation and compatibility history stay in development/release tooling; runtime values use the shell’s latest compiled schema. Object writes merge recursively, omission never deletes a field, and older consumers need no runtime contract list. Optimistic writes retain original record revisions, merge supplied object fields transactionally, and await durable acceptance. Scope changes invalidate bindings and pending work. See [the shared-state API and protocol](./shared-state.md) for structural clears, supported evolution and backend obligations.
+**Decision:** each definition declares `userContext.schema` for its own slice and
+`userContext.reads` for the fields of other owners it reads. The runtime validates with those Zod
+schemas directly: the owner's schema checks its writes and every record it loads, and a reader's
+subset checks only the fields it reads. Generated React tuple bindings and Angular signal objects
+expose selected reads, structured asynchronous write results and lifecycle-managed subscriptions.
+The build only copies the declaration into a module the binding imports for its types, so an
+undeclared owner or key stays a compile error. The runtime checks two things: a mount writes only
+its own owner, and reads only the owners it declared.
+
+A `set` sends one whole key; the server replaces that key, bumps the record's revision and
+returns the record, and the client keeps a record only when its revision is newer. A failed write
+rejects only that `set` and reads the owner again. The adapter is scope-free: the store resets
+when the signed-in user changes, and every binding and request of the previous user fails closed.
+The server backend takes the scope per call from its own authenticated request and persists an
+opaque per-user owner document with a revision per owner; no domain schemas or defaults are
+registered there. See [the user-context API and protocol](./user-context.md).
+
+**Why:** the first design compiled each schema into a structural contract that the registry
+carried and the runtime re-interpreted, with capability signatures, reader-compatibility checks
+and a release-time `compareContracts`. Every schema feature needed compiler support, so unions,
+records, refinements and transforms were refused, and a reader's contract that no longer matched
+the deployed owner's could block a mount. Validating with the authored schema removes that layer
+and accepts any schema whose output is JSON. Saves were compare-and-swap with optimistic display,
+a pending count and conflict recovery; per-key last-write-wins needs none of that, and two tabs
+editing different keys never collide.
+
+**Cost:** Zod now ships in each container's bundle and runs in the browser, where the compiled
+contract did not. A reader no longer sees the owner's defaults: it parses only what the owner
+stored, so a reader field the owner may not have written needs its own default, or must be
+optional or nullable. Two tabs editing the same key keep the later save, not a merge. A container
+can no longer check offline that its reads still match a published owner; a mismatch shows at
+runtime as `user-context/invalid-value` on that reader only.
+
+**Selections and the shell:** a binding observes the whole owner record and reruns its selector on
+every change of that record, sharing structure with the previous result so an unchanged selection
+keeps its identity and nothing rerenders. It replaced tracking each field a selector read through
+Proxies, which cost more code than the selector runs it saved. The shell's own slice is prepared
+through the same path as a mount's, once per signed-in user, and its generated binding only reads
+that preparation; a failed one stays failed, so rendering never retries in a loop, until
+`host.retry()` or the next user replaces it. The cost is a selector run per owner commit, so
+selectors should stay cheap.

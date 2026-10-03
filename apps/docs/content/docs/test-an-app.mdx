@@ -59,7 +59,7 @@ it('reads its path parameter from the host URL', async () => {
 
 `mountApp` is asynchronous and waits for Angular to settle. This example assumes your App displays
 its account id at `accounts/:accountId`. Replace the definition, URL and assertion with your own.
-If your definition declares shared state, supply its contract and persistence fixtures in the test options.
+If your definition declares user context, pass `userContext: { adapter }` in the test options. `scopedUserContextAdapter(createUserContextBackend({ repository, resolveOwner, authorize }), 'test')`, with `createTestUserContextRepository()` from the same `/testing` entry, gives it an in-memory backend for one user.
 
 </Tab>
 </Tabs>

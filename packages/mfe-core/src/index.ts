@@ -10,6 +10,7 @@ export {
   isMfeError,
   toMfeError,
   type MfeError,
+  type MfeResult,
   type MfeErrorCode,
   type MfeErrorDetails,
   type MfeErrorDirection,

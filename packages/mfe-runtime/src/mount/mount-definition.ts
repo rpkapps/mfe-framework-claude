@@ -373,7 +373,7 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
 
     const context = createMountContext({
       runtime,
-      definitionId: definition.id,
+      definitionId: this.#request.definitionId,
       ...withoutUndefined({ definitionVersion: definition.version }),
       kind: definition.kind,
       ...(this.#request.kind === 'app' ? { basePath: this.#request.basePath } : {}),

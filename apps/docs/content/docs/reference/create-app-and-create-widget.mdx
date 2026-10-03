@@ -81,6 +81,17 @@ export const alertPanel = createWidget({
 | `tags`         | `readonly string[]`                       | no       | Presentation.                                                                                        |
 | `icon`         | imported identifier                       | no       | Presentation.                                                                                        |
 
+## User context options
+
+React and Angular Apps and Widgets accept one optional `userContext` declaration with these optional properties:
+
+| Option               | Type                           | What it does                                                                                               |
+| -------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `userContext.schema` | `z.object`                     | Declares the context slice owned by this definition ID. Its properties are local keys.                     |
+| `userContext.reads`  | owner ID to `z.object` mapping | Declares read-only subsets of other owners' slices. Default each field the owner may not have written yet. |
+
+The runtime validates with these schemas, so what they parse to must be JSON. Generated `#mfe/user-context` bindings infer the mounted owner when called with a selector alone. React returns `[value, set]`; Angular returns `{ value: Signal<T>, set }`. An explicit foreign-owner ID returns only `[value]` or `{ value: Signal<T> }`, without a setter. Writes return structured asynchronous results after persistence accepts them. See [Use user context](/docs/user-context) for React, Angular and route callback examples.
+
 ## The four presentation options
 
 A host reads these from the registry before it has fetched your container. All four are optional, and all four must be written as literals.

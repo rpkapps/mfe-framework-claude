@@ -1,4 +1,5 @@
-import { SharedStateRuntime, type SharedStateOptions } from '../shared-state/store.ts'
+import { attachUserContextTheme, type ThemeSelector } from '../theme/user-context-theme.ts'
+import { createHostUserContext, type HostUserContextOptions } from '../user-context/host.ts'
 /**
  * The wiring `createMfeRuntime` and the memory runtime share, so a test runs on a runtime put
  * together exactly as a shell's is: only where the registry, storage, history and loader come
@@ -47,7 +48,8 @@ export function reportRejectedEntries(registry: Registry, diagnostics: Diagnosti
 }
 
 export interface RuntimeParts {
-  readonly sharedState?: SharedStateOptions | undefined
+  readonly theme?: ThemeSelector<unknown> | undefined
+  readonly userContext?: HostUserContextOptions | undefined
   readonly registry: Registry
   /** Wrapped in each entry's adapter's `aroundLoad`, then shared. */
   readonly loader: ContainerLoader
@@ -116,26 +118,35 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
     readLocation: () => navigator.read(),
   })
 
-  const sharedState =
-    parts.sharedState === undefined
+  const reportContextError = (error: unknown, id: string): void => {
+    diagnostics.report(
+      toMfeError(error, {
+        code: 'user-context/persistence-failed',
+        id,
+        operation: 'synchronize user context',
+        repair: 'Handle the setter result or fix the stored record through the shell adapter.',
+      }),
+    )
+    parts.userContext?.onError?.(error, id)
+  }
+  const managed =
+    parts.userContext === undefined
       ? undefined
-      : new SharedStateRuntime({
-          ...parts.sharedState,
-          onError: (error, id) => {
-            diagnostics.report(
-              toMfeError(error, {
-                code: 'shared-state/persistence-failed',
-                id,
-                operation: 'synchronize shared state',
-                repair:
-                  'Handle the setter rejection or recover invalid data through the shell adapter.',
-              }),
-            )
-            parts.sharedState?.onError?.(error, id)
-          },
+      : createHostUserContext({
+          persistence: { ...parts.userContext, onError: reportContextError },
+          shellState,
         })
+  const userContext = managed?.service
+  const stopTheme =
+    parts.theme && userContext?.host
+      ? attachUserContextTheme({
+          host: userContext.host,
+          shellState,
+          select: parts.theme,
+        })
+      : undefined
   const runtime: MfeRuntime = {
-    ...withoutUndefined({ sharedState }),
+    ...withoutUndefined({ userContext }),
     apiVersion: RUNTIME_API_VERSION,
     registry: parts.registry,
     mounts,
@@ -160,8 +171,9 @@ export function assembleRuntime(parts: RuntimeParts): AssembledRuntime {
   return {
     runtime,
     dispose: () => {
+      stopTheme?.()
       mounts.dispose()
-      sharedState?.dispose()
+      managed?.dispose()
       actions.dispose()
       breadcrumbs.dispose()
       agentContext.dispose()

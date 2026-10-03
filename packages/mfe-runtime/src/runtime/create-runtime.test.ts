@@ -4,7 +4,7 @@
  * releases what it created and nothing it was lent.
  */
 
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { z } from 'zod'
 
 import {
@@ -532,5 +532,127 @@ describe('auditing action runs', () => {
     expect(recorded.map(diagnostic => [diagnostic.severity, diagnostic.error.code])).toEqual([
       ['warning', 'config/invalid'],
     ])
+  })
+})
+
+describe('user context on the host factory', () => {
+  it('boots with only a persistence adapter and reads an owner before mounting it', async () => {
+    const hydrate = vi.fn(async () => [{ id: 'operations', revision: 0 }])
+    const { runtime } = create({ userContext: { adapter: { hydrate, write: vi.fn() } } })
+    const reports = {
+      id: 'reports',
+      userContext: { reads: { operations: z.object({ units: z.string().default('metric') }) } },
+    }
+    await runtime.userContext?.prepare(reports)
+    expect(runtime.userContext?.bindReadOnly(reports, 'operations').get('units')).toBe('metric')
+    expect(hydrate).toHaveBeenCalledWith(['operations'], expect.any(AbortSignal))
+    runtime.shellState.apply({ user: null })
+    await expect(runtime.userContext?.prepare(reports)).rejects.toThrow('Sign in')
+    expect(hydrate).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['missing-schema', 'missing-adapter'] as const)(
+    'rejects a theme with a %s before registering diagnostics or starting persistence',
+    missing => {
+      const subscribe = vi.fn(() => vi.fn())
+      const diagnostics = new DiagnosticsHub()
+      const add = vi.spyOn(diagnostics, 'add')
+      const options: CreateMfeRuntimeOptions = {
+        ...baseOptions(),
+        diagnostics,
+        theme: () => 'dark',
+        ...(missing === 'missing-adapter'
+          ? {}
+          : { userContext: { adapter: { hydrate: vi.fn(), write: vi.fn(), subscribe } } }),
+      }
+      expect(() => createMfeRuntime(options)).toThrow('a shell userContext.schema')
+      expect(subscribe).not.toHaveBeenCalled()
+      expect(add).not.toHaveBeenCalled()
+    },
+  )
+
+  it('infers schema output for the theme selector', async () => {
+    const hydrate = vi.fn(async (ids: readonly string[]) =>
+      ids.map(id => ({ id, revision: 1, value: { preferences: { theme: 'dark' } } })),
+    )
+    const created = createMfeRuntime({
+      ...baseOptions(),
+      userContext: {
+        schema: z.object({
+          preferences: z.object({ theme: z.enum(['light', 'dark', 'system']).default('system') }),
+        }),
+        adapter: { hydrate, write: vi.fn() },
+      },
+      theme: context => {
+        expectTypeOf(context.preferences.theme).toEqualTypeOf<'light' | 'dark' | 'system'>()
+        // @ts-expect-error: the selector is constrained to the owner's declared output
+        void context.notDeclared
+        // @ts-expect-error: nested unknown fields are rejected too
+        void context.preferences.other
+        return context.preferences.theme
+      },
+    })
+    expect(created.runtime.userContext?.host?.id).toBe('shell')
+    await vi.waitFor(() => expect(created.runtime.shellState.getTheme()).toBe('dark'))
+    // The runtime, not the host's UI, applies the theme to the document.
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
+    expect(document.documentElement.style.colorScheme).toBe('dark')
+    expect(hydrate).toHaveBeenCalledWith(['shell'], expect.any(AbortSignal))
+    created.dispose()
+  })
+
+  it('paints the system theme while nobody is signed in', () => {
+    document.documentElement.classList.remove('dark')
+    vi.stubGlobal('matchMedia', () => ({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }))
+    const hydrate = vi.fn()
+    const created = createMfeRuntime({
+      ...baseOptions(),
+      shellState: { user: null, groups: [] },
+      userContext: {
+        schema: z.object({ theme: z.enum(['light', 'dark', 'system']).default('system') }),
+        adapter: { hydrate, write: vi.fn() },
+      },
+      theme: context => context.theme,
+    })
+    expect(created.runtime.shellState.getTheme()).toBe('dark')
+    expect(document.documentElement.classList.contains('dark')).toBe(true)
+    expect(hydrate).not.toHaveBeenCalled()
+    created.dispose()
+    vi.unstubAllGlobals()
+  })
+
+  it('supports a host without context or an explicit initial theme', () => {
+    const withoutTheme = createMfeRuntime({
+      ...baseOptions(),
+      shellState: { user: null, groups: [] },
+    })
+    expect(withoutTheme.runtime.shellState.getTheme()).toBe('light')
+    expect(withoutTheme.runtime.userContext).toBeUndefined()
+    withoutTheme.dispose()
+  })
+
+  it('supports a reads-only shell without creating an owned slice', async () => {
+    const created = createMfeRuntime({
+      ...baseOptions(),
+      userContext: {
+        reads: { operations: z.object({ units: z.string().default('metric') }) },
+        adapter: { hydrate: async () => [{ id: 'operations', revision: 0 }], write: vi.fn() },
+      },
+    })
+    const host = created.runtime.userContext?.host
+    if (!host) throw new Error('expected the shell declaration')
+    await created.runtime.userContext?.prepare(host)
+    const read = created.runtime.userContext?.bindReadOnly<{ units: string }>(host, 'operations')
+    expect(read?.getSnapshot()).toEqual({ units: 'metric' })
+    expect(read).not.toHaveProperty('set')
+    expect(() => created.runtime.userContext?.bind(host)).toThrow('Declare userContext.schema')
+    expect(
+      created.runtime.userContext?.inspection.getSnapshot().entries.map(entry => entry.id),
+    ).toEqual(['operations'])
+    created.dispose()
   })
 })

@@ -176,6 +176,6 @@ Three costs follow. A container on its own copy of `sonner`, from another React 
 - [Glossary](/docs/reference/glossary) — every term on this page, defined once.
 - [Decision log](/docs/how-it-works/decisions) — the argument behind each rule stated here.
 
-## Shared state
+## User context
 
-[Shared state](./shared-state.md) adds definition-bound React hooks, live router stores and Angular injection/signal bindings over one shell-owned structural service. Build tooling compiles authoring schemas and enforces the deployment support window. Concrete object setters preserve fields unknown to their writer; structural clears and arrays are atomic. The backend adapter must authorize, apply those operations transactionally and resolve only after durable commit.
+[User context](./user-context.md) gives each definition its own typed context slice, and read-only access to the subsets of other owners it declares. React hooks, router stores and Angular injectors share the shell service. The runtime validates with the declared Zod schemas; the build only copies each declaration so the generated binding infers its types. Writes become visible only after durable acceptance and return structured results. Each write replaces one key, and the last write of a key wins; the backend authorizes it and keeps the other keys and owners. Persistence has no domain schema configuration.

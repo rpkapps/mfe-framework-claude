@@ -263,22 +263,34 @@ that names that file.
 
 ### The theme
 
-The shell owns it, and `runtime.shellState` holds it: every switch — the account
-menu, settings, the palette, `⌘J` — is a `shellState.apply({ theme })`, and the
-chrome, a mounted App and the design system's `Toaster` all read that one value
-back through the framework's `useTheme()`. One effect in `chrome.tsx` applies
-it: the `dark` class on `<html>`, `colorScheme`, and `writeTheme`.
+The shell owns `preferences.theme` in `userContext.schema`, declared alongside
+`adapter` in the normal `createMfeRuntime` call in `src/boot.tsx`. The factory comes
+from `@company/mfe-react/host`; `src/user-context-adapter.ts` is an ordinary local
+transport module. It sends no user identity or scope: the API uses its authenticated
+session. The preference is `light`, `dark` or `system`. The generated
+`#mfe/user-context` module supplies `useUserContext` and inferred types only.
+Settings select `context.preferences.theme` and save with
+`set('preferences', { theme })`; the account menu, palette and `⌘J` use the same
+persisted theme action. A rejected save leaves the saved preference unchanged.
 
-The shell keeps its pre-paint preference as a bare `light` or `dark` string under `theme`.
-`preferences.ts` reads and writes that key through `readTheme`, `writeTheme` and `preferredTheme`.
-This lets the inline script choose the initial document theme before the framework runtime starts.
-Nothing is migrated from `company:shell:theme`.
+The runtime's `theme` option selects that preference and resolves `system` against
+`prefers-color-scheme`. It keeps the effective `runtime.shellState` theme, document
+class and `colorScheme` aligned. Chrome, mounted Apps and the design system's
+`Toaster` read that effective value through `useTheme()`. Hydrating the setting
+never blocks the rest of the shell: it has its own Suspense and error boundaries.
 
-The inline script in `index.html` reads the same bare key before first paint, so
-a light-theme user never sees the document boot dark and flip. It takes only
-`light` or `dark` and otherwise falls back to `prefers-color-scheme`, then dark
-— the order `preferredTheme()` uses to decide the theme `createMfeRuntime` is
-given, so the class on `<html>` and the shell state agree.
+The runtime is the theme's one owner: nothing in the shell toggles the document
+class. It maintains a startup cache partitioned by tenant, account and user
+identity, and writes the inline script `src/index.html` runs before first paint:
+`rsbuild.config.ts` passes `themeBootstrapScript()` to the template, so the script
+never copies the cache key. It can read the cache only when the server has supplied
+`data-user-id` and, where applicable, `data-tenant-id` and `data-account-id` on
+`<html>`. Without a known identity it uses
+the system theme, then the authenticated runtime applies the correct user's cache
+and confirmed preference. The current static shell does not inject those identity
+attributes, so a correction after sign-in is possible; it does not promise to
+eliminate that first-paint change. It never selects another user's cached preference.
+The old bare `theme` key and `readTheme`/`writeTheme` helpers are no longer used.
 
 ### Navigation an App can refuse
 

@@ -1,0 +1,25 @@
+---
+title: "Evolve an owner's user-context schema"
+description: 'Release owner schemas independently while preserving older readers and writers.'
+---
+
+Each App or Widget versions its own `userContext.schema`. Readers separately declare the subset they read in `userContext.reads`. The runtime validates with whichever schemas are deployed at the moment: the owner's schema checks every record of that owner the page loads, and each reader's subset checks only the fields it reads. Nothing compares schemas at build time, so each change below is about what is already stored and who already reads it.
+
+## Preserve compatible fields
+
+Add optional fields or fields with defaults, so a record saved before the change still validates. Keep the meaning and type of existing fields stable. Renaming or removing a field a reader requires, narrowing an enum, or changing a field's type can break a deployed reader and should be treated as a breaking change.
+
+A save replaces one whole key and keeps the other keys, so an older owner deployment that writes `units` leaves a key added by a newer deployment intact. Within a key, the writer's whole value is saved: an older deployment that writes `selection` drops a field a newer one added to `selection`, unless that field has a default the newer schema fills back in. Prefer adding a new key to adding fields to a key an older deployment still writes.
+
+The owner's schema may use anything Zod offers, including unions, records, refinements and transforms, as long as what it parses to is JSON. Stored records must still validate after a change: a record the owner's schema rejects marks that owner invalid on the page and fails its mounts with `user-context/invalid-value`.
+
+## Coordinate readers with owners
+
+A reader parses what the owner has stored, never the owner's defaults. Give each field a reader declares a default, or make it optional or nullable, whenever the owner may not have written it yet, including for every field a new owner release adds. A reader that requires a field the owner never writes fails with `user-context/invalid-value` on that reader only; the owner and other readers are unaffected.
+
+The persisted document remains opaque JSON. Adding a field does not require a backend schema change or a new adapter release; defaults and validation happen in each MFE's runtime.
+
+## Related
+
+- [Use user context in React and Angular](/docs/user-context)
+- [Configure persistence and the signed-in user](/docs/configure-user-context)

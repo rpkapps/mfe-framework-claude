@@ -1,4 +1,3 @@
-import { checkSharedStateBuild } from './shared-state/integration.ts'
 /**
  * What a container build does to each compilation, whichever bundler runs it: regenerate before
  * every compile, report the plan's findings, ship the generated artifacts and stamp the federation
@@ -68,7 +67,6 @@ export function applyContainerCompilation<Plan extends ContainerPlan, Source, Fa
   const { name } = options
   const write = createGeneratedFileWriter()
   let plan = options.plan
-  checkSharedStateBuild(plan, compiler.options.mode === 'production')
   write(plan.generated.files)
 
   // The configured plan is current for the first compile: nothing could have changed since.
@@ -79,7 +77,6 @@ export function applyContainerCompilation<Plan extends ContainerPlan, Source, Fa
       return
     }
     plan = options.replan()
-    checkSharedStateBuild(plan, compiler.options.mode === 'production')
     write(plan.generated.files)
   })
 

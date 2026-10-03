@@ -1,4 +1,4 @@
-import type { SharedStateStore, StateValues } from '@company/mfe-core/shared-state'
+import type { UserContextStore, StateValues } from '@company/mfe-core/user-context'
 /** The framework supplies history and context; every other router option is the author's. */
 
 import type { RouterHistory } from '@tanstack/react-router'
@@ -14,7 +14,7 @@ import type {
 /** `user`, `groups` and `theme` are snapshots and do not become live across an `await`. */
 export interface MfeContext<V = StateValues> {
   /** Live store, including after awaits; reads are projected to this definition’s contract. */
-  readonly sharedState: SharedStateStore<V>
+  readonly userContext: UserContextStore<V>
   /** Not an authorization API. */
   readonly user: ShellUser | null
   readonly groups: readonly string[]

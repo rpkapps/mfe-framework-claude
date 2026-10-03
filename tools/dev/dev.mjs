@@ -13,7 +13,7 @@
 import { spawn } from 'node:child_process'
 
 import { DEV_AGENT_PORT } from '../agent-dev/src/port.ts'
-import { DEV_API_PORT } from './api.mjs'
+import { DEV_API_PORT } from './api-port.mjs'
 import { busyPortsMessage, findBusyPorts, waitForPortsFree } from './ports.mjs'
 import { detachedForGroupKill, killTree, spawnPnpm } from './processes.mjs'
 import { readFile, readdir } from 'node:fs/promises'

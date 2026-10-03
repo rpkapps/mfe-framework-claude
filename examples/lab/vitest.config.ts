@@ -1,7 +1,6 @@
 import { fileURLToPath } from 'node:url'
 
 import { defineConfig } from 'vitest/config'
-import { sharedStateDeclarationsForTests } from '../../tools/shared-state/vitest.mjs'
 
 import { tectonResolveForTests, tectonServerForTests } from '../../tools/tecton/vitest.mjs'
 
@@ -11,25 +10,24 @@ import { tectonResolveForTests, tectonServerForTests } from '../../tools/tecton/
  * inside the example — which is what an MFE's own repository would have.
  */
 export default defineConfig({
-  plugins: [sharedStateDeclarationsForTests],
   resolve: {
     ...tectonResolveForTests,
     alias: [
       {
-        find: /^#mfe\/shared-state\/fieldwork$/,
+        find: /^#mfe\/user-context\/fieldwork$/,
         replacement: fileURLToPath(
-          new URL('../fieldwork/.mfe/shared-state/fieldwork.ts', import.meta.url),
+          new URL('../fieldwork/.mfe/user-context/fieldwork.ts', import.meta.url),
         ),
       },
       {
-        find: /^#mfe\/shared-state\/well-inspection$/,
+        find: /^#mfe\/user-context\/well-inspection$/,
         replacement: fileURLToPath(
-          new URL('../fieldwork/.mfe/shared-state/well-inspection.ts', import.meta.url),
+          new URL('../fieldwork/.mfe/user-context/well-inspection.ts', import.meta.url),
         ),
       },
       {
-        find: /^#mfe\/shared-state$/,
-        replacement: fileURLToPath(new URL('./.mfe/shared-state/lab.ts', import.meta.url)),
+        find: /^#mfe\/user-context$/,
+        replacement: fileURLToPath(new URL('./.mfe/user-context/lab.ts', import.meta.url)),
       },
       // The generated modules, as a test sees them (§14). `#mfe/config` and
       // `#mfe/fetch` are replaced by fixtures: the real ones fetch

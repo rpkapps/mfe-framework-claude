@@ -241,14 +241,14 @@ interface Manifest {
 }
 
 describe('MfeWebpackPlugin on a production compile', () => {
-  it('runs shared-state replacement after Angular emission', () => {
+  it('leaves user-context schemas to the runtime without transforming the entry', () => {
     const root = reportsContainer({
       'src/mfe.ts': `import { z } from 'zod'; import { createApp } from '@company/mfe-angular';
-        export const reports = createApp({ id: 'reports', routes: [], sharedStateSchema: z.object({ units: z.string().default('metric') }) });`,
+        export const reports = createApp({ id: 'reports', routes: [], userContext: { schema: z.object({ units: z.string().default('metric') }) } });`,
     })
     const compiler = webpack(angularLikeConfig(root, 'development'))
-    expect(compiler.options.module.rules).toContainEqual(
-      expect.objectContaining({ include: [join(root, 'src/mfe.ts')], enforce: 'post' }),
+    expect(compiler.options.module.rules).not.toContainEqual(
+      expect.objectContaining({ include: [join(root, 'src/mfe.ts')] }),
     )
     return close(compiler)
   })

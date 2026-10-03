@@ -26,11 +26,13 @@ copy the dev server serves, and never changes a value already there.
 
 With --host it writes what a host (the shell loading the containers)
 generates instead: #mfe/config, validated without Zod, and the same
-runtime configuration files, from the host's src/mfe.config.ts.
+runtime configuration files from src/mfe.config.ts, plus a typed user-context
+binding when the host's createMfeRuntime call declares schema or reads.
 
 Options:
   --root <directory>  the container or host to generate for (default: the working directory)
-  --host              generate a host's runtime configuration
+  --host              generate a host's runtime configuration and context binding
+  --entry <file>      host application entry (repeat for multiple entries)
   --help              show this message
 `
 
@@ -43,12 +45,12 @@ export async function generate(root: string): Promise<GenerationSummary> {
   return summarizeGeneration(plan, paths, seedLocalRuntimeConfig(plan))
 }
 
-/** A host has no definitions, only its runtime configuration. */
-export function generateHost(root: string): GenerationSummary {
-  const generation = generateHostConfig({ root })
+/** Generate deployment configuration and any context declared by the host runtime call. */
+export function generateHost(root: string, entries?: readonly string[]): GenerationSummary {
+  const generation = generateHostConfig({ root, ...(entries ? { entries } : {}) })
   if (generation === null) {
     throw new Error(
-      `${root} has no src/mfe.config.ts, so there is no host configuration to generate. Declare the host's values there with env(), as a container does.`,
+      `${root} has no src/mfe.config.ts, and no runtime userContext declaration, so there is nothing to generate. Declare runtime configuration or userContext in the host entry.`,
     )
   }
   const { plan, written } = generation
@@ -67,6 +69,7 @@ export async function main(argv: readonly string[]): Promise<number> {
       options: {
         root: { type: 'string' },
         host: { type: 'boolean', default: false },
+        entry: { type: 'string', multiple: true },
         help: { type: 'boolean', default: false },
       },
     })
@@ -84,7 +87,8 @@ export async function main(argv: readonly string[]): Promise<number> {
   let result: GenerationSummary
   try {
     const root = parsed.values.root ?? process.cwd()
-    result = parsed.values.host === true ? generateHost(root) : await generate(root)
+    result =
+      parsed.values.host === true ? generateHost(root, parsed.values.entry) : await generate(root)
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error))
     return 1

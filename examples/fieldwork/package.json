@@ -34,8 +34,7 @@
     "primeng": "catalog:",
     "rxjs": "catalog:",
     "zod": "catalog:",
-    "@example/shared-state-contracts": "workspace:*",
-    "@example/shared-state-demo": "workspace:*"
+    "@example/user-context-demo": "workspace:*"
   },
   "devDependencies": {
     "@analogjs/vite-plugin-angular": "catalog:",

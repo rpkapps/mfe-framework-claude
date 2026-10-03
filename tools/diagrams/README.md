@@ -537,7 +537,7 @@ shell column shows its page connection. The examples and exact API details belon
 | `capability-theme`        | Read the shell theme  | Shell theme setting → shell state → `useTheme()` / `injectTheme()`            |
 | `capability-breadcrumbs`  | Add breadcrumbs       | `useBreadcrumbs()` / `injectBreadcrumbs()` → breadcrumb store → shell trail   |
 | `capability-requests`     | Make an API request   | Generated `#mfe/fetch` → declared API, with the shell session token           |
-| `capability-shared-state` | Share selections      | Generated bindings → shared state service → shell-configured adapter          |
+| `capability-user-context` | Share selections      | Generated bindings → user context service → shell-configured adapter          |
 | `capability-navigation`   | Link to another App   | App router → navigation bridge → shell router                                 |
 
 ### capability-actions
@@ -570,12 +570,14 @@ Both frameworks import the same generated `#mfe/fetch` module. The generated tra
 request URLs using deployment configuration. The shell supplies one session token source. The
 transport attaches its token only to declared API origins. Other origins receive no token.
 
-### capability-shared-state
+### capability-user-context
 
-The build generates `useSharedState()` or `injectSharedState()` for each definition's declared
-contract. Mount bindings connect those calls to the runtime shared state service. The shell
-configures its schema, scope and adapter. The adapter loads and saves backend records. Optional
-subscriptions deliver external changes. This store is separate from browser stored state.
+The build generates `useUserContext()` or `injectUserContext()` for each definition's declared
+schema. Mount bindings connect those calls to the runtime user context service, which validates
+records with the owner schemas and read subsets. The shell configures its schema and adapter, and
+the service starts over when the signed-in user changes. The adapter loads and saves backend
+records. Optional subscriptions deliver external changes. This
+store is separate from browser stored state.
 
 ### capability-navigation
 

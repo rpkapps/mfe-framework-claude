@@ -10,6 +10,11 @@
 import { readConfigSource, type ConfigSource } from '../config/config-source.ts'
 import { summarizeSchema } from '../config/zod-static.ts'
 import { resolveOptions, type ContainerOptions } from '../options.ts'
+import {
+  discoverHostUserContext,
+  hostUserContextFiles,
+  type HostUserContextPlan,
+} from '../user-context/host.ts'
 import { envExampleFile, gitignoreFile, runtimeConfigSchemaFile } from './artifacts.ts'
 import {
   banner,
@@ -46,10 +51,12 @@ export interface HostConfigOptions extends Pick<
   readonly checkModule: string
   /** The name the configuration's errors carry; defaults to the package name without its scope. */
   readonly id?: string
+  /** Host application entry paths, relative to root; defaults to src/index or src/main. */
+  readonly entries?: readonly string[]
 }
 
 export interface HostConfigPlan extends RuntimeConfigPlan {
-  readonly configSource: ConfigSource
+  readonly userContext?: HostUserContextPlan
   readonly files: readonly GeneratedFile[]
   /** `#mfe/config`, pointed at the generated module. */
   readonly aliases: Readonly<Record<string, string>>
@@ -58,12 +65,11 @@ export interface HostConfigPlan extends RuntimeConfigPlan {
 }
 
 interface HostConfigContext extends ConfigGenerateContext {
-  readonly configSource: ConfigSource
   readonly host: { readonly id: string }
   readonly checkModule: string
 }
 
-/** `null` for a host that declares no `src/mfe.config.ts`, which then has no `#mfe/config`. */
+/** Environment configuration and runtime-call user context are independently optional. */
 export function planHostConfig(options: HostConfigOptions): HostConfigPlan | null {
   const resolved = resolveOptions(
     {
@@ -76,7 +82,8 @@ export function planHostConfig(options: HostConfigOptions): HostConfigPlan | nul
     'root',
   )
   const configSource = readConfigSource(resolved.containerRoot, options.envModules)
-  if (configSource === undefined) return null
+  const userContext = discoverHostUserContext(resolved.containerRoot, options.entries)
+  if (configSource === undefined && userContext === undefined) return null
 
   const context: HostConfigContext = {
     options: resolved,
@@ -89,24 +96,36 @@ export function planHostConfig(options: HostConfigOptions): HostConfigPlan | nul
   const defaults = runtimeConfigDefaultsFile(context)
   const files = [
     gitignoreFile(context),
-    hostConfigModule(context),
+    ...(configSource ? [hostConfigModule({ ...context, configSource })] : []),
     runtimeConfigSchemaFile(context),
     envExampleFile(context),
     defaults,
     runtimeConfigScriptFile(context),
   ].filter((file): file is GeneratedFile => file !== null)
+  if (userContext)
+    files.push(...hostUserContextFiles(userContext, resolved.generatedDir, options.generator))
   files.push(inventoryFile(resolved.generatedDir, files))
 
   return {
     options: resolved,
     configSource,
+    ...(userContext ? { userContext } : {}),
     files: [...files].sort((left, right) => (left.path < right.path ? -1 : 1)),
-    aliases: { [ALIASES.config]: generatedPath(resolved.generatedDir, 'config.ts') },
+    aliases: {
+      ...(configSource
+        ? { [ALIASES.config]: generatedPath(resolved.generatedDir, 'config.ts') }
+        : {}),
+      ...(userContext
+        ? { '#mfe/user-context': generatedPath(resolved.generatedDir, 'user-context.ts') }
+        : {}),
+    },
     defaults,
   }
 }
 
-function hostConfigModule(context: HostConfigContext): GeneratedFile {
+function hostConfigModule(
+  context: HostConfigContext & { readonly configSource: ConfigSource },
+): GeneratedFile {
   const file = generatedPath(context.options.generatedDir, 'config.ts')
   const fields = context.configSource.fields.map(field => ({
     field: field.field,

@@ -3,7 +3,8 @@
  * list at the bottom links to the settings pages the registry says each one published.
  */
 
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
+import { useUserContext } from '#mfe/user-context'
 import { useNavigate } from '@tanstack/react-router'
 import { useApps, useCapabilityPages, useMfeRuntime, useTheme } from '@company/mfe-react'
 import { devtools } from '@company/mfe-devtools'
@@ -33,6 +34,7 @@ import {
   ExternalLinkIcon,
   LayersIcon,
   LayoutDashboardIcon,
+  MonitorIcon,
   MoonIcon,
   SunIcon,
   Trash2Icon,
@@ -43,6 +45,7 @@ import { collectDiagnostics, formatReport } from './diagnostics.ts'
 import { EMPTY_LAYOUT } from './dashboard/layout-store.ts'
 import { useDashboardLayout } from './hooks.ts'
 import { DataList, DataRow, Mono } from './readout.tsx'
+import { UserPreferences } from './theme-action.tsx'
 import { shellUi } from './ui-store.ts'
 import { workspace } from './workspace.ts'
 
@@ -56,7 +59,6 @@ export function SettingsSheet({
   const runtime = useMfeRuntime('the shell settings')
   const navigate = useNavigate()
   const apps = useApps()
-  const theme = useTheme()
   const [layout, setLayout] = useDashboardLayout()
 
   // Only the settings pages: flattening every capability put each application's help and release
@@ -78,36 +80,14 @@ export function SettingsSheet({
         <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-4">
           <div className="flex flex-col gap-6 pb-2">
             <Section title="Appearance" hint="Shared with every mounted application">
-              <Item variant="outline" size="sm">
-                <ItemContent>
-                  <ItemTitle>Theme</ItemTitle>
-                  <ItemDescription className="whitespace-normal">
-                    Applied to the document, and published to every mount through the shell state.
-                  </ItemDescription>
-                </ItemContent>
-                <ItemActions>
-                  <ToggleGroup
-                    aria-label="Theme"
-                    value={[theme]}
-                    variant="outline"
-                    size="sm"
-                    spacing={0}
-                    onValueChange={values => {
-                      // Pressing the chosen theme again empties the group; one theme always applies.
-                      const next: unknown = values[0]
-                      if (next !== 'light' && next !== 'dark') return
-                      runtime.shellState.apply({ theme: next })
-                    }}
-                  >
-                    <ToggleGroupItem value="light" aria-label="Light theme">
-                      <SunIcon /> Light
-                    </ToggleGroupItem>
-                    <ToggleGroupItem value="dark" aria-label="Dark theme">
-                      <MoonIcon /> Dark
-                    </ToggleGroupItem>
-                  </ToggleGroup>
-                </ItemActions>
-              </Item>
+              <UserPreferences
+                pending={<ThemeStatus message="Loading your saved preference…" />}
+                failed={
+                  <ThemeStatus message="Your preference could not be loaded. Refresh to try again." />
+                }
+              >
+                <ThemeSettings />
+              </UserPreferences>
             </Section>
 
             <Section title="Widget dashboard" hint={`${String(layout.tiles.length)} tiles saved`}>
@@ -257,5 +237,62 @@ function Section({
       </div>
       {children}
     </section>
+  )
+}
+
+function ThemeStatus({ message }: { readonly message: string }): ReactNode {
+  const theme = useTheme()
+  return (
+    <p role="status">
+      {message} Current appearance: {theme}.
+    </p>
+  )
+}
+
+function ThemeSettings(): ReactNode {
+  const [theme, set] = useUserContext(context => context.preferences.theme)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  return (
+    <Item variant="outline" size="sm">
+      <ItemContent>
+        <ItemTitle>Theme</ItemTitle>
+        <ItemDescription>
+          Saved to your user settings and shared across applications.
+        </ItemDescription>
+        {saving ? <p role="status">Saving preference…</p> : null}
+        {error ? <p role="alert">{error}</p> : null}
+      </ItemContent>
+      <ItemActions>
+        <ToggleGroup
+          aria-label="Theme"
+          value={[theme]}
+          variant="outline"
+          size="sm"
+          spacing={0}
+          disabled={saving}
+          onValueChange={values => {
+            const next = values[0]
+            if (next !== 'light' && next !== 'dark' && next !== 'system') return
+            setSaving(true)
+            setError(null)
+            void set('preferences', { theme: next }).then(result => {
+              setSaving(false)
+              if (!result.ok) setError('Your theme was not saved. Please try again.')
+            })
+          }}
+        >
+          <ToggleGroupItem value="light" aria-label="Light theme">
+            <SunIcon data-icon="inline-start" /> Light
+          </ToggleGroupItem>
+          <ToggleGroupItem value="dark" aria-label="Dark theme">
+            <MoonIcon data-icon="inline-start" /> Dark
+          </ToggleGroupItem>
+          <ToggleGroupItem value="system" aria-label="System theme">
+            <MonitorIcon data-icon="inline-start" /> System
+          </ToggleGroupItem>
+        </ToggleGroup>
+      </ItemActions>
+    </Item>
   )
 }

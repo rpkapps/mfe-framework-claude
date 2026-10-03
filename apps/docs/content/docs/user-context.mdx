@@ -1,0 +1,337 @@
+---
+title: 'Remember user context across Apps and Widgets'
+description: 'Own a typed context slice, await saved changes, and read another definition through a declared subset.'
+---
+
+User context remembers selections, filters and preferences for the signed-in user. Each App or Widget owns one slice under its definition ID. Only that definition can update its slice; other definitions can declare a typed, read-only view.
+
+The shell must [configure user context](/docs/configure-user-context) before mounting your definition.
+For a preference belonging to one definition in this browser, use [browser storage](/docs/remember-a-value).
+
+<Diagram
+  src="/diagrams/capability-user-context.svg"
+  alt="React and Angular bindings connect to the runtime user context service and the shell-configured adapter."
+  caption="Both framework adapters connect to the same shell-owned service."
+>
+  The generated React hook and Angular injector read and set context through the runtime user
+  context service, which validates each owner's records with the Zod schemas the definitions
+  declare. The service loads and saves records through the shell's adapter. A setter's promise
+  resolves after persistence accepts the write.
+</Diagram>
+
+Try the [running React and Angular example](https://github.com/rpkapps/mfe-framework-claude/tree/dev/examples/user-context).
+
+## Steps
+
+<Steps>
+<Step>
+### 1. Declare your slice
+
+Put a Zod object in `userContext.schema` on the definition’s literal options. Its properties are local keys, not globally shared IDs. The runtime validates with this schema: every write before it is sent, and every record it loads. Any schema works as long as what it parses to is JSON, so a transform to `Date` is refused.
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```ts title="src/app.tsx"
+import { z } from 'zod'
+import { createApp } from '@company/mfe-react'
+import { makeRouter } from './router'
+
+export default createApp({
+  id: 'operations',
+  router: makeRouter,
+  userContext: {
+    schema: z.object({
+      selection: z
+        .object({
+          wellId: z.string().nullable(),
+          label: z.string(),
+        })
+        .default({ wellId: null, label: '' }),
+      units: z.enum(['metric', 'imperial']).default('metric'),
+    }),
+  },
+})
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/app.ts"
+import { z } from 'zod'
+import { createApp } from '@company/mfe-angular'
+import { routes } from './routes'
+
+export default createApp({
+  id: 'operations',
+  routes,
+  userContext: {
+    schema: z.object({
+      selection: z
+        .object({
+          wellId: z.string().nullable(),
+          label: z.string(),
+        })
+        .default({ wellId: null, label: '' }),
+      units: z.enum(['metric', 'imperial']).default('metric'),
+    }),
+  },
+})
+```
+
+</Tab>
+</Tabs>
+
+Angular `createApp` and both adapters' `createWidget` accept the same declarations. Run `pnpm generate` to generate `#mfe/user-context`; it infers its types from your schema, and a running dev build refreshes it when the schema changes. Containers with multiple definitions use `#mfe/user-context/<definition-id>` so each binding checks the mounted definition's identity.
+
+Own reads and writes infer this definition’s ID; do not repeat the ID when using the generated binding. A shared schema package is optional. Each owner can author and release its schema in its own repository.
+
+</Step>
+<Step>
+### 2. Read and save context
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+Pass a selector to read the value your component needs. The hook returns a readonly tuple containing the selected value and a stable setter for the owned slice. React manages subscription cleanup automatically.
+
+```tsx title="src/units.tsx"
+import { useUserContext } from '#mfe/user-context'
+
+export function Units() {
+  const [units, set] = useUserContext(context => context.units)
+
+  async function toggle() {
+    const result = await set('units', units === 'metric' ? 'imperial' : 'metric')
+    if (!result.ok) {
+      console.error(result.error.message)
+      return
+    }
+    // The adapter accepted the write and subscribers now see the committed value.
+  }
+
+  return <button onClick={toggle}>{units}</button>
+}
+```
+
+</Tab>
+<Tab value="Angular">
+
+Pass a selector to `injectUserContext`. It returns an object with a selected-value signal and a setter for the owned slice. Angular cleans up the subscription when its injection context is destroyed.
+
+```ts title="src/units.component.ts"
+import { Component } from '@angular/core'
+import { injectUserContext } from '#mfe/user-context'
+
+@Component({
+  selector: 'app-units',
+  template: `<button (click)="toggle()">{{ context.value() }}</button>`,
+})
+export class UnitsComponent {
+  readonly context = injectUserContext(context => context.units)
+
+  async toggle() {
+    const units = this.context.value()
+    const result = await this.context.set('units', units === 'metric' ? 'imperial' : 'metric')
+    if (!result.ok) console.error(result.error.message)
+  }
+}
+```
+
+</Tab>
+</Tabs>
+
+`set` returns `Promise<MfeResult<T>>`: success has `ok: true` and `value`; failure has `ok: false` and `error`. Invalid values, persistence failures and a signed-in user change produce failure results. A failed write leaves the previous value intact and reads the owner again. Reads show only what the server accepted: a value appears after its write succeeds, never before.
+
+An object update fills in the rest of the key from what you currently read, so `set('selection', { wellId: 'well-42' })` keeps `selection.label`. `null` clears a nullable field, and arrays replace the complete array. The whole key is saved, and the last save of a key wins: if two tabs change `units`, the later one is kept, and a change to `selection` in one tab never undoes a change to `units` in another.
+
+The setter always addresses an owned top-level key, regardless of the selector. For example, selecting `context.selection.wellId` still uses `set('selection', { wellId: 'well-42' })` in React or `selection.set('selection', { wellId: 'well-42' })` in Angular. Selectors do not become write paths.
+
+### Select nested values
+
+Select a nested property directly to read only the value you need:
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="React nested selection"
+const [wellId] = useUserContext(context => context.selection.wellId)
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="Angular nested selection"
+readonly selection = injectUserContext(context => context.selection.wellId)
+// Read selection.value() in the template.
+```
+
+</Tab>
+</Tabs>
+
+Changing `units` does not rerender these consumers. If `selection` also has a `label` property, changing only `label` does not rerender a consumer selecting `wellId`: the selector runs again on every change of the owner's record, and a result equal to the previous one keeps its identity, so keep selectors cheap. You can also derive a value, such as `context => context.selection.wellId !== null`; keep selectors pure and synchronous, and never mutate the JSON context they receive. Primitive selected values use `Object.is` equality.
+
+Selectors return strings, numbers, booleans, `null`, `undefined`, plain objects or arrays. Returned data is immutable; functions, class instances such as `Map` or `Date`, promises and cyclic results are unsupported.
+
+The framework owns both subscriptions and cleanup. There is no unsubscribe function to retain or call.
+
+</Step>
+<Step>
+### 3. Read another owner's context
+
+Declare the subset you need in `userContext.reads`, keyed by the owner's definition ID. The reader owns this declaration; the owner does not need to import or deploy the reader. This Widget reads only `selection.wellId` from the `operations` App above: it does not declare `selection.label` or `units`, and it does not import the owner’s schema. A reader can omit `schema` when it has no context of its own.
+
+Your subset parses what the owner has stored, not what the owner's defaults would fill in. Give every field the owner may not have written yet a default, or make it optional or nullable, as `.default(null)` does below. A required field the owner has not written fails with `user-context/invalid-value`, and the message says which field and how to fix it.
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```ts title="src/mfe.ts"
+import { z } from 'zod'
+import { createWidget } from '@company/mfe-react'
+import { SelectedWell } from './selected-well'
+
+export const selectedWell = createWidget({
+  id: 'selected-well',
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
+  render: SelectedWell,
+  userContext: {
+    reads: {
+      operations: z.object({
+        selection: z.object({ wellId: z.string().nullable() }).default({ wellId: null }),
+      }),
+    },
+  },
+})
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/mfe.ts"
+import { z } from 'zod'
+import { createWidget } from '@company/mfe-angular'
+import { SelectedWellComponent } from './selected-well.component'
+
+export const selectedWell = createWidget({
+  id: 'selected-well',
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
+  component: SelectedWellComponent,
+  userContext: {
+    reads: {
+      operations: z.object({
+        selection: z.object({ wellId: z.string().nullable() }).default({ wellId: null }),
+      }),
+    },
+  },
+})
+```
+
+</Tab>
+</Tabs>
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="src/selected-well.tsx"
+import { useUserContext } from '#mfe/user-context'
+
+export function SelectedWell() {
+  const [wellId] = useUserContext('operations', context => context.selection.wellId)
+  return <p>{wellId ?? 'No well selected'}</p>
+}
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/selected-well.component.ts"
+import { Component } from '@angular/core'
+import { injectUserContext } from '#mfe/user-context'
+
+@Component({
+  selector: 'app-selected-well',
+  template: `<p>{{ selection.value() ?? 'No well selected' }}</p>`,
+})
+export class SelectedWellComponent {
+  readonly selection = injectUserContext('operations', context => context.selection.wellId)
+}
+```
+
+</Tab>
+</Tabs>
+
+Generated bindings infer allowed owner IDs and readable properties from `userContext.reads`. No explicit generic is needed. The explicit-owner overload returns only a readonly `[selectedValue]` tuple in React or `{ value: Signal<T> }` in Angular. It has no write capability:
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="Read-only access is checked by TypeScript"
+// Compile error — the read-only tuple has no second element.
+const [wellId, set] = useUserContext('operations', context => context.selection.wellId)
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="Read-only access is checked by TypeScript"
+// Compile error — the returned object has no set property.
+const selection = injectUserContext('operations', context => context.selection.wellId)
+selection.set('selection', { wellId: 'well-42' })
+```
+
+</Tab>
+</Tabs>
+
+Generated types expose only declared fields. Runtime snapshots are not a field privacy boundary: use backend authorization for confidential data. The runtime also checks that a mount writes only its own slice and reads only owners it declared, so a reader cannot gain write access by choosing another owner ID.
+
+</Step>
+</Steps>
+
+## Read state in a loader or resolver
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+Generated React router types expose the owner's imperative store at `context.mfe.userContext`. It is available after hydration and before route callbacks run.
+
+```ts title="src/routes/wells.tsx"
+loader: ({ context }) => context.mfe.userContext.get('selection')
+```
+
+</Tab>
+<Tab value="Angular">
+
+Create the Angular binding once in a service, then let resolvers and guards read its signal. Provide the service within the mounted definition so its binding follows that injector's lifetime:
+
+```ts title="src/selection.resolver.ts"
+import { inject, Injectable } from '@angular/core'
+import { injectUserContext } from '#mfe/user-context'
+
+@Injectable()
+export class SelectionContext {
+  readonly selection = injectUserContext(context => context.selection)
+}
+
+// Register SelectionContext in the mounted route's providers.
+export const selectionResolver = () => inject(SelectionContext).selection.value()
+```
+
+</Tab>
+</Tabs>
+
+Angular subscriptions live until the component or service injection context is destroyed, not just until a resolver callback returns. Reuse the service binding across resolver calls instead of creating another subscription on each call.
+
+Bindings are invalidated when their mount ends or the signed-in user changes. Capture them within the mounted definition and never cache them globally.
+
+## Check it works
+
+Save a value in the owner and confirm that its declared reader updates after the write succeeds. Reject a persistence operation in your test adapter and confirm that both displays retain the previous value.
+
+## Related
+
+- [Configure user context in the shell](/docs/configure-user-context)
+- [Evolve an owner's schema](/docs/evolve-user-context)
+- [User-context protocol](/docs/how-it-works/user-context)

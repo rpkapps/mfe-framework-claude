@@ -1,14 +1,12 @@
 import { ChangeDetectionStrategy, Component, computed, signal } from '@angular/core'
-import { FormsModule } from '@angular/forms'
 import { Button } from 'primeng/button'
-import { Select, type SelectChangeEvent } from 'primeng/select'
 
-import { formatDepth, wells } from '@example/shared-state-demo/wells'
-import { injectSharedState, injectSharedStateStore } from '#mfe/shared-state/well-inspection'
+import { formatDepth, wells } from '@example/user-context-demo/wells'
+import { injectUserContext } from '#mfe/user-context/well-inspection'
 
 @Component({
   selector: 'well-inspection',
-  imports: [Button, Select, FormsModule],
+  imports: [Button],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `<section class="fieldwork-page" aria-label="Angular inspection widget">
     @if (well(); as well) {
@@ -17,99 +15,75 @@ import { injectSharedState, injectSharedStateStore } from '#mfe/shared-state/wel
       <p>Survey: {{ run()?.name ?? 'Choose a survey' }}</p>
       <p aria-live="polite">Inspection depth: {{ depth() }}</p>
       <p>Baseline comparison: {{ selection()?.comparisonMode === 'overlay' ? 'On' : 'Off' }}</p>
-      <label for="inspection-run">Survey for inspection</label>
-      <p-select
-        inputId="inspection-run"
-        ariaLabel="Survey for inspection"
-        placeholder="Choose a survey"
-        [options]="runs()"
-        optionLabel="name"
-        optionValue="id"
-        [ngModel]="selection()?.runId"
-        [disabled]="pending()"
-        (onChange)="changeRun($event)"
+      <p>The survey and units are owned by Lab. Change them in the React review.</p>
+      <p-button
+        label="Prepare inspection"
+        [disabled]="run() === undefined || saving()"
+        (onClick)="prepareInspection()"
       />
-      <p>Choosing a survey here also updates the React review beside this panel.</p>
-      <div class="fieldwork-row">
-        <p-button
-          [label]="units() === 'metric' ? 'Use feet' : 'Use metres'"
-          [outlined]="true"
-          [disabled]="pending()"
-          (onClick)="switchUnits()"
-        />
-        <p-button
-          label="Prepare inspection"
-          [disabled]="pending() || run() === undefined"
-          (onClick)="prepareInspection()"
-        />
-      </div>
+      @if (saving()) {
+        <p role="status">Saving inspection brief…</p>
+      }
+      @if (error(); as error) {
+        <p role="alert">{{ error }}</p>
+      }
       @if (brief(); as brief) {
         <section aria-label="Inspection brief">
           <h3>Inspection brief</h3>
           <p>{{ brief }}</p>
+          <p-button label="Clear inspection brief" [disabled]="saving()" (onClick)="clearBrief()" />
         </section>
       }
     } @else {
       <h3>No well selected</h3>
-      <p>Choose a well in the React survey review. This planner will use that same selection.</p>
-    }
-    @if (error()) {
-      <p role="alert">{{ error() }}</p>
+      <p>Choose a well in the React survey review. This planner reads Lab’s selection.</p>
     }
   </section>`,
 })
 export class WellInspectionComponent {
-  readonly #units = injectSharedState('display:units')
-  readonly #selection = injectSharedState('well:selection')
-  readonly #store = injectSharedStateStore()
-  readonly units = this.#units[0]
-  readonly selection = this.#selection[0]
+  readonly units = injectUserContext('lab', context => context.units).value
+  readonly selection = injectUserContext('lab', context => context['well-selection']).value
   readonly well = computed(() => wells.find(well => well.id === this.selection()?.wellId))
-  readonly runs = computed(() => [...(this.well()?.runs ?? [])])
   readonly run = computed(() => this.well()?.runs.find(run => run.id === this.selection()?.runId))
   readonly depth = computed(() => {
     const run = this.run()
     return run ? formatDepth(run.depthMetres, this.units()) : 'Choose a survey'
   })
-  readonly pending = signal(false)
+  readonly #context = injectUserContext(context => context.brief)
+  readonly saving = signal(false)
   readonly error = signal('')
-  readonly #draft = signal<{ wellId: string; runId: string; text: string } | null>(null)
   readonly brief = computed(() => {
-    const draft = this.#draft()
+    const draft = this.#context.value()
     return draft?.wellId === this.well()?.id && draft?.runId === this.run()?.id
       ? draft?.text
       : undefined
   })
 
-  changeRun(event: SelectChangeEvent): Promise<void> {
-    const runId: unknown = event.value
-    if (typeof runId !== 'string' || !this.well()?.runs.some(run => run.id === runId))
-      return Promise.resolve()
-    // This partial write preserves the well and comparison chosen by the React App.
-    return this.save(() => this.#store.set('well:selection', { runId }))
-  }
-  switchUnits(): Promise<void> {
-    return this.save(() => this.#units[1](this.units() === 'metric' ? 'imperial' : 'metric'))
-  }
-  prepareInspection(): void {
+  async prepareInspection(): Promise<void> {
     const well = this.well()
     const run = this.run()
     if (!well || !run) return
-    this.#draft.set({
+    await this.saveBrief({
       wellId: well.id,
       runId: run.id,
       text: `Inspect ${well.name} at ${well.site}, using ${run.name} at ${this.depth()}.`,
     })
   }
-  private async save(write: () => Promise<void>): Promise<void> {
-    this.pending.set(true)
+
+  async clearBrief(): Promise<void> {
+    await this.saveBrief(null)
+  }
+
+  private async saveBrief(
+    brief: { wellId: string; runId: string; text: string } | null,
+  ): Promise<void> {
+    this.saving.set(true)
+    this.error.set('')
     try {
-      await write()
-      this.error.set('')
-    } catch (cause) {
-      this.error.set(cause instanceof Error ? cause.message : String(cause))
+      const result = await this.#context.set('brief', brief)
+      if (!result.ok) this.error.set(result.error.message)
     } finally {
-      this.pending.set(false)
+      this.saving.set(false)
     }
   }
 }

@@ -1,5 +1,7 @@
-import type { SharedStateScopeService } from '@company/mfe-core/shared-state'
-import type { SharedStateOptions } from '../shared-state/store.ts'
+import type { z } from 'zod'
+import { cachedTheme, type ThemeSelector } from '../theme/user-context-theme.ts'
+import type { UserContextService } from '@company/mfe-core/user-context'
+import type { HostUserContextOptions } from '../user-context/host.ts'
 /**
  * Assembling the shell-side runtime once per document. Everything here outlives an individual
  * mount, and none of it knows which adapter will render what it loads, so every adapter's host
@@ -7,6 +9,7 @@ import type { SharedStateOptions } from '../shared-state/store.ts'
  */
 
 import {
+  createMfeError,
   withoutUndefined,
   type DeadlineConfig,
   type DiagnosticsSink,
@@ -45,7 +48,7 @@ import { assembleRuntime, reportRejectedEntries } from './assemble-runtime.ts'
 
 /** Shared, shell-owned services, one instance per document. */
 export interface MfeRuntime {
-  readonly sharedState?: SharedStateScopeService
+  readonly userContext?: UserContextService
   /** Version of the registry, mount protocol and services, independent of package versions. */
   readonly apiVersion: string
   readonly registry: Registry
@@ -68,13 +71,23 @@ export interface MfeRuntime {
   readonly deadlines: DeadlineConfig
 }
 
-export interface CreateMfeRuntimeOptions {
+export interface CreateMfeRuntimeOptions<
+  Schema extends z.ZodObject | undefined = z.ZodObject | undefined,
+> {
+  /**
+   * Selects the theme preference from the shell's own slice. The runtime then owns the effective
+   * theme: `shellState`, the document's `dark` class and `colorScheme`, `system` following
+   * `prefers-color-scheme`, and a per-user startup cache that `themeBootstrapScript()` reads
+   * before first paint.
+   */
+  readonly theme?: ThemeSelector<NoInfer<Schema extends z.ZodObject ? z.output<Schema> : unknown>>
+  /** The shell's own slice and reads beside its persistence; identity comes from shellState. */
+  readonly userContext?: HostUserContextOptions<Schema>
   /** Raw registry entries, usually fetched by the shell at boot. */
-  readonly sharedState?: SharedStateOptions
   readonly registryEntries: readonly unknown[]
   /** In production this is the federation loader. */
   readonly loader: ContainerLoader
-  readonly shellState: ShellState
+  readonly shellState: Omit<ShellState, 'theme'> & { readonly theme?: ShellState['theme'] }
   readonly telemetryProvider: TelemetryProvider
   readonly navigationBridge?: NavigationBridge
   readonly diagnosticsSinks?: readonly DiagnosticsSink[]
@@ -143,12 +156,30 @@ function containersByDefinitionId(entries: readonly unknown[]): ReadonlyMap<stri
   return byId
 }
 
-export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHandle {
+export function createMfeRuntime<Schema extends z.ZodObject | undefined = undefined>(
+  options: CreateMfeRuntimeOptions<Schema>,
+): MfeRuntimeHandle {
+  if (options.theme !== undefined && options.userContext?.schema === undefined)
+    throw createMfeError({
+      code: 'config/invalid',
+      id: '<shell>',
+      operation: 'configure a user-context theme',
+      expected: 'a shell userContext.schema and persistence adapter',
+      repair:
+        'Declare userContext.schema and userContext.adapter on createMfeRuntime options; the theme selects its preference from that schema.',
+    })
   const ownsDiagnostics = options.diagnostics === undefined
   const diagnostics = options.diagnostics ?? new DiagnosticsHub()
   const removeSinks = (options.diagnosticsSinks ?? []).map(sink => diagnostics.add(sink))
 
-  const shellState = new ShellStateStore(options.shellState)
+  const shellState = new ShellStateStore(
+    options.theme
+      ? {
+          ...options.shellState,
+          theme: cachedTheme(options.shellState.user),
+        }
+      : { ...options.shellState, theme: options.shellState.theme ?? 'light' },
+  )
   const storage = new MfeStorageStore({ diagnostics })
   const { previousIdentity } = recordSessionIdentity(storage, identityOf(shellState.getSnapshot()))
   // A sign-in within the page is recorded too, so the next reload compares against it.
@@ -197,7 +228,8 @@ export function createMfeRuntime(options: CreateMfeRuntimeOptions): MfeRuntimeHa
 
   const assembled = assembleRuntime({
     registry,
-    sharedState: options.sharedState,
+    theme: options.theme as ThemeSelector<unknown> | undefined,
+    userContext: options.userContext,
     loader: options.loader,
     adapters: options.adapters,
     shellState,

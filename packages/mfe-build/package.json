@@ -29,19 +29,9 @@
       "types": "./dist/testing/index.d.ts",
       "default": "./dist/testing/index.js"
     },
-    "./shared-state-loader": {
-      "mfe-source": "./src/shared-state/loader.ts",
-      "default": "./dist/shared-state/loader.js"
-    },
-    "./shared-state": {
-      "mfe-source": "./src/shared-state/compiler.ts",
-      "types": "./dist/shared-state/compiler.d.ts",
-      "default": "./dist/shared-state/compiler.js"
-    },
-    "./shared-state-lint": {
-      "mfe-source": "./src/shared-state/lint.ts",
-      "types": "./dist/shared-state/lint.d.ts",
-      "default": "./dist/shared-state/lint.js"
+    "./host-user-context-loader": {
+      "mfe-source": "./src/user-context/host-loader.ts",
+      "default": "./dist/user-context/host-loader.js"
     }
   },
   "files": [

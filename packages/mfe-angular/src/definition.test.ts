@@ -148,3 +148,24 @@ describe('createWidget', () => {
     ).toThrowError(/expected an array of providers, received an object/)
   })
 })
+
+describe('consolidated Angular user-context declarations', () => {
+  it('accepts owned and nested foreign declarations for apps and widgets', () => {
+    const userContext = {
+      schema: z.object({ collapsed: z.boolean().default(false) }),
+      reads: {
+        preferences: z.object({ appearance: z.object({ theme: z.string() }) }),
+      },
+    }
+    const app = createApp({ id: 'app-owner', routes, userContext })
+    const widget = createWidget({
+      id: 'widget-owner',
+      inputSchema: z.object({}),
+      outputSchema: z.object({}),
+      component: BadgeComponent,
+      userContext,
+    })
+    expect(app.userContext).toBe(userContext)
+    expect(widget.userContext).toBe(userContext)
+  })
+})

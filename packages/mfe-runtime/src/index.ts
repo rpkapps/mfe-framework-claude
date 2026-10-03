@@ -243,3 +243,17 @@ export { DiagnosticsHub } from './diagnostics.ts'
 export type { Diagnostic, DiagnosticSeverity, DiagnosticsSink } from '@company/mfe-core'
 
 export { capabilityRoute } from './registry/capability-route.ts'
+
+export { themeBootstrapScript } from './theme/user-context-theme.ts'
+
+export { HOST_USER_CONTEXT_ID, type HostUserContextOptions } from './user-context/host.ts'
+
+/** Browser persistence adapters use the same public host entry as createMfeRuntime. */
+export {
+  USER_CONTEXT_ERROR_CODES,
+  UserContextError,
+  type UserContextAdapter,
+  type UserContextErrorCode,
+  type StateRecord,
+  type StateWrite,
+} from '@company/mfe-core/user-context'

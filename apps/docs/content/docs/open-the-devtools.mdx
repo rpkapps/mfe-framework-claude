@@ -39,29 +39,27 @@ next page load needs no parameter.
 
 ### 3. Read the tab you need
 
-| Tab                     | What it shows                                                                                                              |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| **Overrides**           | every registered definition, where it loaded from, and the actions that repoint it                                         |
-| **Registry → Loaded**   | each accepted entry: id, version, origin, and the pages, inputs and outputs it declares                                    |
-| **Registry → Rejected** | each entry the shell set aside, the message that says why, and the record as published                                     |
-| **Shared State**        | live contracts, hydration status, record revisions, pending writes, current and confirmed values, and the canonical schema |
+| Tab                     | What it shows                                                                                       |
+| ----------------------- | --------------------------------------------------------------------------------------------------- |
+| **Overrides**           | every registered definition, where it loaded from, and the actions that repoint it                  |
+| **Registry → Loaded**   | each accepted entry: id, version, origin, and the pages, inputs and outputs it declares             |
+| **Registry → Rejected** | each entry the shell set aside, the message that says why, and the record as published              |
+| **User Context**        | each loaded owner's status, record revision and stored value per key, and its schema as JSON Schema |
 
 Both registry views carry a count, so a missing container is one glance.
 
-In **Shared State**, filter the compact key list and click anywhere on a row to inspect it. The
+In **User Context**, filter the compact owner list and click anywhere on a row to inspect it. The
 list scrolls independently of the value pane; arrow keys, Home and End navigate its rows. In a
-narrow dock, use the searchable key picker instead: the value pane retains the full width and
-height below it. Filtering the list does not change the selected key.
+narrow dock, use the searchable owner picker instead: the value pane retains the full width and
+height below it. Filtering the list does not change the selected owner.
 
-**Current value**
-includes optimistic updates, while **Confirmed** shows the last authoritative value accepted by
-the runtime. **Contract** shows the schema and its fingerprint, which is independent of the
+**Current value** includes pending writes that storage has not accepted yet; **Confirmed** shows
+the committed value consumers read until storage accepts them. **Contract** shows the schema and its fingerprint, which is independent of the
 record revision. Copy controls copy the complete JSON even when a large preview is shortened.
 
 The inspector is read only: opening it does not hydrate state or create consumer bindings. A
 contract stays **Not loaded** until a micro-frontend prepares it. Scope changes clear the previous
-values. Shells without configured shared state, or custom services without the optional inspection
-capability, show an explanatory empty state.
+values. Shells without configured user context show an explanatory empty state.
 
 </Step>
 

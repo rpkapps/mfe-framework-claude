@@ -4,7 +4,11 @@ import { resetMfeConfig } from './generated/config.ts'
 import { resetMfeFetch } from './generated/fetch.ts'
 
 export { createInProcessLoader } from './in-process-loader.ts'
-export { createTestSharedStateRepository, createSharedStateBackend } from './shared-state.ts'
+export {
+  createTestUserContextRepository,
+  createUserContextBackend,
+  scopedUserContextAdapter,
+} from './user-context.ts'
 
 export {
   createMemoryRuntime,

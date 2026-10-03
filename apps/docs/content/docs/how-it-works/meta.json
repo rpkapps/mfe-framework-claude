@@ -6,7 +6,7 @@
     "the-mount-lifecycle",
     "the-isolation-boundaries",
     "adapters",
-    "shared-state",
+    "user-context",
     "decisions"
   ]
 }

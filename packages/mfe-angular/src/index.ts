@@ -160,5 +160,13 @@ export {
 /** Re-exported from the core because a host depends on this package, not on the core. */
 export { HOST_SCOPE, type CapabilityName, type IconData, type IconNode } from '@company/mfe-core'
 
-export { createSharedStateBindings } from './inject/shared-state.ts'
-export type { SharedStateStore, SharedStateSetter } from '@company/mfe-core/shared-state'
+export {
+  createUserContextBindings,
+  type OwnedUserContextSelection,
+  type ReadonlyUserContextSelection,
+} from './inject/user-context.ts'
+export type {
+  UserContextReader,
+  UserContextStore,
+  UserContextSetter,
+} from '@company/mfe-core/user-context'

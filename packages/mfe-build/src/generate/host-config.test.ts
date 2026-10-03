@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { z } from 'zod'
+import { readFileSync, writeFileSync } from 'node:fs'
+import hostUserContextLoader from '../user-context/host-loader.ts'
+import { join, resolve } from 'node:path'
+import { ts } from '../discovery/ts-ast.ts'
 
 import { checkConfigField, type ConfigFieldSpec } from '../config/check.ts'
 import { cleanupContainers, createContainer } from '../testing/fixtures.ts'
@@ -198,4 +202,177 @@ export default {
       tags: [],
     })
   })
+})
+
+describe('shell-owned user context', () => {
+  const schema = `z.object({ preferences: z.object({ theme: z.enum(['light','dark','system']) }) })`
+  const source = `import {z} from 'zod'; import {createMfeRuntime} from '@company/mfe-react/host';
+    const settings = ${schema};
+    createMfeRuntime({...hostOptions, userContext:{schema:settings, reads:{operations:z.object({selection:z.object({wellId:z.string().nullable()})})}, adapter, onError(error){report(error)}},theme:{select:context=>context.preferences.theme,cacheKey:'theme'}});`
+  function host(
+    files: Record<string, string> = { 'src/index.ts': source },
+    entries?: readonly string[],
+  ) {
+    const root = createContainer(files, { manifest: { name: '@acme/shell' } })
+    return planHostConfig({
+      root,
+      generator: TEST_PROFILE.generator,
+      envModules: TEST_PROFILE.envModules,
+      checkModule: '@acme/mfe-plugin/env',
+      ...(entries ? { entries } : {}),
+    })!
+  }
+  it('generates only the typed hook without an environment config or runtime wrapper', () => {
+    const result = host()
+    const module = result.files.find(file => file.path.endsWith('/user-context.ts'))!.contents
+    expect(result.configSource).toBeUndefined()
+    expect(result.defaults).toBeNull()
+    expect(result.aliases['#mfe/config']).toBeUndefined()
+    expect(result.aliases['#mfe/user-context']).toBeDefined()
+    expect(module).toContain('createHostUserContextBindings<UserContextValues, UserContextReads>')
+    expect(module).not.toContain('createMfeRuntime')
+    expect(module).not.toContain('zod')
+    const declaration = result.files.find(file =>
+      file.path.endsWith('/user-context.declaration.ts'),
+    )!.contents
+    expect(declaration).toContain(`const settings = ${schema}`)
+    expect(declaration).toContain(
+      'export const declaration = { schema: settings, reads: {operations:',
+    )
+  })
+  it('follows custom entry imports and types imported owner schemas without evaluating them', () => {
+    const result = host(
+      {
+        'client/main.ts': `import('./boot')`,
+        'client/boot.ts': `import {createMfeRuntime as boot} from '@company/mfe-react/host'; import {settings} from './schema'; boot({userContext:{schema:settings,adapter}})`,
+        'client/schema.ts': `import {z} from 'zod'; export const settings=${schema}; throw new Error('must not run')`,
+      },
+      ['client/main.ts'],
+    )
+    expect(result.userContext?.source).toMatch(/client[/\\]boot.ts$/)
+    expect(result.userContext?.declaration.schema).toBe('settings')
+    expect(result.userContext?.declaration.imports).toHaveLength(1)
+    expect(result.userContext?.declaration.imports[0]?.from).toMatch(/client[/\\]schema$/)
+  })
+  it('passes the entry through and refreshes the declaration during watch builds', () => {
+    const authored = `import {z} from 'zod'; import {createMfeRuntime} from '@company/mfe-react/host'; import {reads} from './reads'; createMfeRuntime({userContext:{schema:z.object({theme:z.string()}),reads,adapter}})`
+    const result = host({
+      'src/index.ts': authored,
+      'src/reads.ts': `import {z} from 'zod'; export const reads={lab:z.object({units:z.string()})}`,
+    })
+    const dependencies: string[] = []
+    const loader = {
+      addDependency: (file: string) => {
+        dependencies.push(file)
+      },
+      getOptions: () => ({
+        root: result.options.containerRoot,
+        generatedDir: result.options.generatedDir,
+        generator: 'test',
+      }),
+    }
+    const entry = join(result.options.containerRoot, 'src/index.ts')
+    const changed = authored.replace('z.string()', "z.enum(['light','dark'])")
+    writeFileSync(entry, changed)
+    // The runtime validates with the authored schema, so the source itself is never rewritten.
+    expect(hostUserContextLoader.call(loader, changed)).toBe(changed)
+    expect(dependencies).toContain(entry)
+    expect(dependencies).toContain(join(result.options.containerRoot, 'src/reads.ts'))
+    expect(
+      readFileSync(join(result.options.generatedDir, 'user-context.declaration.ts'), 'utf8'),
+    ).toContain("schema: z.object({theme:z.enum(['light','dark'])})")
+  })
+  it.each([
+    source.replace('schema:settings,', '...other,schema:settings,'),
+    source.replace('adapter, onError', 'adapter, schema:settings, onError'),
+    source.replace('},theme:', '},...other,theme:'),
+    source + source,
+  ])('rejects ambiguous host context declarations', value => {
+    expect(() => host({ 'src/index.ts': value })).toThrow()
+  })
+  it('ignores local functions shadowing the imported runtime factory', () => {
+    const authored =
+      source +
+      `function helper(createMfeRuntime: Function) { createMfeRuntime({userContext:{schema:unrelated,adapter}}); }`
+    expect(host({ 'src/index.ts': authored }).userContext?.declaration.schema).toBe('settings')
+  })
+  it('ignores type-only modules and refuses unsupported Angular host bindings', () => {
+    expect(
+      host({
+        'src/index.ts': `import type {Example} from './types';\n${source}`,
+        'src/types.ts': source,
+      }).userContext,
+    ).toBeDefined()
+    expect(() =>
+      host({
+        'src/index.ts': source.replace('@company/mfe-react/host', '@company/mfe-angular/host'),
+      }),
+    ).toThrow('Angular host')
+  })
+  it('does not mistake environment config exports for a runtime declaration', () => {
+    const result = host({
+      'src/mfe.config.ts': CONFIG + `\nexport const userContext={schema:${schema}}`,
+    })
+    expect(result.aliases['#mfe/user-context']).toBeUndefined()
+  })
+
+  it('typechecks generated host hooks and foreign read-only boundaries', () => {
+    const result = host()
+    const generated = result.files.find(file => file.path.endsWith('/user-context.ts'))!.contents
+    const declaration = result.files.find(file =>
+      file.path.endsWith('/user-context.declaration.ts'),
+    )!.contents
+    const root = createContainer({
+      'user-context.ts': generated,
+      'user-context.declaration.ts': declaration,
+      'consumer.ts': `import {useUserContext} from './user-context';
+function component() {
+  const [theme, set] = useUserContext(context => context.preferences.theme);
+  const preference: 'light' | 'dark' | 'system' = theme;
+  void set('preferences', {theme:'dark'});
+  // @ts-expect-error owner writes retain the generated schema
+  void set('preferences', {theme:'blue'});
+  const [wellId] = useUserContext('operations', context => context.selection.wellId);
+  const selected: string | null = wellId;
+  // @ts-expect-error foreign reads have no setter
+  const [foreign, foreignSet] = useUserContext('operations', context => context.selection.wellId);
+  // @ts-expect-error undeclared foreign fields are inaccessible
+  useUserContext('operations', context => context.preferences);
+  // @ts-expect-error undeclared owners are inaccessible
+  useUserContext('unknown', context => context.selection);
+  return {preference, selected};
+}`,
+    })
+    const repository = resolve(import.meta.dirname, '../../../..')
+    const file = join(root, 'consumer.ts')
+    const program = ts.createProgram([file], {
+      target: ts.ScriptTarget.ES2023,
+      module: ts.ModuleKind.ESNext,
+      moduleResolution: ts.ModuleResolutionKind.Bundler,
+      customConditions: ['mfe-source'],
+      strict: true,
+      exactOptionalPropertyTypes: true,
+      skipLibCheck: true,
+      allowImportingTsExtensions: true,
+      noEmit: true,
+      jsx: ts.JsxEmit.ReactJSX,
+      paths: {
+        zod: [join(repository, 'packages/mfe-build/node_modules/zod/index.d.cts')],
+        '@company/mfe-react/host': [join(repository, 'packages/mfe-react/src/host/index.ts')],
+        '@company/mfe-react/user-context': [
+          join(repository, 'packages/mfe-react/src/hooks/user-context.ts'),
+        ],
+      },
+    })
+    const diagnostics = ts
+      .getPreEmitDiagnostics(program)
+      .filter(
+        diagnostic =>
+          diagnostic.file?.fileName === file ||
+          diagnostic.file?.fileName === join(root, 'user-context.ts'),
+      )
+    expect(
+      diagnostics.map(diagnostic => ts.flattenDiagnosticMessageText(diagnostic.messageText, '\n')),
+    ).toEqual([])
+  }, 30_000)
 })

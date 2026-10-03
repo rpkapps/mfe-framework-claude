@@ -8,10 +8,12 @@
 
 import { createServer } from 'node:http'
 import { fileURLToPath } from 'node:url'
-import { createDemoBackend, readRequestBody } from '../../examples/shared-state/server.mjs'
-
-/** Exported so `pnpm dev` checks and waits on this port without a second copy of the number. */
-export const DEV_API_PORT = Number(process.env['MFE_DEV_API_PORT'] ?? 3010)
+import {
+  createDemoBackend,
+  readRequestBody,
+  DEMO_SCOPE,
+} from '../../examples/user-context/server.mjs'
+import { DEV_API_PORT } from './api-port.mjs'
 
 const ASSETS = {
   north: [
@@ -45,9 +47,16 @@ function json(response, status, body) {
   response.end(JSON.stringify(body))
 }
 
-const sharedState = createDemoBackend(
-  fileURLToPath(new URL('../../.mfe/shared-state-demo/records.json', import.meta.url)),
+const userContext = createDemoBackend(
+  fileURLToPath(new URL('../../.mfe/user-context-demo/records.json', import.meta.url)),
 )
+
+// Explicit demo routes choose the permitted writer; a submitted record id does not grant it.
+const contextWriters = new Map([
+  ['/api/user-context/write/lab', userContext.forOwner('lab')],
+  ['/api/user-context/write/well-inspection', userContext.forOwner('well-inspection')],
+  ['/api/user-context/write/shell', userContext.forOwner('shell')],
+])
 
 const server = createServer(async (request, response) => {
   if (request.method === 'OPTIONS') {
@@ -59,9 +68,9 @@ const server = createServer(async (request, response) => {
 
   const url = new URL(request.url ?? '/', `http://localhost:${String(DEV_API_PORT)}`)
 
-  if (url.pathname === '/api/shared-state/hydrate' || url.pathname === '/api/shared-state/write') {
+  if (url.pathname === '/api/user-context/hydrate' || contextWriters.has(url.pathname)) {
     if (request.method !== 'POST') {
-      json(response, 405, { message: 'Use POST for shared state' })
+      json(response, 405, { message: 'Use POST for user context' })
       return
     }
     const controller = new AbortController()
@@ -69,12 +78,22 @@ const server = createServer(async (request, response) => {
     request.once('aborted', abort)
     try {
       const body = await readRequestBody(request)
+      if (body === null || typeof body !== 'object' || Array.isArray(body))
+        throw new Error('User-context requests must be JSON objects')
+      if (Object.hasOwn(body, 'scope'))
+        throw new Error('User identity is determined by the server; do not submit scope')
       const record = url.pathname.endsWith('/hydrate')
-        ? await sharedState.hydrate(body.scope, body.ids, controller.signal)
-        : await sharedState.write(body, controller.signal)
+        ? await userContext.hydrate(DEMO_SCOPE, body.ids, controller.signal)
+        : await contextWriters
+            .get(url.pathname)
+            .write(DEMO_SCOPE, { id: body.id, value: body.value }, controller.signal)
       json(response, 200, record)
     } catch (error) {
-      json(response, error.code === 'shared-state/conflict' ? 409 : 400, { message: error.message })
+      json(response, 400, {
+        code: error.code ?? 'user-context/persistence-failed',
+        id: error.id,
+        message: error.message,
+      })
     } finally {
       request.off('aborted', abort)
     }
