@@ -85,12 +85,12 @@ export const alertPanel = createWidget({
 
 React and Angular Apps and Widgets accept one optional `userContext` declaration with these optional properties:
 
-| Option               | Type                                 | What it does                                                                           |
-| -------------------- | ------------------------------------ | -------------------------------------------------------------------------------------- |
-| `userContext.schema` | fixed `z.object`                     | Declares the context slice owned by this definition ID. Its properties are local keys. |
-| `userContext.reads`  | owner ID to fixed `z.object` mapping | Declares read-only subsets of other owners' slices.                                    |
+| Option               | Type                           | What it does                                                                                               |
+| -------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `userContext.schema` | `z.object`                     | Declares the context slice owned by this definition ID. Its properties are local keys.                     |
+| `userContext.reads`  | owner ID to `z.object` mapping | Declares read-only subsets of other owners' slices. Default each field the owner may not have written yet. |
 
-Generated `#mfe/user-context` bindings infer the mounted owner when called with a selector alone. React returns `[value, set]`; Angular returns `{ value: Signal<T>, set }`. An explicit foreign-owner ID returns only `[value]` or `{ value: Signal<T> }`, without a setter. Writes return structured asynchronous results after persistence accepts them. See [Use user context](/docs/user-context) for React, Angular and route callback examples.
+The runtime validates with these schemas, so what they parse to must be JSON. Generated `#mfe/user-context` bindings infer the mounted owner when called with a selector alone. React returns `[value, set]`; Angular returns `{ value: Signal<T>, set }`. An explicit foreign-owner ID returns only `[value]` or `{ value: Signal<T> }`, without a setter. Writes return structured asynchronous results after persistence accepts them. See [Use user context](/docs/user-context) for React, Angular and route callback examples.
 
 ## The four presentation options
 

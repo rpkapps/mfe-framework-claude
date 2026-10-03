@@ -5,11 +5,12 @@ and units in its `lab` slice. Angular Fieldwork reads that slice through a read-
 This folder supplies shared well data and the local API's file repository. The shell's browser
 adapter lives in `apps/shell/src/user-context-adapter.ts` and is passed directly to its normal
 `createMfeRuntime` call beside the shell-owned schema.
-The runtime registers generated owner contracts privately. The adapter and backend know only
-opaque per-user owner documents; they import no Lab, Widget or shell schemas.
+The runtime validates each slice with the schemas the definitions declare. The adapter and backend
+know only opaque per-user owner documents; they import no Lab, Widget or shell schemas.
 
 Definitions group authoring under `userContext: { schema?, reads? }`: `schema` belongs to that
-definition, and `reads` declares the required subset of a foreign owner. Lab declares only its
+definition, and `reads` declares the subset of a foreign owner it reads, with a default for each
+field Lab may not have saved yet. Lab declares only its
 schema, the inspection Widget declares its brief schema and Lab reads, and Fieldwork declares
 only `reads: { lab: labSelectionReadSchema }`. The read schema lives with Fieldwork, independently of Lab.
 Own selectors omit the owner ID; foreign selectors name `lab` and expose no setter.
@@ -52,10 +53,10 @@ and provides the setter for the brief. Lab’s `units` and `well-selection` keys
 The local API writes `.mfe/user-context-demo/records.json` with separate `documents` and `metadata`
 objects. Each `documents[scope]` is an opaque owner map such as
 `{ lab: { units: "imperial" }, shell: { preferences: { theme: "dark" } } }`.
-The companion `metadata[scope][owner]` holds record revisions and retry receipts. Updating one owner
-never rewrites another owner's value. No schema file or list of domain fields reaches the API. Stop the API before deleting that file
+The companion `metadata[scope][owner]` holds each record's revision. A write replaces one key of one
+owner and bumps its revision; it never rewrites another key or owner. No schema file or list of domain fields reaches the API. Stop the API before deleting that file
 to restore defaults. Accepted writes flush the file, atomically rename it, and flush its directory.
-The single-process repository serializes writes, checks revisions, and preserves retry receipts.
+The single-process repository serializes writes; the last write of a key wins.
 
 This development API has no sign-in service. Its endpoints assign the local demo identity
 `u-2841`, with no tenant or account ID, independently of the request body. The runtime handles

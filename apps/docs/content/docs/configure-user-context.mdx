@@ -3,7 +3,7 @@ title: 'Configure user context in the shell'
 description: 'Persist opaque user documents through an authenticated adapter.'
 ---
 
-The shell supplies the storage adapter and its authenticated user through the normal shell state. Definitions independently declare their own schemas and cross-owner reads. The runtime registers compiled owner contracts embedded in the generated registry; application code does not aggregate owner schemas or construct a storage scope.
+The shell supplies the storage adapter and its authenticated user through the normal shell state. Definitions independently declare their own schemas and cross-owner reads, and the runtime validates with those schemas when it loads each definition. The shell does not aggregate owner schemas or construct a storage scope.
 
 ## Configure the adapter
 
@@ -23,9 +23,9 @@ const { runtime } = createMfeRuntime({
 })
 ```
 
-`hostOptions` contains the host's usual registry entries, framework adapters and container loader. The generated registry embeds each definition's current owner contract. Before mounting a definition, the runtime checks the consumer's declared requirements against those contracts and hydrates the required slices. An unsupported read contract fails before render, loaders or resolvers run. Publish the generated registry with the container; owner contracts remain framework metadata; neither the shell integration nor the persistence adapter imports a schema list.
+`hostOptions` contains the host's usual registry entries, framework adapters and container loader. Before mounting a definition that declares `userContext`, the runtime hydrates its own slice and every owner it reads, and validates each with the schemas the definition declares. A record a schema rejects fails before render, loaders or resolvers run. Neither the shell integration nor the persistence adapter imports a schema list.
 
-Each authenticated scope comes from the user's tenant ID, account ID and user ID. No storage calls run while `shellState.user` is `null`. Owners and readers use the same authenticated scope without receiving or assembling an identity key themselves.
+No storage calls run while `shellState.user` is `null`, and a definition that declares `userContext` cannot mount until someone signs in. A definition without `userContext` mounts as usual. The adapter never sees a user identity: the authenticated API knows whose document it serves.
 
 The adapter and backend store an opaque document for each authenticated user, keyed by owner ID:
 
@@ -37,11 +37,11 @@ The adapter and backend store an opaque document for each authenticated user, ke
 }
 ```
 
-Changing Lab updates only the `lab` entry. Other owners and fields unknown to an older deployment remain intact. The backend has no domain schemas, field lists or defaults to keep in sync. Revision and retry metadata can be stored alongside this document without becoming application values. The MFE runtime owns schema validation and default materialization.
+Changing Lab's `units` replaces only `lab.units`. Other keys and other owners remain intact. The backend has no domain schemas, field lists or defaults to keep in sync. Each owner's record revision is stored alongside this document without becoming an application value. The MFE runtime owns schema validation and defaults.
 
 ## Implement persistence
 
-`UserContextAdapter` is exported by the React and Angular `/host` entries. It has `hydrate(ownerIds, signal)` and `write(operation, signal)`. An optional `subscribe(listener, signal)` receives authoritative updates for the authenticated user. None receives a scope string. Each record contains the owner's complete object slice, owner ID and monotonic record revision. `write` resolves only after durable acceptance and returns the authoritative record. The authenticated API identifies the current user independently of request data.
+`UserContextAdapter` is exported by the React and Angular `/host` entries. It has `hydrate(ownerIds, signal)` and `write({ id, value }, signal)`. An optional `subscribe(listener, signal)` receives records changed elsewhere for the authenticated user. None receives a scope string. Each record contains the owner ID, a revision that increases with every accepted write, and the owner's stored object; hydration returns revision `0` and no value for an owner that has never written. `write` resolves only after durable acceptance and returns the stored record. The authenticated API identifies the current user independently of request data.
 
 For example, a browser adapter forwards the protocol to your application's authenticated API client:
 
@@ -51,15 +51,15 @@ import { api } from './authenticated-api'
 
 export const userContextAdapter: UserContextAdapter = {
   hydrate: (ownerIds, signal) => api.hydrateContext({ ownerIds }, signal),
-  write: (operation, signal) => api.writeContext(operation, signal),
+  write: (write, signal) => api.writeContext(write, signal),
 }
 ```
 
-The API client returns authoritative `StateRecord` values, forwards abort signals, and preserves backend failures rather than manufacturing successful records. To keep a backend's classification, throw a `UserContextError` whose code is one of `USER_CONTEXT_ERROR_CODES` (both exported by the `/host` entries), for example `conflict` for a stale `expectedRevision`. Its authenticated connection determines the user; the browser submits only owner IDs and values.
+The API client returns the stored `StateRecord` values, forwards abort signals, and preserves backend failures rather than manufacturing successful records. To keep a backend's classification, throw a `UserContextError` whose code is one of `USER_CONTEXT_ERROR_CODES` (both exported by the `/host` entries), for example `unauthorized-owner`. Its authenticated connection determines the user; the browser submits only owner IDs and values.
 
-An owner write includes `id`, `expectedRevision`, `operationId` and a structural object update. Preserve unknown fields when applying an older writer's update. Deduplicate operation IDs and compare revisions transactionally. Never trust a submitted owner ID as authorization; authorize using the authenticated server session.
+A write is `{ id, value: { [key]: value } }`: one whole key of one owner. Replace that key in the stored record, keep the other keys, increase the revision and return the record. There is no expected revision to compare: the last write of a key wins. The runtime sends an owner's writes one at a time, in order, and keeps a returned record only when its revision is newer than the one it holds. Never trust a submitted owner ID as authorization; authorize using the authenticated server session.
 
-For a backend implementation, use `createUserContextBackend` from `@company/mfe-runtime/user-context`. Supply a `UserContextRepository`, authenticated authorization and a `resolveOwner` callback derived from the trusted request identity. There is no schema option. Its transaction checks the record revision, merges opaque JSON objects recursively and saves the result and idempotency receipt together. The repository resolves only after durable commit.
+For a backend implementation, use `createUserContextBackend` from `@company/mfe-runtime/user-context`. Supply a `UserContextRepository`, authenticated authorization and a `resolveOwner` callback derived from the trusted request identity. There is no schema option. Its transaction replaces the submitted keys in the opaque JSON record and bumps the revision. The repository resolves only after durable commit.
 
 A request-scoped backend binds the authenticated writer independently of the submitted record:
 
@@ -79,9 +79,9 @@ export async function contextForRequest(request: Request) {
 }
 ```
 
-`authenticate`, `authorizeContext`, and the durable repository belong to your application. The authenticated definition ID must come from a trusted server policy or credential, not an arbitrary owner header. A write route obtains its backend with `contextForRequest(request)`, derives the internal storage partition from the authenticated session, and adds that partition when calling the low-level `backend.write`. A hydration route supplies the same trusted partition to `backend.hydrate`. Neither route accepts the user partition from the request body. Those low-level storage details remain server-internal; the shell adapter sees only its signed-in user’s requests.
+`authenticate`, `authorizeContext`, and the durable repository belong to your application. The authenticated definition ID must come from a trusted server policy or credential, not an arbitrary owner header. Each backend call takes the user's storage partition first: a write route calls `backend.write(scope, write, signal)` and a hydration route calls `backend.hydrate(scope, ownerIds, signal)`, with `scope` derived from the authenticated session. Neither route accepts the partition from the request body. The shell adapter sees only its signed-in user's requests.
 
-The runtime keeps pending writes invisible. Once storage accepts a write, it publishes the accepted value to subscribers and resolves the caller's success result. Rejected writes return a structured failure without replacing the previous committed value.
+Once storage accepts a write, the runtime publishes the stored value to subscribers and resolves the caller's success result. A rejected write returns a structured failure, keeps the previous value and reads that owner again.
 
 ## Follow the authenticated user
 
@@ -93,13 +93,13 @@ runtime.shellState.apply({ user: nextAuthenticatedUser, groups: nextGroups })
 runtime.shellState.apply({ user: null, groups: [] })
 ```
 
-The runtime synchronously invalidates the previous context when the identity changes. It derives the next scope, invalidates old bindings, aborts pending work and removes old subscriptions. Late responses cannot publish into the next user's context. Remount affected Apps and Widgets as part of the host's session transition.
+The runtime resets user context synchronously when the identity changes: it drops every record, fails old bindings with `user-context/scope-disposed`, aborts in-flight requests and removes old subscriptions. Late responses cannot publish into the next user's context. Remount affected Apps and Widgets as part of the host's session transition.
 
-A display-name change does not change the scope. Changing a tenant, account or user ID does. Signing out clears the current context instead of sharing an anonymous persisted slice.
+A display-name change does not reset it. Changing a tenant, account or user ID does. Signing out clears the current context instead of sharing an anonymous persisted slice.
 
 ## Give the shell its own preferences
 
-The React shell in this repository hosts both React and Angular definitions. These host snippets apply to either kind of MFE. The shell owns the `shell` slice. Declare its schema next to the adapter in the normal runtime factory call:
+The React shell in this repository hosts both React and Angular definitions. These host snippets apply to either kind of MFE. The shell owns the slice under the ID `shell`. Declare its schema next to the adapter in the normal runtime factory call:
 
 ```ts shared title="src/boot.tsx"
 import { createMfeRuntime } from '@company/mfe-react/host'
@@ -120,7 +120,7 @@ const { runtime } = createMfeRuntime({
     }),
     reads: {
       lab: z.object({
-        'well-selection': z.object({ wellId: z.string() }).nullable(),
+        'well-selection': z.object({ wellId: z.string() }).nullable().default(null),
       }),
     },
   },
@@ -131,7 +131,7 @@ const { runtime } = createMfeRuntime({
 })
 ```
 
-The build discovers this call from the shell entry and compiles the schema out of the runtime bundle. `theme.select` infers the owned shape from `schema`. Run the shell's generation command to generate the typed `#mfe/user-context` hook. The adapter remains a normal local module. `reads` declares only the foreign fields the shell uses; here, it needs Lab's selected well ID without importing Lab's full schema.
+The runtime validates the shell's slice with this schema. The build discovers this call from the shell entry and copies the declaration so the generated `#mfe/user-context` hook infers its types; run the shell's generation command to generate it. `theme.select` infers the owned shape from `schema`. The adapter remains a normal local module. `reads` declares only the foreign fields the shell uses; here, it needs Lab's selected well ID without importing Lab's full schema, and defaults it to `null` until Lab has saved one.
 
 A shell setting uses the same owner-inferred binding:
 
@@ -161,7 +161,7 @@ The framework maintains a theme cache partitioned by authenticated tenant, accou
 
 ## Inspect context
 
-The developer tools' **User Context** tab displays each owner contract, committed value, value including pending writes, record revision and pending write count. Merely opening the inspector does not hydrate or write context. Scope IDs are excluded from inspection snapshots.
+The developer tools' **User Context** tab lists each owner the page has loaded, with its status, record revision, stored value per key and, when the page knows it, the owner's schema as JSON Schema. Merely opening the inspector does not hydrate or write context. The user's identity is never shown.
 
 ## Related
 

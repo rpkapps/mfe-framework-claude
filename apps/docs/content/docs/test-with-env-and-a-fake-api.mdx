@@ -202,7 +202,7 @@ expect(mfeRequests()[0]?.url).toBe('https://api.example.test/v1/assets?site=nort
 expect(mfeRequests()[0]?.authorization).toBe('Bearer token-7')
 ```
 
-This assumes your Angular App has an `assets` route that sends the same request. Supply its user-context fixtures if it declares user context.
+This assumes your Angular App has an `assets` route that sends the same request. If it declares user context, also pass `userContext: { adapter }`, for example `scopedUserContextAdapter(createUserContextBackend({ repository, resolveOwner, authorize }), 'test')` from the same `/testing` entry.
 
 </Tab>
 </Tabs>

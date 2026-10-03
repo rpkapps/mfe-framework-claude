@@ -271,7 +271,7 @@ session. The preference is `light`, `dark` or `system`. The generated
 `#mfe/user-context` module supplies `useUserContext` and inferred types only.
 Settings select `context.preferences.theme` and save with
 `set('preferences', { theme })`; the account menu, palette and `⌘J` use the same
-persisted theme action. A rejected save leaves the confirmed preference unchanged.
+persisted theme action. A rejected save leaves the saved preference unchanged.
 
 The runtime's `theme` option selects that preference and resolves `system` against
 `prefers-color-scheme`. It keeps the effective `runtime.shellState` theme, document

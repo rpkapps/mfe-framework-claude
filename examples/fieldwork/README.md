@@ -11,7 +11,7 @@ it builds the way a generated container does: Nx's Angular webpack builder with 
 - `/inspections/:inspectionId` shows one inspection; the router binds the parameter to an input.
 - `/settings` is the App's settings capability, which the shell lists in its own settings.
 - `/user-context` hosts the inspection planner Widget, also mounted beside the React survey review.
-  The Angular Widget owns a saved `brief` in `userContext.schema` and explicitly declares `userContext.reads: { lab: labReadSchema }`. It reads Lab through `injectUserContext('lab', context => context['well-selection'])` and its `value()` signal; only Lab can update that slice. The Widget can prepare, clear and restore its own brief; the Fieldwork App only declares reads and has no unused owned context.
+  The Angular Widget owns a saved `brief` in `userContext.schema` and explicitly declares `userContext.reads: { lab: labReadSchema }`, which defaults every Lab field Lab may not have saved yet. It reads Lab through `injectUserContext('lab', context => context['well-selection'])` and its `value()` signal; only Lab can update that slice. The Widget can prepare, clear and restore its own brief; the Fieldwork App only declares reads and has no unused owned context.
   Follow [the user-context walkthrough](../user-context/README.md) to run them together.
 
 ## An Nx workspace of its own

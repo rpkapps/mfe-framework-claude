@@ -2039,6 +2039,37 @@ record — leaves it for the next person on a shared browser profile, and the fr
 nothing to stop it. Clearing it is the container's own work until retention comes back, and
 bringing it back is an optional field, so it would not break anyone who stores today.
 
-## User-context contracts and persistence
+## 57. User context validates with runtime Zod and saves each key last-write-wins
 
-User-context authoring gives each definition a `userContext.schema` and explicit `userContext.reads` for other owners. Generated React tuple bindings and Angular signal objects expose selected local reads, structured asynchronous write results and lifecycle-managed subscriptions. Only the owner writes its slice, and pending writes remain invisible until durable acceptance. Recursive object merges preserve unknown fields. Scope changes invalidate bindings and pending work. The shell declares its own schema beside a local adapter in the normal host factory; generated bindings expose hooks, not a replacement factory. The adapter receives owner requests without a scope string, and the authenticated server derives the user. The adapter and backend persist an opaque per-user owner document with separate revision/receipt metadata; no domain schemas or defaults are registered there. Normal builds require no baseline map. Owners may run standalone `compareContracts` release checks; the shell and persistence do not coordinate versions. See [the user-context API and protocol](./user-context.md).
+**Decision:** each definition declares `userContext.schema` for its own slice and
+`userContext.reads` for the fields of other owners it reads. The runtime validates with those Zod
+schemas directly: the owner's schema checks its writes and every record it loads, and a reader's
+subset checks only the fields it reads. Generated React tuple bindings and Angular signal objects
+expose selected reads, structured asynchronous write results and lifecycle-managed subscriptions.
+The build only copies the declaration into a module the binding imports for its types, so an
+undeclared owner or key stays a compile error. The runtime checks two things: a mount writes only
+its own owner, and reads only the owners it declared.
+
+A `set` sends one whole key; the server replaces that key, bumps the record's revision and
+returns the record, and the client keeps a record only when its revision is newer. A failed write
+rejects only that `set` and reads the owner again. The adapter is scope-free: the store resets
+when the signed-in user changes, and every binding and request of the previous user fails closed.
+The server backend takes the scope per call from its own authenticated request and persists an
+opaque per-user owner document with a revision per owner; no domain schemas or defaults are
+registered there. See [the user-context API and protocol](./user-context.md).
+
+**Why:** the first design compiled each schema into a structural contract that the registry
+carried and the runtime re-interpreted, with capability signatures, reader-compatibility checks
+and a release-time `compareContracts`. Every schema feature needed compiler support, so unions,
+records, refinements and transforms were refused, and a reader's contract that no longer matched
+the deployed owner's could block a mount. Validating with the authored schema removes that layer
+and accepts any schema whose output is JSON. Saves were compare-and-swap with optimistic display,
+a pending count and conflict recovery; per-key last-write-wins needs none of that, and two tabs
+editing different keys never collide.
+
+**Cost:** Zod now ships in each container's bundle and runs in the browser, where the compiled
+contract did not. A reader no longer sees the owner's defaults: it parses only what the owner
+stored, so a reader field the owner may not have written needs its own default, or must be
+optional or nullable. Two tabs editing the same key keep the later save, not a merge. A container
+can no longer check offline that its reads still match a published owner; a mismatch shows at
+runtime as `user-context/invalid-value` on that reader only.

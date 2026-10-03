@@ -1555,11 +1555,11 @@ const capabilityScenes = [
   },
   {
     id: 'user-context',
-    caption: 'Generated bindings share selections through the shell configured storage adapter.',
+    caption: 'Owner-scoped context commits through the shell configured storage adapter.',
     react: 'useUserContext()',
     angular: 'injectUserContext()',
     runtime: 'User context service',
-    runtimeSubtitle: 'mount binding, schema, scope',
+    runtimeSubtitle: 'owner schemas and reads',
     shell: 'User context adapter',
     shellSubtitle: 'hydrate, write, optional subscribe',
     adapterFlow: 'read and set',

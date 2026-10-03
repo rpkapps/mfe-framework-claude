@@ -1,9 +1,9 @@
 ---
 title: 'Remember user context across Apps and Widgets'
-description: 'Own a typed context slice, await saved changes, and subscribe to another definition through an explicit read contract.'
+description: 'Own a typed context slice, await saved changes, and read another definition through a declared subset.'
 ---
 
-User context remembers selections, filters and preferences for the current user scope. Each App or Widget owns one slice under its definition ID. Only that definition can update its slice; other definitions can declare a typed, read-only view.
+User context remembers selections, filters and preferences for the signed-in user. Each App or Widget owns one slice under its definition ID. Only that definition can update its slice; other definitions can declare a typed, read-only view.
 
 The shell must [configure user context](/docs/configure-user-context) before mounting your definition.
 For a preference belonging to one definition in this browser, use [browser storage](/docs/remember-a-value).
@@ -14,9 +14,9 @@ For a preference belonging to one definition in this browser, use [browser stora
   caption="Both framework adapters connect to the same shell-owned service."
 >
   The generated React hook and Angular injector read and set context through the runtime user
-  context service, which knows each owner, its read contracts and the current scope. The service
-  loads and saves records through the shell's adapter. A setter's promise resolves after persistence
-  accepts the write.
+  context service, which validates each owner's records with the Zod schemas the definitions
+  declare. The service loads and saves records through the shell's adapter. A setter's promise
+  resolves after persistence accepts the write.
 </Diagram>
 
 Try the [running React and Angular example](https://github.com/rpkapps/mfe-framework-claude/tree/dev/examples/user-context).
@@ -27,7 +27,7 @@ Try the [running React and Angular example](https://github.com/rpkapps/mfe-frame
 <Step>
 ### 1. Declare your slice
 
-Put a Zod object in `userContext.schema` on the definition’s literal options. Its properties are local keys, not globally shared IDs.
+Put a Zod object in `userContext.schema` on the definition’s literal options. Its properties are local keys, not globally shared IDs. The runtime validates with this schema: every write before it is sent, and every record it loads. Any schema works as long as what it parses to is JSON, so a transform to `Date` is refused.
 
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">
@@ -42,10 +42,12 @@ export default createApp({
   router: makeRouter,
   userContext: {
     schema: z.object({
-      selection: z.object({
-        wellId: z.string().nullable().default(null),
-        label: z.string().default(''),
-      }),
+      selection: z
+        .object({
+          wellId: z.string().nullable(),
+          label: z.string(),
+        })
+        .default({ wellId: null, label: '' }),
       units: z.enum(['metric', 'imperial']).default('metric'),
     }),
   },
@@ -65,10 +67,12 @@ export default createApp({
   routes,
   userContext: {
     schema: z.object({
-      selection: z.object({
-        wellId: z.string().nullable().default(null),
-        label: z.string().default(''),
-      }),
+      selection: z
+        .object({
+          wellId: z.string().nullable(),
+          label: z.string(),
+        })
+        .default({ wellId: null, label: '' }),
       units: z.enum(['metric', 'imperial']).default('metric'),
     }),
   },
@@ -78,7 +82,7 @@ export default createApp({
 </Tab>
 </Tabs>
 
-Angular `createApp` and both adapters' `createWidget` accept the same declarations. Run `pnpm generate` to generate `#mfe/user-context`. Containers with multiple definitions use `#mfe/user-context/<definition-id>` so each binding checks the mounted definition's identity.
+Angular `createApp` and both adapters' `createWidget` accept the same declarations. Run `pnpm generate` to generate `#mfe/user-context`; it infers its types from your schema, and a running dev build refreshes it when the schema changes. Containers with multiple definitions use `#mfe/user-context/<definition-id>` so each binding checks the mounted definition's identity.
 
 Own reads and writes infer this definition’s ID; do not repeat the ID when using the generated binding. A shared schema package is optional. Each owner can author and release its schema in its own repository.
 
@@ -137,9 +141,9 @@ export class UnitsComponent {
 </Tab>
 </Tabs>
 
-`set` returns `Promise<MfeResult<T>>`: success has `ok: true` and `value`; failure has `ok: false` and `error`. Invalid values, conflicts, persistence failures and disposed scopes produce failure results. A failed write leaves the previous value intact. Pending writes do not appear in reads or notify value subscribers.
+`set` returns `Promise<MfeResult<T>>`: success has `ok: true` and `value`; failure has `ok: false` and `error`. Invalid values, persistence failures and a signed-in user change produce failure results. A failed write leaves the previous value intact and reads the owner again. Reads show only what the server accepted: a value appears after its write succeeds, never before.
 
-Objects merge recursively. Omitted fields remain present, `null` clears a nullable field, and arrays replace the complete array. An older writer preserves fields added by a newer schema.
+An object update fills in the rest of the key from what you currently read, so `set('selection', { wellId: 'well-42' })` keeps `selection.label`. `null` clears a nullable field, and arrays replace the complete array. The whole key is saved, and the last save of a key wins: if two tabs change `units`, the later one is kept, and a change to `selection` in one tab never undoes a change to `units` in another.
 
 The setter always addresses an owned top-level key, regardless of the selector. For example, selecting `context.selection.wellId` still uses `set('selection', { wellId: 'well-42' })` in React or `selection.set('selection', { wellId: 'well-42' })` in Angular. Selectors do not become write paths.
 
@@ -175,7 +179,9 @@ The framework owns both subscriptions and cleanup. There is no unsubscribe funct
 <Step>
 ### 3. Read another owner's context
 
-Declare the subset you need in `userContext.reads`, keyed by the owner's definition ID. The reader owns this declaration; the owner does not need to import or deploy the reader. This Widget reads only `selection.wellId` from the `operations` App above: it does not declare `selection.label` or `units`, and it does not import the owner’s schema. A reader can omit `schema` when it has no context of its own. Read requirements can omit the owner’s default values and object strictness; preserve required versus optional and nullable semantics, value types and constraints. Arrays are atomic contracts, so an array reader declares the full item shape.
+Declare the subset you need in `userContext.reads`, keyed by the owner's definition ID. The reader owns this declaration; the owner does not need to import or deploy the reader. This Widget reads only `selection.wellId` from the `operations` App above: it does not declare `selection.label` or `units`, and it does not import the owner’s schema. A reader can omit `schema` when it has no context of its own.
+
+Your subset parses what the owner has stored, not what the owner's defaults would fill in. Give every field the owner may not have written yet a default, or make it optional or nullable, as `.default(null)` does below. A required field the owner has not written fails with `user-context/invalid-value`, and the message says which field and how to fix it.
 
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">
@@ -193,7 +199,7 @@ export const selectedWell = createWidget({
   userContext: {
     reads: {
       operations: z.object({
-        selection: z.object({ wellId: z.string().nullable() }),
+        selection: z.object({ wellId: z.string().nullable() }).default({ wellId: null }),
       }),
     },
   },
@@ -216,7 +222,7 @@ export const selectedWell = createWidget({
   userContext: {
     reads: {
       operations: z.object({
-        selection: z.object({ wellId: z.string().nullable() }),
+        selection: z.object({ wellId: z.string().nullable() }).default({ wellId: null }),
       }),
     },
   },
@@ -279,7 +285,7 @@ selection.set('selection', { wellId: 'well-42' })
 </Tab>
 </Tabs>
 
-Generated types expose only declared fields. Canonical runtime snapshots are not a field privacy boundary: use backend authorization for confidential data. The runtime also enforces the declared owner access and mounted identity. A reader cannot gain write access by choosing another owner ID.
+Generated types expose only declared fields. Runtime snapshots are not a field privacy boundary: use backend authorization for confidential data. The runtime also checks that a mount writes only its own slice and reads only owners it declared, so a reader cannot gain write access by choosing another owner ID.
 
 </Step>
 </Steps>
@@ -318,7 +324,7 @@ export const selectionResolver = () => inject(SelectionContext).selection.value(
 
 Angular subscriptions live until the component or service injection context is destroyed, not just until a resolver callback returns. Reuse the service binding across resolver calls instead of creating another subscription on each call.
 
-Bindings are invalidated when their mount or user scope ends. Capture them within the mounted definition and never cache them globally.
+Bindings are invalidated when their mount ends or the signed-in user changes. Capture them within the mounted definition and never cache them globally.
 
 ## Check it works
 

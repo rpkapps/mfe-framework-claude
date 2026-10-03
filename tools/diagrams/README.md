@@ -573,9 +573,10 @@ transport attaches its token only to declared API origins. Other origins receive
 ### capability-user-context
 
 The build generates `useUserContext()` or `injectUserContext()` for each definition's declared
-contract. Mount bindings connect those calls to the runtime user context service. The shell
-configures its schema and adapter; the runtime derives the scope from the signed-in user. The
-adapter loads and saves backend records. Optional subscriptions deliver external changes. This
+schema. Mount bindings connect those calls to the runtime user context service, which validates
+records with the owner schemas and read subsets. The shell configures its schema and adapter, and
+the service starts over when the signed-in user changes. The adapter loads and saves backend
+records. Optional subscriptions deliver external changes. This
 store is separate from browser stored state.
 
 ### capability-navigation
