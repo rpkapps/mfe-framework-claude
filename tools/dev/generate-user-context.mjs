@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { basename, resolve } from 'node:path'
 import ts from 'typescript'
 import { format } from 'prettier'
 import { compileUserContext } from '../../packages/mfe-build/dist/user-context/compiler.js'
@@ -8,9 +8,10 @@ import { compileUserContext } from '../../packages/mfe-build/dist/user-context/c
 const directory = resolve(process.argv[2] ?? '.')
 const file = resolve(directory, 'src/user-context.schema.ts')
 const source = ts.createSourceFile(file, readFileSync(file, 'utf8'), ts.ScriptTarget.Latest, true)
-const owners = directory.endsWith('/lab')
-  ? { userContextSchema: 'lab' }
-  : { inspectionUserContextSchema: 'well-inspection', fieldworkUserContextSchema: 'fieldwork' }
+const owners =
+  basename(directory) === 'lab'
+    ? { userContextSchema: 'lab' }
+    : { inspectionUserContextSchema: 'well-inspection', fieldworkUserContextSchema: 'fieldwork' }
 const contracts = []
 for (const statement of source.statements) {
   if (!ts.isVariableStatement(statement)) continue
