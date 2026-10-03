@@ -4,7 +4,7 @@ import { expect } from '@playwright/test'
 export async function verifyUserContextPreferences(browser) {
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } })
   const scope = JSON.stringify([null, null, 'u-2841'])
-  const cacheKey = `portal:theme:${encodeURIComponent(scope)}`
+  const cacheKey = `mfe:theme:${encodeURIComponent(scope)}`
   const errors = []
   page.on('pageerror', error => errors.push(`pageerror: ${error.stack ?? error.message}`))
   page.on('console', message => {
