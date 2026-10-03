@@ -5,7 +5,7 @@ import {
   type MemoryRuntimeOptions,
 } from '@company/mfe-angular/testing'
 import labRegistry from '../../lab/.mfe/mfe-registry.json'
-import fieldworkRegistry from '../../fieldwork/.mfe/mfe-registry.json'
+import fieldworkRegistry from '../.mfe/mfe-registry.json'
 import { expect, it } from 'vitest'
 
 import { fieldwork as app } from './mfe'

@@ -26,23 +26,14 @@ export function UserContextPage(): ReactNode {
   const id = useId()
   const [units, set] = useUserContext(context => context.units)
   const [selection] = useUserContext(context => context['well-selection'])
-  const setUnits = (value: 'metric' | 'imperial') => set('units', value)
-  const setSelection = (value: Parameters<typeof set<'well-selection'>>[1]) =>
-    set('well-selection', value)
   const loadedSelection = useLoaderData({ from: '/user-context' })
   const well = wells.find(candidate => candidate.id === selection?.wellId)
   const [error, setError] = useState('')
 
-  async function save(
-    write: () => Promise<{ ok: boolean; error?: { message: string } }>,
-  ): Promise<void> {
-    try {
-      const result = await write()
-      if (!result.ok) throw new Error(result.error?.message ?? 'The update failed')
-      setError('')
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause))
-    }
+  // A setter never rejects: a failed commit resolves with the error and keeps the confirmed value.
+  async function save(write: ReturnType<typeof set>): Promise<void> {
+    const result = await write
+    setError(result.ok ? '' : result.error.message)
   }
 
   return (
@@ -69,8 +60,8 @@ export function UserContextPage(): ReactNode {
                 onChange={event => {
                   const next = wells.find(candidate => candidate.id === event.target.value)
                   if (next)
-                    void save(() =>
-                      setSelection({
+                    void save(
+                      set('well-selection', {
                         wellId: next.id,
                         runId: next.runs[1].id,
                         comparisonMode: 'baseline',
@@ -95,7 +86,7 @@ export function UserContextPage(): ReactNode {
                 onChange={event => {
                   const runId = event.target.value
                   if (well?.runs.some(run => run.id === runId))
-                    void save(() => set('well-selection', { runId }))
+                    void save(set('well-selection', { runId }))
                 }}
               >
                 <NativeSelectOption value="">Choose a survey</NativeSelectOption>
@@ -114,7 +105,7 @@ export function UserContextPage(): ReactNode {
                 onChange={event => {
                   const nextUnits = event.target.value
                   if (nextUnits === 'metric' || nextUnits === 'imperial')
-                    void save(() => setUnits(nextUnits))
+                    void save(set('units', nextUnits))
                 }}
               >
                 <NativeSelectOption value="metric">Metres</NativeSelectOption>
@@ -127,8 +118,8 @@ export function UserContextPage(): ReactNode {
                 checked={selection?.comparisonMode === 'overlay'}
                 disabled={!well}
                 onCheckedChange={checked =>
-                  void save(() =>
-                    setSelection({ comparisonMode: checked ? 'overlay' : 'baseline' }),
+                  void save(
+                    set('well-selection', { comparisonMode: checked ? 'overlay' : 'baseline' }),
                   )
                 }
               />
@@ -138,7 +129,7 @@ export function UserContextPage(): ReactNode {
             <Button
               variant="ghost"
               disabled={selection === null}
-              onClick={() => void save(() => setSelection(null))}
+              onClick={() => void save(set('well-selection', null))}
             >
               Clear selected well
             </Button>

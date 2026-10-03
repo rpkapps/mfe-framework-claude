@@ -114,10 +114,11 @@ describe('the shell’s keys', () => {
     await vi.waitFor(() => expect(saveTheme).toHaveBeenCalledWith('light'))
   })
 
-  it('reserves the theme shortcut while preferences are unavailable', () => {
+  it('reserves the theme shortcut while preferences are unavailable', async () => {
     memory.runtime.actions.registerHost(themeAction('dark'))
-    expect(press({ key: 'j', ctrlKey: true }).status).not.toBe('unmatched')
-    expect(memory.runtime.shellState.getSnapshot().theme).toBe('light')
+    const pressed = press({ key: 'j', ctrlKey: true })
+    expect(pressed.status).toBe('matched')
+    if (pressed.status === 'matched') expect((await pressed.execution).status).toBe('denied')
   })
 
   it('leaves a letter typed into the palette’s field in the field', () => {

@@ -32,6 +32,19 @@ it.each([
   })
 })
 
+it('classifies a failure whose body is not JSON by its status', async () => {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => new Response('Bad gateway', { status: 409 })),
+  )
+  await expect(
+    userContextAdapter.write(
+      { id: 'lab', expectedRevision: 0, operationId: 'retry', value: {} },
+      new AbortController().signal,
+    ),
+  ).rejects.toMatchObject({ code: 'user-context/conflict' })
+})
+
 it('hydrates only owner IDs and forwards cancellation to the authenticated API', async () => {
   const signal = new AbortController().signal
   const records = [{ id: 'lab', revision: 0 }]

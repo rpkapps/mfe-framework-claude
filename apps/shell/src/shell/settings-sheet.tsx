@@ -3,10 +3,10 @@
  * list at the bottom links to the settings pages the registry says each one published.
  */
 
-import { Component, Suspense, useState, type ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useUserContext } from '#mfe/user-context'
 import { useNavigate } from '@tanstack/react-router'
-import { useApps, useCapabilityPages, useMfeRuntime, useTheme, useUser } from '@company/mfe-react'
+import { useApps, useCapabilityPages, useMfeRuntime, useTheme } from '@company/mfe-react'
 import { devtools } from '@company/mfe-devtools'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
@@ -45,6 +45,7 @@ import { collectDiagnostics, formatReport } from './diagnostics.ts'
 import { EMPTY_LAYOUT } from './dashboard/layout-store.ts'
 import { useDashboardLayout } from './hooks.ts'
 import { DataList, DataRow, Mono } from './readout.tsx'
+import { UserPreferences } from './theme-action.tsx'
 import { shellUi } from './ui-store.ts'
 import { workspace } from './workspace.ts'
 
@@ -56,7 +57,6 @@ export function SettingsSheet({
   readonly onOpenChange: (open: boolean) => void
 }): ReactNode {
   const runtime = useMfeRuntime('the shell settings')
-  const user = useUser()
   const navigate = useNavigate()
   const apps = useApps()
   const [layout, setLayout] = useDashboardLayout()
@@ -80,13 +80,14 @@ export function SettingsSheet({
         <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto px-4">
           <div className="flex flex-col gap-6 pb-2">
             <Section title="Appearance" hint="Shared with every mounted application">
-              <ThemeSettingsBoundary
-                key={JSON.stringify([user?.tenantId, user?.accountId, user?.id])}
+              <UserPreferences
+                pending={<ThemeStatus message="Loading your saved preference…" />}
+                failed={
+                  <ThemeStatus message="Your preference could not be loaded. Refresh to try again." />
+                }
               >
-                <Suspense fallback={<ThemeStatus message="Loading your saved preference…" />}>
-                  <ThemeSettings />
-                </Suspense>
-              </ThemeSettingsBoundary>
+                <ThemeSettings />
+              </UserPreferences>
             </Section>
 
             <Section title="Widget dashboard" hint={`${String(layout.tiles.length)} tiles saved`}>
@@ -246,23 +247,6 @@ function ThemeStatus({ message }: { readonly message: string }): ReactNode {
       {message} Current appearance: {theme}.
     </p>
   )
-}
-
-class ThemeSettingsBoundary extends Component<
-  { readonly children: ReactNode },
-  { failed: boolean }
-> {
-  override state = { failed: false }
-  static getDerivedStateFromError(): { failed: boolean } {
-    return { failed: true }
-  }
-  override render(): ReactNode {
-    return this.state.failed ? (
-      <ThemeStatus message="Your preference could not be loaded. Refresh to try again." />
-    ) : (
-      this.props.children
-    )
-  }
 }
 
 function ThemeSettings(): ReactNode {

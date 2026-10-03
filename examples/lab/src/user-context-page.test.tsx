@@ -5,7 +5,7 @@ import {
   createTestUserContextRepository,
   mountApp,
 } from '@company/mfe-react/testing'
-import labRegistry from '../../lab/.mfe/mfe-registry.json'
+import labRegistry from '../.mfe/mfe-registry.json'
 import fieldworkRegistry from '../../fieldwork/.mfe/mfe-registry.json'
 import { fireEvent, waitFor, within } from '@testing-library/react'
 import { expect, it } from 'vitest'

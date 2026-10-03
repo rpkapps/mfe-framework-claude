@@ -56,8 +56,6 @@ The companion `metadata[scope][owner]` holds record revisions and retry receipts
 never rewrites another owner's value. No schema file or list of domain fields reaches the API. Stop the API before deleting that file
 to restore defaults. Accepted writes flush the file, atomically rename it, and flush its directory.
 The single-process repository serializes writes, checks revisions, and preserves retry receipts.
-Earlier opaque demo records are converted without schemas, preserving values and retry metadata.
-Hydration remains read-only; the next accepted save commits the new document layout.
 
 This development API has no sign-in service. Its endpoints assign the local demo identity
 `u-2841`, with no tenant or account ID, independently of the request body. The runtime handles

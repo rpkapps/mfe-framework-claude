@@ -10,9 +10,9 @@ import { createRoot } from 'react-dom/client'
 import { RouterProvider } from '@tanstack/react-router'
 import {
   createAuthenticatedFetch,
-  createMfeRuntime,
   createBrowserNavigationBridge,
   createFederationContainerLoader,
+  createMfeRuntime,
   createNoopTelemetryProvider,
   createSpanEmitter,
   DiagnosticsHub,
@@ -24,18 +24,18 @@ import {
 import { reactAdapter } from '@company/mfe-react/registry'
 import { loadRemote, registerRemotes } from '@module-federation/runtime'
 import { toast } from 'sonner'
+import { z } from 'zod'
 
 import { angularAdapter } from './angular/index.ts'
 import { shellSession } from './auth/gate.ts'
 import { installShellChat, LazyShellChat } from './chat/instance.ts'
 import { createFaroProvider } from './shell/faro.ts'
 import { routerNavigation } from './shell/navigation.ts'
-import { z } from 'zod'
-import { userContextAdapter } from './user-context-adapter.ts'
 import { ShellReady } from './shell/ready.tsx'
 import { createShellRouter } from './shell/router.tsx'
 import { createDevSession } from './shell/session.ts'
 import { notices } from './shell/workspace.ts'
+import { userContextAdapter } from './user-context-adapter.ts'
 import './styles/app.css'
 
 /** A registry that will not load is a diagnostic, not a crash: the shell still boots. */

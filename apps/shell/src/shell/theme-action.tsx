@@ -8,12 +8,31 @@ import type { ShellTheme } from './preferences.ts'
 
 /** Preference hydration never suspends the shell or its other keyboard shortcuts. */
 export function ThemeAction(): ReactNode {
-  const user = useUser()
   return (
-    <PreferenceBoundary key={JSON.stringify([user?.tenantId, user?.accountId, user?.id])}>
-      <Suspense fallback={<RegisterThemeAction />}>
-        <SavedThemeAction />
-      </Suspense>
+    <UserPreferences pending={<RegisterThemeAction />} failed={<RegisterThemeAction />}>
+      <SavedThemeAction />
+    </UserPreferences>
+  )
+}
+
+/** Hydrates the signed-in user's preferences with its own Suspense and error boundaries. */
+export function UserPreferences({
+  pending,
+  failed,
+  children,
+}: {
+  readonly pending: ReactNode
+  readonly failed: ReactNode
+  readonly children: ReactNode
+}): ReactNode {
+  const user = useUser()
+  // Keyed by identity, so a sign-in after a failed load hydrates again.
+  return (
+    <PreferenceBoundary
+      key={JSON.stringify([user?.tenantId, user?.accountId, user?.id])}
+      failed={failed}
+    >
+      <Suspense fallback={pending}>{children}</Suspense>
     </PreferenceBoundary>
   )
 }
@@ -59,12 +78,15 @@ function RegisterThemeAction({
   return null
 }
 
-class PreferenceBoundary extends Component<{ readonly children: ReactNode }, { failed: boolean }> {
+class PreferenceBoundary extends Component<
+  { readonly failed: ReactNode; readonly children: ReactNode },
+  { failed: boolean }
+> {
   override state = { failed: false }
   static getDerivedStateFromError(): { failed: boolean } {
     return { failed: true }
   }
   override render(): ReactNode {
-    return this.state.failed ? <RegisterThemeAction /> : this.props.children
+    return this.state.failed ? this.props.failed : this.props.children
   }
 }

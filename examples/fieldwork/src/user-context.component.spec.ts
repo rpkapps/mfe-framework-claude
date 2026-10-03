@@ -8,7 +8,7 @@ import {
   mountWidget,
 } from '@company/mfe-angular/testing'
 import labRegistry from '../../lab/.mfe/mfe-registry.json'
-import fieldworkRegistry from '../../fieldwork/.mfe/mfe-registry.json'
+import fieldworkRegistry from '../.mfe/mfe-registry.json'
 import { expect, it } from 'vitest'
 import { injectUserContext } from '#mfe/user-context/well-inspection'
 import { fieldwork as app, wellInspection } from './mfe'

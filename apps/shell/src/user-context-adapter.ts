@@ -13,7 +13,12 @@ async function request<T>(path: string, body: unknown, signal: AbortSignal): Pro
     signal,
   })
   if (!response.ok) {
-    const failure = (await response.json()) as { code?: string; id?: string; message?: string }
+    // A proxy or crash can answer with a body that is not JSON; the status still classifies it.
+    const failure = (await response.json().catch(() => ({}))) as {
+      code?: string
+      id?: string
+      message?: string
+    }
     const supported: readonly UserContextErrorCode[] = [
       'unauthorized-owner',
       'invalid-value',

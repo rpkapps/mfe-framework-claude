@@ -15,37 +15,9 @@ export function createDemoBackend(file) {
   async function readAll() {
     try {
       const persisted = JSON.parse(await readFile(file, 'utf8'))
-      if (!isMap(persisted)) throw new Error('Invalid demo storage document')
-      if (Object.hasOwn(persisted, 'documents') || Object.hasOwn(persisted, 'metadata')) {
-        if (!isMap(persisted.documents) || !isMap(persisted.metadata))
-          throw new Error('Incomplete demo storage document')
-        return persisted
-      }
-      // Previous demo versions keyed opaque records by [scope, owner]. Convert their shape
-      // without loading domain schemas; the next successful save commits the new layout.
-      const documents = Object.create(null)
-      const metadata = Object.create(null)
-      for (const [key, record] of Object.entries(persisted)) {
-        const pair = JSON.parse(key)
-        if (
-          !Array.isArray(pair) ||
-          pair.length !== 2 ||
-          pair.some(value => typeof value !== 'string') ||
-          !isMap(record) ||
-          !Object.hasOwn(record, 'value') ||
-          !isMap(record.receipts) ||
-          !Number.isSafeInteger(record.revision) ||
-          record.revision < 1
-        )
-          throw new Error('Invalid legacy demo storage record')
-        const [scope, id] = pair
-        documents[scope] = { ...documents[scope], [id]: record.value }
-        metadata[scope] = {
-          ...metadata[scope],
-          [id]: { revision: record.revision, receipts: record.receipts },
-        }
-      }
-      return { documents, metadata }
+      if (!isMap(persisted) || !isMap(persisted.documents) || !isMap(persisted.metadata))
+        throw new Error('Invalid demo storage document')
+      return persisted
     } catch (error) {
       if (error.code === 'ENOENT') return { documents: {}, metadata: {} }
       throw error
