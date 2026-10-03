@@ -42,4 +42,25 @@ describe('production user-context declarations', () => {
       ])
     },
   )
+  it('keeps an exported schema that another module may import', () => {
+    const output = transformUserContextSource(
+      `import { z } from 'zod'; import { createApp } from '@company/mfe-react';
+      export const schema = z.object({ units: z.string().default('metric') });
+      export default createApp({ id: 'example', router: () => ({}), userContext: { schema } })`,
+      'mfe.ts',
+      { example: { protocolVersion: 1, ownerId: 'example', contracts: [] } },
+    )
+    expect(output).toContain('export const schema = z.object(')
+    expect(output).toContain("import { z } from 'zod'")
+    expect(output).not.toMatch(/\buserContext:/)
+  })
+  it('reads a template-literal id the way discovery does', () => {
+    const output = transformUserContextSource(
+      "import { z } from 'zod'; import { createApp } from '@company/mfe-react';\n" +
+        'export default createApp({ id: `example`, router: () => ({}), userContext: { schema: z.object({}) } })',
+      'mfe.ts',
+      { example: { protocolVersion: 1, ownerId: 'example', contracts: [] } },
+    )
+    expect(output).toContain('"ownerId": "example"')
+  })
 })

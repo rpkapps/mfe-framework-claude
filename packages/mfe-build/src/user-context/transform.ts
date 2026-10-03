@@ -2,8 +2,10 @@ import type { StateContract, UserContextRequirements } from '@company/mfe-core/u
 import {
   collectImportedBindings,
   collectTopLevelBindings,
+  objectProperty,
   propertyName,
   parseSourceFile,
+  stringLiteralValue,
   ts,
   unwrapExpression,
 } from '../discovery/ts-ast.ts'
@@ -187,14 +189,9 @@ export function transformUserContextSource(
             if (schema || reads) {
               if (schema) collectCandidates(schema)
               if (reads) collectCandidates(reads)
-              const identity = options.properties.find(property => propertyName(property) === 'id')
-              const id =
-                identity &&
-                ts.isPropertyAssignment(identity) &&
-                ts.isStringLiteral(identity.initializer)
-                  ? identity.initializer.text
-                  : undefined
-              const refs = isHost ? host : id === undefined ? undefined : requirements[id]
+              // Read the id exactly as discovery does, so every discovered definition matches.
+              const id = stringLiteralValue(objectProperty(options, 'id')?.initializer)
+              const refs = isHost ? host : id === null ? undefined : requirements[id]
               if (!refs) throw new Error(`user-context/missing-contract: ${id ?? filename}`)
               const properties = options.properties.flatMap(property => {
                 if (propertyName(property) === '__userContext') return []
@@ -255,7 +252,11 @@ export function transformUserContextSource(
     output.forEachChild(read)
     let changed = false
     const statements = output.statements.flatMap(statement => {
-      if (ts.isVariableStatement(statement)) {
+      // An exported schema stays: another module may import it.
+      if (
+        ts.isVariableStatement(statement) &&
+        !statement.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)
+      ) {
         const declarations = statement.declarationList.declarations.filter(declaration => {
           const remove =
             ts.isIdentifier(declaration.name) &&

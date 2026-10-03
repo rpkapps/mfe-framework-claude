@@ -202,14 +202,14 @@ export function tsconfigPathsFile(context: GenerateContext): GeneratedFile {
     [ALIASES.meta]: ['./meta.ts'],
   }
   if (context.configSource !== undefined) paths[ALIASES.config] = ['./config.ts']
-  const stateDefinitions = context.discovery.definitions.filter(
+  const contextDefinitions = context.discovery.definitions.filter(
     definition => definition.userContext !== undefined,
   )
-  for (const definition of stateDefinitions)
+  for (const definition of contextDefinitions)
     paths[`#mfe/user-context/${definition.id}`] = [`./user-context/${definition.id}.ts`]
-  const soleStateDefinition = stateDefinitions[0]
-  if (stateDefinitions.length === 1 && soleStateDefinition)
-    paths['#mfe/user-context'] = [`./user-context/${soleStateDefinition.id}.ts`]
+  const soleContextDefinition = contextDefinitions[0]
+  if (contextDefinitions.length === 1 && soleContextDefinition)
+    paths['#mfe/user-context'] = [`./user-context/${soleContextDefinition.id}.ts`]
 
   return {
     path: generatedPath(context.options.generatedDir, 'tsconfig.paths.json'),

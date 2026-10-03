@@ -269,15 +269,13 @@ function readDefinition(
 ): DiscoveredDefinition {
   const id = readIdentity(sourceFile, factory)
   const version = readVersion(sourceFile, factory, id, imports, sources)
-  const stateSchema = userContextExpression(factory.options)
+  const schema = userContextExpression(factory.options)
   const reads = userContextExpression(factory.options, 'reads')
   const contracts =
-    stateSchema === undefined
-      ? []
-      : [...compileUserContext(id, stateSchema, sourceFile, sources).contracts]
+    schema === undefined ? [] : [...compileUserContext(id, schema, sourceFile, sources).contracts]
   if (reads) contracts.push(...compileUserContextReads(id, reads, sourceFile, sources))
   const userContext: UserContextManifest | undefined =
-    stateSchema || reads ? { formatVersion: 1, contracts } : undefined
+    schema || reads ? { formatVersion: 1, contracts } : undefined
   const contract =
     factory.kind === 'app'
       ? null

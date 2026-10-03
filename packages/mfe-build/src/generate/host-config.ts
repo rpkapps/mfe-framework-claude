@@ -1,8 +1,3 @@
-import {
-  discoverHostUserContext,
-  hostUserContextFile,
-  type HostUserContextPlan,
-} from '../user-context/host.ts'
 /**
  * Runtime configuration for a host: the same `src/mfe.config.ts` declarations, deployment files and
  * local copy a container has, with a `#mfe/config` that validates without Zod. A host reads its
@@ -15,6 +10,11 @@ import {
 import { readConfigSource, type ConfigSource } from '../config/config-source.ts'
 import { summarizeSchema } from '../config/zod-static.ts'
 import { resolveOptions, type ContainerOptions } from '../options.ts'
+import {
+  discoverHostUserContext,
+  hostUserContextFile,
+  type HostUserContextPlan,
+} from '../user-context/host.ts'
 import { envExampleFile, gitignoreFile, runtimeConfigSchemaFile } from './artifacts.ts'
 import {
   banner,
@@ -65,7 +65,6 @@ export interface HostConfigPlan extends RuntimeConfigPlan {
 }
 
 interface HostConfigContext extends ConfigGenerateContext {
-  readonly configSource: ConfigSource
   readonly host: { readonly id: string }
   readonly checkModule: string
 }
@@ -87,10 +86,7 @@ export function planHostConfig(options: HostConfigOptions): HostConfigPlan | nul
   const userContext = discoverHostUserContext(resolved.containerRoot, id, options.entries)
   if (configSource === undefined && userContext === undefined) return null
 
-  const context: ConfigGenerateContext & {
-    readonly host: { readonly id: string }
-    readonly checkModule: string
-  } = {
+  const context: HostConfigContext = {
     options: resolved,
     configSource,
     profile: { generator: options.generator, envModules: options.envModules },
@@ -128,7 +124,9 @@ export function planHostConfig(options: HostConfigOptions): HostConfigPlan | nul
   }
 }
 
-function hostConfigModule(context: HostConfigContext): GeneratedFile {
+function hostConfigModule(
+  context: HostConfigContext & { readonly configSource: ConfigSource },
+): GeneratedFile {
   const file = generatedPath(context.options.generatedDir, 'config.ts')
   const fields = context.configSource.fields.map(field => ({
     field: field.field,

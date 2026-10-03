@@ -10,7 +10,7 @@ import {
   userContextExpression,
   type HostUserContextTransform,
 } from './transform.ts'
-import { stateType } from './generate.ts'
+import { bindingTypes } from './generate.ts'
 import { banner, generatedPath, type GeneratedFile } from '../generate/emit.ts'
 
 export interface HostUserContextPlan {
@@ -64,18 +64,15 @@ export function discoverHostUserContext(
               throw new Error(
                 'Angular host user-context bindings are not supported by the React host build integration',
               )
+            const contracts = [...(own ? [own] : []), ...foreign]
             result = {
               dependencies: [],
               source: filename,
               registration: {
                 ...(own ? { contract: own } : {}),
-                requirements: requirementsFor(
-                  { formatVersion: 1, contracts: [...(own ? [own] : []), ...foreign] },
-                  id,
-                ),
+                requirements: requirementsFor({ formatVersion: 1, contracts }, id),
               },
-              values: own ? stateType(own.node) : 'Record<string, never>',
-              reads: `{ ${foreign.map(contract => `${JSON.stringify(contract.id)}: ${stateType(contract.node)}`).join('; ')} }`,
+              ...bindingTypes(contracts, id),
             }
           }
         }

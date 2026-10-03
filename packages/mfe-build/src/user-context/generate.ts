@@ -1,5 +1,5 @@
 import type { DiscoveredDefinition } from '../discovery/definitions.ts'
-import type { StateNode, UserContextManifest } from '@company/mfe-core/user-context'
+import type { StateContract, StateNode, UserContextManifest } from '@company/mfe-core/user-context'
 import { banner, generatedPath, jsonFile, type GeneratedFile } from '../generate/emit.ts'
 import type { GenerateContext } from '../generate/modules.ts'
 import { requirementsFor } from './compiler.ts'
@@ -35,6 +35,20 @@ export function stateType(node: StateNode): string {
 function canBeOmitted(node: StateNode): boolean {
   return node.kind === 'optional' || (node.kind === 'nullable' && canBeOmitted(node.inner))
 }
+/** The owner's own slice and its declared foreign reads, as generated binding type arguments. */
+export function bindingTypes(
+  contracts: readonly StateContract[],
+  ownerId: string,
+): { readonly values: string; readonly reads: string } {
+  const owner = contracts.find(contract => contract.id === ownerId)
+  const reads = contracts
+    .filter(contract => contract.id !== ownerId)
+    .map(contract => `${JSON.stringify(contract.id)}: ${stateType(contract.node)}`)
+  return {
+    values: owner ? stateType(owner.node) : 'Record<string, never>',
+    reads: `{ ${reads.join('; ')} }`,
+  }
+}
 export function userContextFiles(context: GenerateContext): readonly GeneratedFile[] {
   const definitions = context.discovery.definitions.filter(
     (definition): definition is DiscoveredDefinition & { userContext: UserContextManifest } =>
@@ -57,19 +71,14 @@ export function userContextFiles(context: GenerateContext): readonly GeneratedFi
   const emitted = new Set<string>()
   for (const definition of definitions) {
     const manifest = definition.userContext
-    const owner = manifest.contracts.find(contract => contract.id === definition.id)
-    const types = owner ? stateType(owner.node) : 'Record<string, never>'
-    const reads = `{ ${manifest.contracts
-      .filter(contract => contract.id !== definition.id)
-      .map(contract => `${JSON.stringify(contract.id)}: ${stateType(contract.node)}`)
-      .join('; ')} }`
+    const { values, reads } = bindingTypes(manifest.contracts, definition.id)
     const react = context.profile.framework === 'react'
     files.push({
       path: generatedPath(context.options.generatedDir, `user-context/${definition.id}.ts`),
       contents: [
         banner(context.profile.generator, `#mfe/user-context/${definition.id}`),
         `import { createUserContextBindings } from '@company/mfe-${context.profile.framework}/user-context'`,
-        `export type UserContextValues = ${types}`,
+        `export type UserContextValues = ${values}`,
         `export type UserContextReads = ${reads}`,
         `export type { UserContextReader, UserContextStore, UserContextSetter } from '@company/mfe-${context.profile.framework}/user-context'`,
         ...(react
