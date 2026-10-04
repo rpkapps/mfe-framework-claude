@@ -490,7 +490,7 @@ token, and a `console.log` carries none of that.
 A request joins a workflow's trace only through the workflow's `headers()`, so pass them to every
 request that belongs to the workflow: `fetch('orders', { method: 'POST', headers:
 checkout.headers() })`. A request sent without them is not part of the workflow, and nothing
-checks this rule. See [Trace a workflow](/docs/telemetry#trace-a-workflow-across-clicks).
+checks this rule. See [Trace a workflow](/docs/trace-a-workflow-across-clicks).
 
 ## Suppress a rule on one line, with a reason
 

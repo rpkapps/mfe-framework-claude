@@ -1983,7 +1983,8 @@ its prototype rather than by `instanceof`, so a Widget's contract error keeps it
 shell's copy reports it. The mount-token sequence lives on the page under a registered symbol, so
 two runtimes never both issue `reports#1` and one's teardown never clears the other's actions. So
 does the session `installShellAuth` installs, which a container's `#mfe/fetch` reads through its
-own copy and would otherwise find missing, and so does the active span context.
+own copy and would otherwise find missing, and so does the active span context (removed by §59,
+which keeps open workflow runs under `Symbol.for('@company/mfe.workflows')` instead).
 
 The adapters are no longer shared at all. An adapter renders the providers the author's code reads,
 TanStack Query's client and the router, and compares Angular's router classes and tokens; a shared
@@ -2129,9 +2130,9 @@ one object per name for the mount, in the manner of Datadog RUM's named operatio
 and `start()` while it is open joins it rather than restarting it, as below. A workflow is a root
 span with a child span per step, and a step lasts until the next step or the end. `fail(error)`
 marks the step and the workflow as errors, each with an `exception` event, and reports the error
-itself as an error record whose `spanContext` is the workflow's, so the backend links the two; a
-span keeps no error object; nothing else stamps `spanContext`,
-because there is no ambient span to stamp. Steps and ends while the workflow is not open are ignored,
+itself as an error record whose `spanContext` is the workflow's, so the backend links the two. A
+span keeps no error object. Nothing stamps `spanContext` implicitly, because there is no ambient
+span to stamp: only a record made through a workflow carries one. Steps and ends while the workflow is not open are ignored,
 with a development diagnostic, except that `fail` still reports its error without a trace: an error is
 never lost for want of a `start()`. An unmount that leaves nobody in an open run closes it as
 abandoned, labelled `mfe.span.end_reason: abandoned` rather than failed, and without a diagnostic: a

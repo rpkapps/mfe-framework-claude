@@ -76,217 +76,38 @@ The framework owns `mfe.*` attributes and drops any values you supply there.
 <Step>
 <span id="trace-a-workflow-across-clicks" />
 
-### 3. Trace a workflow across clicks and a request
+### 3. Trace user work as a workflow
 
-A workflow is one piece of user-facing work, such as a checkout, recorded as one trace.
-`telemetry.workflow(name)` returns the workflow with that name, the same object every call.
-Its run belongs to the page, so every App and Widget that uses the name records into the same trace; see [Share a workflow between widgets](/docs/share-a-workflow-between-widgets).
-
-<Tabs items={['React', 'Angular']}>
-<Tab value="React">
-
-```tsx title="examples/lab/src/routes/telemetry.tsx (adapted)"
-import { fetch } from '#mfe/fetch'
-import { useTelemetry } from '@company/mfe-react'
-
-export function Checkout({ cart }: { cart: readonly CartItem[] }) {
-  const telemetry = useTelemetry()
-  const checkout = telemetry.workflow('checkout')
-
-  function start() {
-    checkout.start({ items: cart.length })
-  }
-
-  function chooseShipping(option: string) {
-    checkout.step('shipping chosen', { option })
-  }
-
-  async function placeOrder() {
-    checkout.step('place order')
-    try {
-      const body = JSON.stringify(cart)
-      const response = await fetch('orders', { method: 'POST', body, headers: checkout.headers() })
-      if (!response.ok) throw new Error(`Order failed: ${response.status}`)
-      checkout.succeed()
-    } catch (error) {
-      checkout.fail(error)
-    }
-  }
-
-  // ...render a button for each
+```ts shared title="src/checkout.ts (adapted)"
+const checkout = telemetry.workflow('orders.checkout')
+checkout.start({ items: cart.length })
+checkout.step('place order')
+try {
+  const response = await fetch('orders', { method: 'POST', body, headers: checkout.headers() })
+  if (!response.ok) throw new Error(`Order failed: ${response.status}`)
+  checkout.succeed()
+} catch (error) {
+  checkout.fail(error)
 }
 ```
 
-</Tab>
-<Tab value="Angular">
+A workflow records one piece of user work, such as a checkout, as one trace. Pick the recipe for your case:
 
-```ts title="src/checkout.component.ts (Angular)"
-import { Component, input } from '@angular/core'
-import { fetch } from '#mfe/fetch'
-import { injectTelemetry } from '@company/mfe-angular'
-
-@Component({
-  selector: 'app-checkout',
-  template: `...a button for each`,
-})
-export class CheckoutComponent {
-  readonly cart = input.required<readonly CartItem[]>()
-  private readonly checkout = injectTelemetry().workflow('checkout')
-
-  start(): void {
-    this.checkout.start({ items: this.cart().length })
-  }
-
-  chooseShipping(option: string): void {
-    this.checkout.step('shipping chosen', { option })
-  }
-
-  async placeOrder(): Promise<void> {
-    this.checkout.step('place order')
-    try {
-      const body = JSON.stringify(this.cart())
-      const headers = this.checkout.headers()
-      const response = await fetch('orders', { method: 'POST', body, headers })
-      if (!response.ok) throw new Error(`Order failed: ${response.status}`)
-      this.checkout.succeed()
-    } catch (error) {
-      this.checkout.fail(error)
-    }
-  }
-}
-```
-
-</Tab>
-</Tabs>
-
-`start` begins a new trace. Each `step` is a child of the workflow and lasts until the next step or the end.
-`succeed` and `fail` end the workflow. `fail` also reports the error, linked to the trace, so you do not call `telemetry.error` as well.
-Steps and `succeed` are ignored while the workflow is not open; `fail` still reports its error, without a trace. Starting it again while it is open joins the open run rather than restarting it.
-If every App and Widget taking part ends while the workflow is open, it is closed as abandoned, not failed.
-
-Every request through `#mfe/fetch` to a declared API is traced: it gets a client span with its method, host, port and status, never its path, and sends a W3C `traceparent` naming that span.
-A request joins the workflow only when you spread `headers()` into it, which returns the `traceparent` of the current step, or `{}` when nothing is open or tracing is off. The request's span is then a child of the step.
-Requests you send without it, such as background refreshes, are traces of their own and never land in a workflow.
-Your API must accept the `traceparent` header in its CORS settings and continue the trace with its OpenTelemetry SDK.
-
-</Step>
-<Step>
-<span id="link-records-to-a-workflow" />
-
-### 4. Link records to a workflow
-
-A workflow has the same record methods as `telemetry`: `event`, `debug`, `info`, `warn`, `error` and `measure`.
-A record made through it is linked to the current step, or to the workflow before its first step.
-
-<Tabs items={['React', 'Angular']}>
-<Tab value="React">
-
-```tsx title="src/checkout.tsx (React)"
-async function getQuote(carrier: string) {
-  checkout.step('quote')
-  const response = await fetch(`quotes/${carrier}`, { headers: checkout.headers() })
-  if (response.ok) checkout.info('quote received', { carrier })
-  else checkout.warn('quote unavailable', { carrier, status: response.status })
-}
-```
-
-</Tab>
-<Tab value="Angular">
-
-```ts title="src/checkout.component.ts (Angular)"
-async getQuote(carrier: string): Promise<void> {
-  this.checkout.step('quote')
-  const headers = this.checkout.headers()
-  const response = await fetch(`quotes/${carrier}`, { headers })
-  if (response.ok) this.checkout.info('quote received', { carrier })
-  else this.checkout.warn('quote unavailable', { carrier, status: response.status })
-}
-```
-
-</Tab>
-</Tabs>
-
-While the workflow is not open, or tracing is off, the record is still sent, just not linked. A log is never lost for want of a `start()`.
-The shell's level filter applies as it does to `telemetry.info`. Use `fail`, not `error`, to end the workflow with an error.
-
-</Step>
-<Step>
-<span id="run-several-at-once-with-a-key" />
-
-### 5. Run several at once with a key
-
-Only one run of a workflow name is open on the page at a time. To trace several uploads at once, pass each one's id as a key.
-`telemetry.workflow(name, key)` returns the same object for the same name and key, and a run of its own for each key.
-
-<Tabs items={['React', 'Angular']}>
-<Tab value="React">
-
-```tsx title="src/upload-row.tsx (React)"
-import { fetch } from '#mfe/fetch'
-import { useTelemetry } from '@company/mfe-react'
-
-export function UploadRow({ file }: { file: QueuedFile }) {
-  const upload = useTelemetry().workflow('upload', file.id)
-
-  async function send() {
-    upload.start({ bytes: file.size })
-    try {
-      const body = file.blob
-      const response = await fetch('files', { method: 'POST', body, headers: upload.headers() })
-      if (!response.ok) throw new Error(`Upload failed: ${response.status}`)
-      upload.succeed()
-    } catch (error) {
-      upload.fail(error)
-    }
-  }
-
-  // ...render the row and a send button
-}
-```
-
-</Tab>
-<Tab value="Angular">
-
-```ts title="src/upload-row.component.ts (Angular)"
-import { Component, computed, input } from '@angular/core'
-import { fetch } from '#mfe/fetch'
-import { injectTelemetry } from '@company/mfe-angular'
-
-@Component({
-  selector: 'app-upload-row',
-  template: `...the row and a send button`,
-})
-export class UploadRowComponent {
-  readonly file = input.required<QueuedFile>()
-  private readonly telemetry = injectTelemetry()
-  private readonly upload = computed(() => this.telemetry.workflow('upload', this.file().id))
-
-  async send(): Promise<void> {
-    const upload = this.upload()
-    upload.start({ bytes: this.file().size })
-    try {
-      const body = this.file().blob
-      const response = await fetch('files', { method: 'POST', body, headers: upload.headers() })
-      if (!response.ok) throw new Error(`Upload failed: ${response.status}`)
-      upload.succeed()
-    } catch (error) {
-      upload.fail(error)
-    }
-  }
-}
-```
-
-</Tab>
-</Tabs>
-
-The key only picks the run. It is never recorded, so an order or file id is safe to use. Without a key, a name has one run on the page at a time.
+- [Trace a workflow across several clicks](/docs/trace-a-workflow-across-clicks) — a checkout with steps.
+- [Trace a single action](/docs/trace-a-single-action) — a Save or Export button.
+- [Trace a mutation with TanStack Query](/docs/trace-a-mutation-with-tanstack-query) — mutations, query functions and loaders.
+- [Run several of the same workflow at once](/docs/run-several-workflows-at-once) — keyed runs.
+- [Share a workflow between widgets](/docs/share-a-workflow-between-widgets) — one run across Apps and Widgets.
+- [Log and measure inside a workflow](/docs/log-and-measure-inside-a-workflow) — records linked to a step.
+- [Trace requests to your API](/docs/trace-requests-to-your-api) — request spans, other clients and your backend.
+- [Find a trace in Grafana](/docs/find-a-trace-in-grafana) — read the result.
 
 </Step>
 </Steps>
 
 ## Check it works
 
-Use your test environment's `telemetry.events()`, `telemetry.logs('error')` and `telemetry.spansNamed('checkout')` to inspect records.
+Use your test environment's `telemetry.events()`, `telemetry.logs('error')` and `telemetry.spansNamed('orders.checkout')` to inspect records.
 Check the definition attribution and confirm `telemetry.endedSpans()` includes completed workflows.
 The development shell retains no records unless you configure a collector, so test records are the reliable check.
 
@@ -321,8 +142,9 @@ Resolvers can inject it before any `await`.
 <Callout type="error" title="config/invalid, a workflow that is not open">
 
 ```text shared
-lab@1.0.0 failed to end workflow "checkout" as succeeded: expected workflow "checkout" to be
-started with start(), received workflow "checkout", which was not open.
+lab@1.0.0 failed to end workflow "orders.checkout" as succeeded: expected workflow
+"orders.checkout" to be started with start(), received workflow "orders.checkout", which was not
+open.
 ```
 
 **Fix.** Call `start()` before the workflow's steps and its end. The call was ignored. In development only.
@@ -349,20 +171,9 @@ Review rejection reasons and redact sensitive text before sharing.
 Your shell adds deployment context and decides where reports go. Snapshots need no telemetry collector.
 See [Runtime snapshots](/docs/reference/hooks-and-components#runtime-snapshots) for fields, lifecycle states and framework exports.
 
-## Recipes
-
-- [Trace a workflow across several clicks](/docs/trace-a-workflow-across-clicks) — a checkout with steps.
-- [Trace a single action](/docs/trace-a-single-action) — a Save or Export button.
-- [Trace a mutation with TanStack Query](/docs/trace-a-mutation-with-tanstack-query) — mutations, query functions and loaders.
-- [Run several of the same workflow at once](/docs/run-several-workflows-at-once) — keyed runs.
-- [Share a workflow between widgets](/docs/share-a-workflow-between-widgets) — one run across Apps and Widgets.
-- [Log and measure inside a workflow](/docs/log-and-measure-inside-a-workflow) — records linked to a step.
-- [Trace requests to your API](/docs/trace-requests-to-your-api) — automatic request spans and other clients.
-- [Find a trace in Grafana](/docs/find-a-trace-in-grafana) — read the result.
-
 ## Related
 
-- [Telemetry API](/docs/reference/hooks-and-components#usetelemetry) — service fields and framework exports.
+- [Telemetry API](/docs/reference/hooks-and-components#usetelemetry) — every telemetry and workflow method.
 - [Angular mount services](/docs/reference/angular-adapter#read-the-shell-from-inside-a-mount) — injection context and lifecycle.
 - [Cancel a request on unmount](/docs/cancel-a-request-on-unmount) — work scoped to the mount.
 - [Test an App](/docs/test-an-app) — telemetry records in tests.

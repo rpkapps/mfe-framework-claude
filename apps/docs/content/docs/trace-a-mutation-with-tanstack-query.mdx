@@ -23,7 +23,7 @@ import { fetch } from '#mfe/fetch'
 import { useTelemetry } from '@company/mfe-react'
 
 export function RenameAsset({ asset }: { asset: Asset }) {
-  const rename = useTelemetry().workflow('rename asset')
+  const rename = useTelemetry().workflow('assets.rename')
   const queryClient = useQueryClient()
 
   const mutation = useMutation({
@@ -65,7 +65,7 @@ import { defer, tap, type Observable } from 'rxjs'
 @Injectable({ providedIn: 'root' })
 export class AssetService {
   private readonly http = inject(HttpClient)
-  private readonly rename = injectTelemetry().workflow('rename asset')
+  private readonly rename = injectTelemetry().workflow('assets.rename')
 
   renameAsset(id: string, name: string): Observable<Asset> {
     const url = new URL(`assets/${id}`, config.apiBaseUrl).href
@@ -199,7 +199,7 @@ Inject telemetry before any `await` in the resolver.
 
 ## Check it works
 
-In a test, your test environment's `telemetry.spansNamed('rename asset')` returns one span per mutation once it ends.
+In a test, your test environment's `telemetry.spansNamed('assets.rename')` returns one span per mutation once it ends.
 A failed mutation's span has an error status. `telemetry.measurements('operations.assets.loaded')` holds one record per load.
 In the shell, the mutation's request carries a `traceparent` header in the network panel.
 

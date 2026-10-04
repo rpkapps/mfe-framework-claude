@@ -4,7 +4,7 @@ description: 'Give each run of a workflow a key, such as a file id, so several u
 ---
 
 Apps and Widgets. A workflow name has one open run on the page at a time, so a second `start()` joins the first rather than starting another.
-To trace several uploads at once, pass a key: `telemetry.workflow('upload', file.id)`. Each key gets a run of its own.
+To trace several uploads at once, pass a key: `telemetry.workflow('files.upload', file.id)`. Each key gets a run of its own.
 For the basics of telemetry, see [Events, errors and traces](/docs/telemetry).
 
 ## Steps
@@ -22,7 +22,7 @@ import { fetch } from '#mfe/fetch'
 import { useTelemetry, type MfeTelemetry } from '@company/mfe-react'
 
 async function uploadOne(telemetry: MfeTelemetry, file: QueuedFile) {
-  const upload = telemetry.workflow('upload', file.id)
+  const upload = telemetry.workflow('files.upload', file.id)
   upload.start({ bytes: file.blob.size })
   try {
     const body = file.blob
@@ -62,7 +62,7 @@ export class UploadQueueComponent {
   }
 
   private async uploadOne(file: QueuedFile): Promise<void> {
-    const upload = this.telemetry.workflow('upload', file.id)
+    const upload = this.telemetry.workflow('files.upload', file.id)
     upload.start({ bytes: file.blob.size })
     try {
       const body = file.blob
@@ -79,12 +79,9 @@ export class UploadQueueComponent {
 </Tab>
 </Tabs>
 
-`workflow('upload', file.id)` returns the same object for the same name and key. Every upload is a trace of its own, named `upload`.
+`workflow('files.upload', file.id)` returns the same object for the same name and key. Every upload is a trace of its own, named `files.upload`.
 
-</Step>
-</Steps>
-
-## What the key does
+<Details summary="What the key does">
 
 - **The key only picks the run.** It is never recorded on a span, a log or a diagnostic. An order or file id is safe to use.
 - **The same key twice is the same run.** Starting it again joins the open run with that key, as without a key. So does another App or Widget that uses the same name and key.
@@ -93,14 +90,19 @@ export class UploadQueueComponent {
 To tell runs apart in your backend, add an attribute you may record, such as `bytes` above.
 Attributes are strings, numbers and booleans. Keep bodies, credentials and raw URLs out of them.
 
+</Details>
+
+</Step>
+</Steps>
+
 ## Check it works
 
-In a test, upload two files at once. Your test environment's `telemetry.spansNamed('upload')` then returns two spans, each in its own trace.
+In a test, upload two files at once. Your test environment's `telemetry.spansNamed('files.upload')` then returns two spans, each in its own trace.
 Each span has its own trace id, and neither has an `mfe.span.end_reason` of `abandoned`.
 
 ## Related
 
-- [Events, errors and traces](/docs/telemetry#run-several-at-once-with-a-key) — the keyed workflow API.
+- [Telemetry API](/docs/reference/hooks-and-components#usetelemetry) — the keyed workflow API.
 - [Trace a single action](/docs/trace-a-single-action) — one run of one name.
 - [Log and measure inside a workflow](/docs/log-and-measure-inside-a-workflow) — per-upload measurements.
 - [Find a trace in Grafana](/docs/find-a-trace-in-grafana) — find one upload's trace.

@@ -7,7 +7,21 @@ Apps and Widgets, for a shell that sends telemetry to Grafana Faro. A workflow a
 Its logs and errors carry the same trace id, so you can move between the two.
 For the basics of telemetry, see [Events, errors and traces](/docs/telemetry).
 
-## What the shell sends
+## Steps
+
+<Steps>
+<Step>
+
+### 1. Search Tempo for the workflow's name
+
+```text shared title="TraceQL in Grafana Explore, Tempo data source"
+{ name = "orders.checkout" }
+{ name = "orders.checkout" && status = error }
+```
+
+The workflow's span is the root of its trace. A failed workflow, ended with `fail()`, has an error status.
+
+<Details summary="What the shell sends">
 
 The example shell sends telemetry only when `FARO_URL` names a Faro collector.
 Your collector decides where records land. A typical setup stores traces in Tempo and logs in Loki.
@@ -19,34 +33,23 @@ Your collector decides where records land. A typical setup stores traces in Temp
 | `event`, `measure`              | events and measurements, with the same definition fields         |
 | `error`, `fail`                 | errors, with the same definition fields                          |
 
+Request spans need the shell to pass its telemetry provider to `installShellAuth` as well. The example shell does.
 Spans arrive under the shell's service name, `shell` in the example shell. Faro's view is the App on screen.
 A record made through an open workflow also carries its trace id and span id.
 
-## Steps
-
-<Steps>
-<Step>
-
-### 1. Search Tempo for the workflow's name
-
-```text shared title="TraceQL in Grafana Explore, Tempo data source"
-{ name = "checkout" }
-{ name = "checkout" && status = error }
-```
-
-The workflow's span is the root of its trace. A failed workflow, ended with `fail()`, has an error status.
+</Details>
 
 </Step>
 <Step>
 
 ### 2. Read the trace
 
-| Span                   | Name                    | Parent                |
-| ---------------------- | ----------------------- | --------------------- |
-| the workflow           | its name, `checkout`    | none                  |
-| each step              | the step, `place order` | the workflow          |
-| each `#mfe/fetch` call | its method, `POST`      | the step that sent it |
-| your backend's span    | set by your backend     | the request           |
+| Span                   | Name                        | Parent                |
+| ---------------------- | --------------------------- | --------------------- |
+| the workflow           | its name, `orders.checkout` | none                  |
+| each step              | the step, `place order`     | the workflow          |
+| each `#mfe/fetch` call | its method, `POST`          | the step that sent it |
+| your backend's span    | set by your backend         | the request           |
 
 A request without `headers()` is not in this trace. A backend span appears only when your API runs an OpenTelemetry SDK.
 Each span's `mfe.definition.id` names the App or Widget that made it, so a [workflow shared between Widgets](/docs/share-a-workflow-between-widgets) shows whose step is whose.

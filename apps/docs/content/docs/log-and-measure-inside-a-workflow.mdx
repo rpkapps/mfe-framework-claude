@@ -63,6 +63,15 @@ async getQuotes(carriers: readonly string[]): Promise<void> {
 
 Each record here is linked to the `get quotes` step. Before the first step, a record is linked to the workflow itself.
 
+<Details summary="When the workflow is not open">
+
+A record made through a workflow that is not open is still sent. It is just not linked to a trace.
+The same holds when tracing is off. A log is never lost for want of a `start()`, and no diagnostic appears.
+The shell's level filter applies to `checkout.debug` as it does to `telemetry.debug`.
+Measurement units are `ms`, `bytes` and `count`.
+
+</Details>
+
 </Step>
 <Step>
 
@@ -78,13 +87,6 @@ Use `error` when the user can carry on, as when one carrier's quote fails. Use `
 </Step>
 </Steps>
 
-## When the workflow is not open
-
-A record made through a workflow that is not open is still sent. It is just not linked to a trace.
-The same holds when tracing is off. A log is never lost for want of a `start()`, and no diagnostic appears.
-The shell's level filter applies to `checkout.debug` as it does to `telemetry.debug`.
-Measurement units are `ms`, `bytes` and `count`.
-
 ## Check it works
 
 In a test, your test environment's `telemetry.logs('info')` returns the `quote received` records.
@@ -92,6 +94,7 @@ Each has a `spanContext` whose `spanId` matches the `get quotes` span from `tele
 
 ## Related
 
-- [Events, errors and traces](/docs/telemetry#link-records-to-a-workflow) — record methods and attribute rules.
+- [Telemetry API](/docs/reference/hooks-and-components#usetelemetry) — every record and workflow method.
+- [Events, errors and traces](/docs/telemetry#record-events-measurements-and-caught-errors) — attribute rules.
 - [Trace a workflow across several clicks](/docs/trace-a-workflow-across-clicks) — steps to link to.
 - [Find a trace in Grafana](/docs/find-a-trace-in-grafana) — see linked records beside the trace.
