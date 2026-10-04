@@ -127,20 +127,6 @@ export class MountSpan {
     this.#tracer.releaseSpan(this)
   }
 
-  /** The status is left as it was: a mount going away did not fail the work. */
-  finalizeCancelled(endTime: number): void {
-    if (this.#ended) return
-    const operation = 'finalize a cancelled span'
-    this.#label(
-      {
-        [RESERVED_ATTRIBUTE_KEYS.cancelled]: true,
-        [RESERVED_ATTRIBUTE_KEYS.endReason]: 'mount-disposed',
-      },
-      operation,
-    )
-    this.#close(operation, endTime)
-  }
-
   /** Reserved keys go straight to the provider, because the author path drops them. */
   #label(attributes: TelemetryAttributes, operation: string): void {
     this.#forward(operation, inner => inner.setAttributes(Object.freeze(attributes)))
@@ -237,17 +223,11 @@ export class MountTracer {
   }
 
   /**
-   * Spans left open at disposal are closed as cancelled, never as errors: a user who leaves in the
-   * middle of a workflow did not make it fail.
+   * Nothing is left open to end: the mount has left its workflows first, which ended the spans of
+   * a run nobody is left in as abandoned and handed the rest to their runs.
    */
-  finalizeOpenSpans(): void {
-    const open = [...this.#open]
+  dispose(): void {
     this.#open.clear()
     this.#inner = undefined
-    if (open.length === 0) return
-
-    const endTime = this.#runtime.now()
-    for (const span of open) span.finalizeCancelled(endTime)
-    this.#runtime.counters.spansFinalizedAtDisposal += open.length
   }
 }

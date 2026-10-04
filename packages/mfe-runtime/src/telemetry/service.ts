@@ -98,13 +98,10 @@ export function createMountTelemetry(
 
   function dispose(): void {
     if (runtime.disposed) return
-    // Leaving first: a run another mount is still in keeps the spans this one started for it, and
-    // a run nobody is left in ends as abandoned before finalization could cancel its spans.
+    // Leaving ends the spans of a run nobody is left in as abandoned, before the gate closes, and
+    // hands the rest to the runs other mounts are still in, which end them later.
     for (const byKey of workflows.values()) for (const workflow of byKey.values()) workflow.leave()
-    // Teardown finalization runs before the gate closes: besides a span handed over to a run
-    // above, which the run ends later, it is the one thing allowed to touch the provider after
-    // disposal was requested.
-    tracer.finalizeOpenSpans()
+    tracer.dispose()
     runtime.markDisposed()
   }
 

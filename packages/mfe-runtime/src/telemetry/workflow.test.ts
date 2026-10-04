@@ -159,7 +159,6 @@ describe('a workflow', () => {
     expect(provider.spans).toHaveLength(2)
     for (const span of provider.spans) {
       expect(span.attributes['mfe.span.end_reason']).toBe('abandoned')
-      expect(span.attributes['mfe.span.cancelled']).toBeUndefined()
       expect(span.status.code).toBe(SpanStatusCode.UNSET)
       expect(span.endTime).toBeDefined()
     }
@@ -529,14 +528,12 @@ describe('a workflow shared across the page', () => {
     expect(provider.openSpans()).toHaveLength(0)
     expect(root.status.code).toBe(SpanStatusCode.OK)
     for (const span of [root, review]) {
-      expect(span.attributes['mfe.span.cancelled']).toBeUndefined()
       expect(span.attributes['mfe.span.end_reason']).toBeUndefined()
     }
     expect(cart.telemetry.openSpanCount).toBe(0)
     expect(cart.telemetry.counters).toMatchObject({
       droppedAfterDispose: 0,
       sinkFailures: 0,
-      spansFinalizedAtDisposal: 0,
     })
     expect(cart.diagnostics).toHaveLength(0)
   })

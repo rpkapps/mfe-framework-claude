@@ -17,7 +17,7 @@ import {
 import { RESERVED_ATTRIBUTE_KEYS } from './runtime.ts'
 
 /** One frozen instance: the handle carries no state, so a disabled mount allocates nothing. */
-export const nonRecordingSpan: Span = Object.freeze({
+const nonRecordingSpan: Span = Object.freeze({
   setAttributes: (): Span => nonRecordingSpan,
   setStatus: (): Span => nonRecordingSpan,
   recordException: (): Span => nonRecordingSpan,

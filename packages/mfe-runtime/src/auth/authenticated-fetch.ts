@@ -362,7 +362,8 @@ export function createAuthenticatedFetch(options: AuthenticatedFetchOptions): Fe
       trace.end({ status: response.status })
       return response
     } catch (error) {
-      trace.end({ error })
+      if (plan.signal?.aborted === true) trace.abandon()
+      else trace.end({ error })
       throw error
     }
   }

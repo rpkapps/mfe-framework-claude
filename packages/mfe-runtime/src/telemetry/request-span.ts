@@ -21,6 +21,8 @@ export interface RequestTrace {
   /** Counts a second attempt, as after a 401 and a refreshed token. */
   resent(): void
   end(outcome: { readonly status: number } | { readonly error: unknown }): void
+  /** The caller cancelled it, as a query does when its component unmounts: left, not failed. */
+  abandon(): void
 }
 
 export interface RequestTracer {
@@ -82,6 +84,9 @@ export function createRequestTracer(
             span.recordException(outcome.error).setStatus(SpanStatusCode.ERROR)
           }
           span.end()
+        },
+        abandon(): void {
+          span.endAbandoned()
         },
       }
     },

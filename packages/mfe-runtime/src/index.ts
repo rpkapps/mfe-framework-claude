@@ -229,6 +229,7 @@ export { DEFAULT_DEADLINES, withDeadline, type DeadlineContext } from './deadlin
 
 // The provider contract a shell implements is defined in mfe-core, but a shell depends on
 // this package rather than on core, so naming it has to be possible from here.
+export { SpanKind, SpanStatusCode } from '@company/mfe-core'
 export type {
   MeasurementUnit,
   Span,

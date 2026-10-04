@@ -184,6 +184,22 @@ describe('a request to a declared API', () => {
     expect(request.events.map(event => event.name)).toEqual(['exception'])
     expect(request.endTime).toBeDefined()
   })
+
+  it('ends a request its caller cancelled as abandoned, not as an error', async () => {
+    const controller = new AbortController()
+    const { provider, fetch } = traced(() => {
+      controller.abort()
+      return Promise.reject(new DOMException('The operation was aborted.', 'AbortError'))
+    })
+
+    await expect(fetch('orders', { signal: controller.signal })).rejects.toThrow('aborted')
+
+    const request = spanNamed(provider.spans, 'GET')
+    expect(request.status.code).toBe(SpanStatusCode.UNSET)
+    expect(request.events).toEqual([])
+    expect(request.attributes['mfe.span.end_reason']).toBe('abandoned')
+    expect(request.endTime).toBeDefined()
+  })
 })
 
 describe('a request the framework leaves untraced', () => {

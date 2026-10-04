@@ -37,7 +37,6 @@ export const RESERVED_ATTRIBUTE_KEYS = {
   traceId: 'mfe.trace.id',
   spanId: 'mfe.span.id',
   parentSpanId: 'mfe.span.parent_id',
-  cancelled: 'mfe.span.cancelled',
   endReason: 'mfe.span.end_reason',
 } as const
 
@@ -75,7 +74,6 @@ export interface TelemetryCounters {
   readonly sinkFailures: number
   readonly spansStarted: number
   readonly spansDroppedAtLimit: number
-  readonly spansFinalizedAtDisposal: number
   readonly diagnosticsEmitted: number
   readonly diagnosticsSuppressed: number
 }
@@ -94,7 +92,6 @@ function newCounters(): MutableCounters {
     sinkFailures: 0,
     spansStarted: 0,
     spansDroppedAtLimit: 0,
-    spansFinalizedAtDisposal: 0,
     diagnosticsEmitted: 0,
     diagnosticsSuppressed: 0,
   }

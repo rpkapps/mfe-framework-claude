@@ -114,7 +114,6 @@ describe('ending a span', () => {
     const record = at(provider.spans)
     expect(record.endTime).toBeDefined()
     expect(record.attributes['mfe.span.end_reason']).toBe('abandoned')
-    expect(record.attributes['mfe.span.cancelled']).toBeUndefined()
     expect(record.status.code).toBe(SpanStatusCode.UNSET)
     expect(tracer.openSpanCount).toBe(0)
   })
@@ -156,27 +155,7 @@ describe('bounded open-span tracking', () => {
   })
 })
 
-describe('disposal finalizes outstanding spans', () => {
-  it('closes open spans as cancelled without turning them into failures', () => {
-    const provider = createRecordingTelemetryProvider()
-    const { runtime, tracer } = setup(provider, { now: () => 4242 })
-    tracer.startSpan('open')
-    started(tracer.startSpan('succeeded-step')).setStatus(SpanStatusCode.OK)
-    started(tracer.startSpan('done')).end()
-
-    tracer.finalizeOpenSpans()
-
-    const open = at(provider.spansNamed('open'))
-    expect(open.endTime).toBe(4242)
-    expect(open.attributes['mfe.span.cancelled']).toBe(true)
-    expect(open.attributes['mfe.span.end_reason']).toBe('mount-disposed')
-    expect(open.status.code).toBe(SpanStatusCode.UNSET)
-    expect(at(provider.spansNamed('succeeded-step')).status.code).toBe(SpanStatusCode.OK)
-    expect(at(provider.spansNamed('done')).attributes['mfe.span.cancelled']).toBeUndefined()
-    expect(runtime.counters.spansFinalizedAtDisposal).toBe(2)
-    expect(tracer.openSpanCount).toBe(0)
-  })
-
+describe('disposal', () => {
   it('starts nothing once the mount is disposed', () => {
     const { provider, runtime, tracer } = recording()
     runtime.markDisposed()

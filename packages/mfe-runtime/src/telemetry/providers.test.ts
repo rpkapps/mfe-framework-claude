@@ -4,7 +4,7 @@ import { SpanKind, SpanStatusCode, type TelemetryRecord } from '@company/mfe-cor
 
 import { createRecordingTelemetryProvider } from '../testing/recording-provider.ts'
 import { createMountTelemetry } from './service.ts'
-import { createNonRecordingTracer, nonRecordingSpan } from './span-emitter.ts'
+import { createNonRecordingTracer } from './span-emitter.ts'
 import { createNoopTelemetryProvider } from './tracer.ts'
 import { at, ATTRIBUTION, resetPageWorkflows } from './__tests__/harness.ts'
 
@@ -153,12 +153,13 @@ describe('the noop provider', () => {
     const provider = createNoopTelemetryProvider()
     const tracer = provider.createTracer(ATTRIBUTION)
 
-    expect(tracer.startSpan('anything')).toBe(nonRecordingSpan)
+    expect(tracer.startSpan('anything')).toBe(createNonRecordingTracer().startSpan('other'))
   })
 })
 
 describe('the non-recording handle', () => {
   it('satisfies the whole span surface and stays chainable', () => {
+    const nonRecordingSpan = createNonRecordingTracer().startSpan('x')
     expect(nonRecordingSpan.setAttributes({ a: 1 })).toBe(nonRecordingSpan)
     expect(nonRecordingSpan.setStatus({ code: SpanStatusCode.OK })).toBe(nonRecordingSpan)
     expect(nonRecordingSpan.recordException(new Error('x'))).toBe(nonRecordingSpan)
@@ -168,8 +169,8 @@ describe('the non-recording handle', () => {
     }).not.toThrow()
   })
 
-  it('returns a tracer whose spans never record', () => {
+  it('returns a tracer whose spans are one shared handle, so they cost nothing', () => {
     const tracer = createNonRecordingTracer()
-    expect(tracer.startSpan('x')).toBe(nonRecordingSpan)
+    expect(tracer.startSpan('x')).toBe(tracer.startSpan('y'))
   })
 })
