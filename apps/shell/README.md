@@ -369,7 +369,7 @@ through every adapter the shell lists — `reactAdapter`, `angularAdapter` from
 implicitly — applies developer overrides and rejects whatever fails validation. Each entry also carries the build its
 container was produced from, which is what the bug report lists a line of.
 `boot.tsx` supplies the runtime's diagnostics hub, built with
-`telemetryDiagnosticsSink(telemetry)` so framework diagnostics reach the
+`telemetryDiagnosticsSink(telemetry.provider)` so framework diagnostics reach the
 telemetry provider and `installShellAuth` can report into it before the runtime
 exists (`docs/decisions.md` §25).
 

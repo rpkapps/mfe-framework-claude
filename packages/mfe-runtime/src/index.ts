@@ -239,6 +239,7 @@ export type {
   TelemetryLevel,
   TelemetryProvider,
   TelemetryRecord,
+  TelemetrySpanContext,
   Tracer,
 } from '@company/mfe-core'
 

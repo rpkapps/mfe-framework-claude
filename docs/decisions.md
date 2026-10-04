@@ -2077,3 +2077,33 @@ paint. A static shell has no server to name the user in `<html data-user-id>`, s
 script falls back to the cache of whoever last signed in on this browser, and the runtime corrects
 it once it knows the user. Only light or dark carries over between users of one browser; a reload
 no longer starts in the system theme and flips.
+
+---
+
+## 58. A workflow is one trace: the author keeps the span, and the framework fetch carries it
+
+**Status:** decided; extends §4.
+
+A workflow that spans several clicks and a request could not be one trace. A span was a parent only
+inside the synchronous `startActiveSpan` callback, so a later click or anything after an `await`
+started a new trace. The Faro adapter sent finished spans as flat events, so no trace reached the
+backend, records made inside a span were not linked to it, and `#mfe/fetch` sent no trace context.
+
+So the author keeps the workflow's span and runs each later step in `tracer.withSpan(span, fn)`,
+which makes the span active while `fn` runs. That is the one new author method; it is the explicit
+form of what §4 refuses to guess, and like the ambient slot it adopts only the mount's own spans.
+Every record made while a span is active carries its `spanContext`. A request through `#mfe/fetch`
+to a declared API, sent while a span is active, gets a `CLIENT` span and a W3C `traceparent`, read
+synchronously before the request's first `await`. The token's allowlist is the header's allowlist,
+so no third party receives it, and a caller's own `traceparent` is left alone. Only the method,
+host and port are recorded, never the path. The shell's adapter sends each finished span to Faro
+as OTLP through `pushTraces`, with the framework's own ids, so the backend's span joins the trace.
+The shell also tells Faro the user's id and the App on screen as its view.
+
+Faro's own tracing package was not used: its fetch instrumentation patches the page's `fetch` and
+reads OpenTelemetry's context, which knows nothing of the framework's spans, so a request would
+land in a trace of its own.
+
+**Cost:** `traceparent` always carries the sampled flag, so sampling is the collector's and the
+backend's to decide. The backend must allow the header in CORS. A step that forgets `withSpan`
+still starts a trace of its own, and nothing detects it.

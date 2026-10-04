@@ -24,62 +24,12 @@ import {
   RESERVED_ATTRIBUTE_KEYS,
   type MountTelemetryRuntime,
 } from './runtime.ts'
-import { createNonRecordingTracer, nonRecordingSpan } from './span-emitter.ts'
-
-export interface ActiveSpanContext {
-  /** Identity of the mount that owns the span, compared by reference. */
-  readonly owner: object
-  readonly traceId: string
-  readonly spanId: string
-  readonly name: string
-}
-
-// On the page rather than in this module: a page may hold more than one copy of the runtime (§55),
-// and a context one copy made active is the active context to every other.
-const ACTIVE_SPAN = Symbol.for('@company/mfe.activeSpan')
-
-interface PageSpan {
-  [ACTIVE_SPAN]?: ActiveSpanContext | undefined
-}
-
-const page = globalThis as PageSpan
-
-/** The active context, whoever owns it. */
-export function getActiveSpanContext(): ActiveSpanContext | undefined {
-  return page[ACTIVE_SPAN]
-}
-
-/**
- * Parent resolution goes through here so that an interleaved mount produces a root span
- * instead of a cross-mount parent (§4).
- */
-export function getActiveSpanContextFor(owner: object): ActiveSpanContext | undefined {
-  const active = page[ACTIVE_SPAN]
-  return active !== undefined && active.owner === owner ? active : undefined
-}
-
-/** Runs `fn` with `context` active, restoring the previous one even on a throw. */
-export function runWithSpanContext<T>(context: ActiveSpanContext | undefined, fn: () => T): T {
-  const previous = page[ACTIVE_SPAN]
-  page[ACTIVE_SPAN] = context
-  try {
-    return fn()
-  } finally {
-    page[ACTIVE_SPAN] = previous
-  }
-}
-
-/**
- * Captures the active context now and restores it for every later invocation, which is the
- * supported way to keep a continuation correlated: a span started after an `await` has no
- * ambient context and becomes a root (§4).
- */
-export function bindTelemetryContext<A extends readonly unknown[], R>(
-  fn: (...args: A) => R,
-): (...args: A) => R {
-  const captured = page[ACTIVE_SPAN]
-  return (...args: A): R => runWithSpanContext(captured, () => fn(...args))
-}
+import {
+  getActiveSpanContextFor,
+  runWithSpanContext,
+  type ActiveSpanContext,
+} from './active-span.ts'
+import { createNonRecordingTracer, nonRecordingSpan, type ProviderTracer } from './span-emitter.ts'
 
 /** How a span that outlived its mount is labelled; never an error status. */
 const CANCELLATION_REASON = 'mount-disposed'
@@ -89,7 +39,7 @@ export function createNoopTelemetryProvider(): TelemetryProvider {
   const tracer = createNonRecordingTracer()
   return Object.freeze({
     record: (): void => {},
-    createTracer: (): Tracer => tracer,
+    createTracer: (): ProviderTracer => tracer,
     // Every level disabled, so leveled records are dropped before being built.
     isLevelEnabled: (): boolean => false,
   })
@@ -211,6 +161,11 @@ class MountSpan implements Span {
     return !this.#ended && this.#inner !== undefined
   }
 
+  /** Whether `tracer` started this span, which is what lets it be made active there. */
+  isFrom(tracer: MountTracer): boolean {
+    return this.#tracer === tracer
+  }
+
   /** Repeated calls are harmless: the first one wins and the rest do nothing. */
   end(endTime?: number): void {
     if (this.#ended) return
@@ -244,7 +199,7 @@ export class MountTracer implements Tracer {
   readonly #runtime: MountTelemetryRuntime
   /** Bounded tracking, so spans nobody ended cannot grow memory without limit. */
   readonly #open = new Set<MountSpan>()
-  #inner: Tracer | undefined
+  #inner: ProviderTracer | undefined
 
   constructor(runtime: MountTelemetryRuntime, options: { readonly enabled: boolean }) {
     this.#runtime = runtime
@@ -344,16 +299,27 @@ export class MountTracer implements Tracer {
     // is left untouched and a surrounding span keeps adopting children created inside.
     if (!(span instanceof MountSpan)) return callback(span)
 
-    const context: ActiveSpanContext = {
+    // Ending the span and recording a failure are the author's decisions, so throws,
+    // returned values and returned promises all pass straight through.
+    return runWithSpanContext(this.#contextOf(span), () => callback(span))
+  }
+
+  withSpan<T>(span: Span, fn: () => T): T {
+    // Another mount's span, or a non-recording handle, is not a context this mount may adopt,
+    // so the work runs under whatever is already active (§4). An ended span still parents:
+    // the trace stays whole when a step outlives the workflow it belongs to.
+    if (!(span instanceof MountSpan) || !span.isFrom(this)) return fn()
+    return runWithSpanContext(this.#contextOf(span), fn)
+  }
+
+  #contextOf(span: MountSpan): ActiveSpanContext {
+    return {
       owner: this.#runtime.owner,
       traceId: span.traceId,
       spanId: span.spanId,
       name: span.name,
+      tracer: this,
     }
-
-    // Ending the span and recording a failure are the author's decisions, so throws,
-    // returned values and returned promises all pass straight through.
-    return runWithSpanContext(context, () => callback(span))
   }
 
   /**

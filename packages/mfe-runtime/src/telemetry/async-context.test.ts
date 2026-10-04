@@ -6,11 +6,11 @@
 
 import { describe, expect, it } from 'vitest'
 
-import type { Span, SpanRecord, TelemetryAttribution } from '@company/mfe-core'
+import type { SpanRecord, TelemetryAttribution } from '@company/mfe-core'
 
 import { createRecordingTelemetryProvider } from '../testing/recording-provider.ts'
 import { createMountTelemetry } from './service.ts'
-import { bindTelemetryContext, getActiveSpanContext } from './tracer.ts'
+import { getActiveSpanContext } from './active-span.ts'
 import { setup as createMount, spanNamed as findSpan } from './__tests__/harness.ts'
 
 function attribution(definitionId: string): TelemetryAttribution {
@@ -165,15 +165,14 @@ describe('correlation across await (the documented limit)', () => {
     )
   })
 
-  it('restores the parent when the continuation is wrapped with bindTelemetryContext', async () => {
+  it('restores the parent when the continuation runs inside withSpan', async () => {
     const { provider, tracer } = setup()
 
     await tracer.startActiveSpan('checkout', async span => {
-      const continueWork = bindTelemetryContext(() => {
+      await Promise.resolve()
+      tracer.withSpan(span, () => {
         tracer.startSpan('after-await-bound').end()
       })
-      await Promise.resolve()
-      continueWork()
       span.end()
     })
 
@@ -183,36 +182,16 @@ describe('correlation across await (the documented limit)', () => {
     expect(traceIdOf(bound)).toBe(traceIdOf(checkout))
   })
 
-  it('passes arguments, results and throws through a bound callback unchanged', () => {
-    const { tracer } = setup()
-
-    const bound = tracer.startActiveSpan('checkout', (span: Span) => {
-      const wrapped = bindTelemetryContext((a: number, b: number) => a + b)
-      const thrower = bindTelemetryContext(() => {
-        throw new Error('bound throw')
-      })
-      span.end()
-      return { wrapped, thrower }
-    })
-
-    expect(bound.wrapped(2, 3)).toBe(5)
-    expect(() => bound.thrower()).toThrow('bound throw')
-    expect(getActiveSpanContext()).toBeUndefined()
-  })
-
-  it('makes a bound callback harmless after the mount was disposed', async () => {
+  it('makes withSpan harmless after the mount was disposed', async () => {
     const { provider, telemetry, tracer } = setup()
 
-    const bound = tracer.startActiveSpan('checkout', span => {
-      const later = bindTelemetryContext(() => tracer.startSpan('too-late'))
-      span.end()
-      return later
-    })
+    const checkout = tracer.startSpan('checkout')
+    checkout.end()
 
     telemetry.dispose()
     await Promise.resolve()
 
-    const span = bound()
+    const span = tracer.withSpan(checkout, () => tracer.startSpan('too-late'))
     expect(span.isRecording()).toBe(false)
     expect(provider.spansNamed('too-late')).toHaveLength(0)
   })
@@ -247,16 +226,15 @@ describe('concurrent operations', () => {
     }
   })
 
-  it('correlates both continuations when each binds its own context', async () => {
+  it('correlates both continuations when each runs inside withSpan', async () => {
     const { provider, tracer } = setup()
 
     async function operation(name: string): Promise<void> {
       return await tracer.startActiveSpan(name, async span => {
-        const resume = bindTelemetryContext(() => {
+        await Promise.resolve()
+        tracer.withSpan(span, () => {
           tracer.startSpan(`${name}.bound`).end()
         })
-        await Promise.resolve()
-        resume()
         span.end()
       })
     }
@@ -267,22 +245,19 @@ describe('concurrent operations', () => {
     expect(spanNamed(provider, 'op-b.bound').parent).toBe(spanNamed(provider, 'op-b'))
   })
 
-  it('does not let a nested startActiveSpan inside a bound callback escape its trace', async () => {
+  it('does not let a nested startActiveSpan inside withSpan escape its trace', async () => {
     const { provider, tracer } = setup()
 
-    const resume = tracer.startActiveSpan('outer', span => {
-      const bound = bindTelemetryContext(() => {
-        tracer.startActiveSpan('inner', child => {
-          tracer.startSpan('grandchild').end()
-          child.end()
-        })
-      })
-      span.end()
-      return bound
-    })
+    const outerSpan = tracer.startSpan('outer')
+    outerSpan.end()
 
     await Promise.resolve()
-    resume()
+    tracer.withSpan(outerSpan, () => {
+      tracer.startActiveSpan('inner', child => {
+        tracer.startSpan('grandchild').end()
+        child.end()
+      })
+    })
 
     const outer = spanNamed(provider, 'outer')
     expect(spanNamed(provider, 'inner').parent).toBe(outer)

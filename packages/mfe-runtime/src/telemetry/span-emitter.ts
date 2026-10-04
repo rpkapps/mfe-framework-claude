@@ -38,8 +38,11 @@ function activeSpanArgs<T>(
     : { options: optionsOrCallback, callback: maybeCallback }
 }
 
+/** What a provider's tracer offers: activation, `withSpan`, is the mount tracer's own. */
+export type ProviderTracer = Omit<Tracer, 'withSpan'>
+
 /** `startActiveSpan` runs the callback exactly once and returns its result unchanged. */
-function asTracer(startSpan: (name: string, options?: SpanOptions) => Span): Tracer {
+function asTracer(startSpan: (name: string, options?: SpanOptions) => Span): ProviderTracer {
   return Object.freeze({
     startSpan,
     startActiveSpan: <T>(
@@ -55,7 +58,7 @@ function asTracer(startSpan: (name: string, options?: SpanOptions) => Span): Tra
 }
 
 /** Turning tracing off cannot change what the application does, so a callback still runs once. */
-export function createNonRecordingTracer(): Tracer {
+export function createNonRecordingTracer(): ProviderTracer {
   return asTracer(() => nonRecordingSpan)
 }
 
@@ -81,7 +84,7 @@ export interface SpanEmitterOptions {
 export function createSpanEmitter(
   attribution: TelemetryAttribution,
   options: SpanEmitterOptions = {},
-): Tracer {
+): ProviderTracer {
   const now = options.now ?? Date.now
   const open = new Set<MutableSpanRecord>()
   /** Recently started spans by id, bounded the same way open spans are. */
@@ -104,9 +107,15 @@ export function createSpanEmitter(
       exceptions: [],
     }
 
-    const parent = byId.get(String(attributes[RESERVED_ATTRIBUTE_KEYS.parentSpanId]))
+    const parentSpanId = attributes[RESERVED_ATTRIBUTE_KEYS.parentSpanId]
+    if (typeof parentSpanId === 'string') record.parentSpanId = parentSpanId
+    const parent = byId.get(String(parentSpanId))
     if (parent !== undefined) record.parent = parent
     const id = attributes[RESERVED_ATTRIBUTE_KEYS.spanId]
+    const traceId = attributes[RESERVED_ATTRIBUTE_KEYS.traceId]
+    if (typeof id === 'string' && typeof traceId === 'string') {
+      record.spanContext = Object.freeze({ traceId, spanId: id })
+    }
     if (typeof id === 'string') {
       if (byId.size >= TELEMETRY_LIMITS.maxOpenSpansPerMount) {
         const oldest = oldestKey(byId.keys())

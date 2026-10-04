@@ -100,12 +100,9 @@ describe('the surface the framework does not have', () => {
 
     expect(Object.keys(index).sort()).toEqual([
       'RESERVED_ATTRIBUTE_KEYS',
-      'bindTelemetryContext',
       'createMountTelemetry',
-      'createNonRecordingTracer',
       'createNoopTelemetryProvider',
       'createSpanEmitter',
-      'getActiveSpanContext',
       'isReservedAttributeKey',
       'nonRecordingSpan',
       'telemetryDiagnosticsSink',

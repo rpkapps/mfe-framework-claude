@@ -99,6 +99,7 @@ export {
   type TelemetryProvider,
   type TelemetryRecord,
   type TelemetryRecordKind,
+  type TelemetrySpanContext,
   type Tracer,
 } from './telemetry.ts'
 

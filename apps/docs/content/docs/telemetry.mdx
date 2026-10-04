@@ -136,7 +136,122 @@ async function loadAssets(telemetry: MfeTelemetry, signal: AbortSignal) {
 
 Call `loadAssets(telemetry, signal)` from your mounted component. Pass the mount signal to background work. Stop reporting when it aborts, and handle a rejected operation in your caller.
 Always end spans in `finally`. The framework closes leftover spans as cancelled when the mount ends.
-Start child spans before the first `await` to share the parent's trace. After an `await`, new spans start separate traces.
+Start child spans before the first `await` to share the parent's trace. After an `await`, new spans start separate traces unless you wrap them in `tracer.withSpan` (step 4).
+
+Records you make while a span is active carry its trace and span id, so the backend shows them inside the trace.
+A request through `#mfe/fetch` to one of your declared APIs, sent while a span is active, gets a client span and a `traceparent` header.
+The backend's own spans then join the same trace. Requests to undeclared origins never get the header.
+
+</Step>
+<Step>
+<span id="trace-a-workflow-across-clicks" />
+
+### 4. Trace a workflow across clicks and requests
+
+Keep the workflow's span, and run each later step inside `tracer.withSpan(span, fn)`.
+`withSpan` makes the span active while `fn` runs, so spans, records and `#mfe/fetch` requests started inside it join the trace.
+It works on a later click and after an `await`, where `startActiveSpan` cannot reach.
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="src/checkout.tsx (React)"
+import { useRef } from 'react'
+import { fetch } from '#mfe/fetch'
+import { SpanStatusCode, useTelemetry, type Span } from '@company/mfe-react'
+
+export function Checkout() {
+  const { tracer } = useTelemetry()
+  const workflow = useRef<Span | undefined>(undefined)
+
+  // Click 1: start the workflow.
+  function start(): void {
+    workflow.current = tracer.startSpan('checkout')
+  }
+
+  // Click 2: a step inside it.
+  function chooseShipping(option: string): void {
+    const span = workflow.current
+    if (span === undefined) return
+    tracer.withSpan(span, () =>
+      tracer.startSpan('checkout.shipping', { attributes: { option } }).end(),
+    )
+  }
+
+  // Click 3: the request, in the same trace as the clicks.
+  async function placeOrder(): Promise<void> {
+    const span = workflow.current
+    if (span === undefined) return
+    try {
+      const response = await tracer.withSpan(span, () => fetch('orders', { method: 'POST' }))
+      span.setStatus({ code: response.ok ? SpanStatusCode.OK : SpanStatusCode.ERROR })
+    } catch (error) {
+      span.recordException(error)
+      span.setStatus({ code: SpanStatusCode.ERROR })
+    } finally {
+      span.end()
+      workflow.current = undefined
+    }
+  }
+
+  // ...render the three buttons
+}
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/checkout.component.ts (Angular)"
+import { Component } from '@angular/core'
+import { fetch } from '#mfe/fetch'
+import { SpanStatusCode, injectTelemetry, type Span } from '@company/mfe-angular'
+
+@Component({
+  selector: 'app-checkout',
+  template: `...the three buttons`,
+})
+export class CheckoutComponent {
+  private readonly tracer = injectTelemetry().tracer
+  private workflow: Span | undefined
+
+  // Click 1: start the workflow.
+  start(): void {
+    this.workflow = this.tracer.startSpan('checkout')
+  }
+
+  // Click 2: a step inside it.
+  chooseShipping(option: string): void {
+    const span = this.workflow
+    if (span === undefined) return
+    this.tracer.withSpan(span, () =>
+      this.tracer.startSpan('checkout.shipping', { attributes: { option } }).end(),
+    )
+  }
+
+  // Click 3: the request, in the same trace as the clicks.
+  async placeOrder(): Promise<void> {
+    const span = this.workflow
+    if (span === undefined) return
+    try {
+      const response = await this.tracer.withSpan(span, () => fetch('orders', { method: 'POST' }))
+      span.setStatus({ code: response.ok ? SpanStatusCode.OK : SpanStatusCode.ERROR })
+    } catch (error) {
+      span.recordException(error)
+      span.setStatus({ code: SpanStatusCode.ERROR })
+    } finally {
+      span.end()
+      this.workflow = undefined
+    }
+  }
+}
+```
+
+</Tab>
+</Tabs>
+
+Call `fetch` itself inside `withSpan`. A TanStack Query `mutationFn` runs after an internal `await`, so wrap the `fetch` in it rather than the `mutate` call.
+`withSpan` adopts only spans your own mount started. Another mount's span leaves the work in a trace of its own.
+Your API must accept the `traceparent` header in its CORS settings and continue the trace with its OpenTelemetry SDK.
 
 </Step>
 </Steps>
