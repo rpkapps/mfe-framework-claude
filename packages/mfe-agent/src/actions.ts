@@ -24,14 +24,14 @@ import type {
 
 import type { ApprovalQuestion, ChatTool } from './types.ts'
 
+// The runtime types this module's API names, so an agent host can name them without the runtime.
+export type { ActionApprover, AgentContextStore } from '@company/mfe-runtime'
+
 /**
  * Model APIs take `^[a-zA-Z0-9_-]{1,64}$` as a tool name, so an action id such as
  * `operations:acknowledge-alert` cannot go as it is. A call is matched back to its action by
  * looking the name up in the list, never by parsing it.
  */
-// The runtime types this module's API names, so an agent host can name them without the runtime.
-export type { ActionApprover, AgentContextStore } from '@company/mfe-runtime'
-
 export function toolNameOf(actionId: string): string {
   return actionId
     .replace(':', '__')
