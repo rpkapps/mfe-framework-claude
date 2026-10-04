@@ -160,6 +160,11 @@ function declare<T>(
   })
 }
 
+/**
+ * Declares one stored value once, in a shared module, so its name, schema, default and area
+ * cannot drift apart between the places that use it. `storedKey.from` reads a value another app
+ * owns.
+ */
 export const storedKey: {
   /**
    * Declares one stored value once, in a shared module, so its name, schema, default and area
@@ -178,12 +183,15 @@ export const storedKey: {
     options?: StoredKeyOptions<z.output<S>>,
   ): ReadonlyStoredKey<z.output<S>>
 } = Object.assign(
-  <S extends z.ZodType>(
+  function declareStoredKey<S extends z.ZodType>(
     name: string,
     schema: WithDefault<S>,
     options?: StoredKeyOptions<z.output<S>>,
-  ): StoredKey<z.output<S>> =>
-    declare(undefined, name, schema as z.ZodType<z.output<S>>, options) as StoredKey<z.output<S>>,
+  ): StoredKey<z.output<S>> {
+    return declare(undefined, name, schema as z.ZodType<z.output<S>>, options) as StoredKey<
+      z.output<S>
+    >
+  },
   {
     from: <S extends z.ZodType>(
       owner: string,

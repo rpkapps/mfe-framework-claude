@@ -31,7 +31,7 @@ export interface MfeWebpackPluginSettings {
 }
 
 export class MfeWebpackPlugin implements WebpackPluginInstance {
-  readonly name: string = PLUGIN_NAME
+  readonly name: typeof PLUGIN_NAME = PLUGIN_NAME
   readonly #options: MfeAngularOptions
   readonly #settings: MfeWebpackPluginSettings
 
