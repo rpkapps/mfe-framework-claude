@@ -2,7 +2,19 @@
   "$schema": "https://unpkg.com/@changesets/config@3.0.0/schema.json",
   "changelog": "@changesets/cli/changelog",
   "commit": false,
-  "fixed": [],
+  "fixed": [
+    [
+      "@company/mfe-core",
+      "@company/mfe-runtime",
+      "@company/mfe-react",
+      "@company/mfe-angular",
+      "@company/mfe-build",
+      "@company/mfe-rspack",
+      "@company/mfe-nx",
+      "@company/mfe-agent",
+      "@company/mfe-devtools"
+    ]
+  ],
   "linked": [],
   "access": "restricted",
   "baseBranch": "dev",
