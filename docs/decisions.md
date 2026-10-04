@@ -2143,7 +2143,21 @@ transport-agnostic: the header works with any HTTP client. The framework fetch p
 `traceparent` through unchanged, as it passes any other header. The Faro adapter no longer pushes a
 span's exceptions as errors, because the failed workflow's error record already reports them.
 
+Several runs of one name, such as one per file in an upload queue, are open at once through a key:
+`telemetry.workflow(name, key)` picks the run by the pair, one object per pair, and without a key
+there is one run per name. The key only selects the run. It is never recorded on a span or a
+record, and a diagnostic says only that one was given, because a key is often an order or file id.
+
+A workflow also has `telemetry`'s record methods, `event`, `debug`, `info`, `warn`, `error` and
+`measure`, with the same signatures. Each emits the record the same `telemetry` call would, through
+the same runtime path, filters and limits, with the `spanContext` of the current step, or the
+workflow before its first step. This is the explicit form of the linking §58 did through the active
+span. While the workflow is not open, or tracing is off, the record goes out unlinked and without a
+diagnostic: a log is never lost for want of a `start()`.
+
 **Cost:** a request whose author forgets `headers()` is not in the trace, and nothing detects it,
 as with `withSpan` before. The framework no longer records a client span for the request itself;
 the backend's own span, joined through `traceparent`, is what shows its timing. Free-form spans
-are gone: work that is not a named workflow with steps is a measurement or an event.
+are gone: work that is not a named workflow with steps is a measurement or an event. A keyed
+workflow is held for the mount's life like any other, so a mount that keys thousands of runs keeps
+thousands of small objects until it unmounts.

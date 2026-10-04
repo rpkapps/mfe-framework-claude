@@ -53,8 +53,8 @@ export function createMountTelemetry(
 ): MountTelemetryHandle {
   const runtime = new MountTelemetryRuntime(provider, attribution, options)
   const tracer = new MountTracer(runtime, { enabled: options.tracing ?? true })
-  // One per name, because only one run of a name may be open; held for the mount's life.
-  const workflows = new Map<string, Workflow>()
+  // One per name and key, because only one run of a pair may be open; held for the mount's life.
+  const workflows = new Map<string, Map<string | undefined, Workflow>>()
 
   const surface: MfeTelemetry = {
     event(name: string, attributes?: TelemetryAttributes): void {
@@ -79,11 +79,16 @@ export function createMountTelemetry(
     ): void {
       runtime.emitMeasurement(name, value, measurement.unit, measurement.attributes)
     },
-    workflow(name: string): Workflow {
-      let workflow = workflows.get(name)
+    workflow(name: string, key?: string): Workflow {
+      let byKey = workflows.get(name)
+      if (byKey === undefined) {
+        byKey = new Map()
+        workflows.set(name, byKey)
+      }
+      let workflow = byKey.get(key)
       if (workflow === undefined) {
-        workflow = createWorkflow(name, runtime, tracer)
-        workflows.set(name, workflow)
+        workflow = createWorkflow(name, key !== undefined, runtime, tracer)
+        byKey.set(key, workflow)
       }
       return workflow
     },

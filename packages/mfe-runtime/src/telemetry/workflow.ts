@@ -7,6 +7,7 @@
 import {
   boundName,
   SpanStatusCode,
+  type MeasurementUnit,
   type TelemetryAttributes,
   type TelemetrySpanContext,
   type Workflow,
@@ -21,16 +22,24 @@ function traceparentOf(span: MountSpan): string {
   return `00-${span.traceId}-${span.spanId}-01`
 }
 
+function contextOf(span: MountSpan | undefined): TelemetrySpanContext | undefined {
+  return span === undefined
+    ? undefined
+    : Object.freeze({ traceId: span.traceId, spanId: span.spanId })
+}
+
 /**
  * Open is tracked apart from the spans, which are missing when tracing is off or the provider
- * failed, so `fail()` still reports its error then.
+ * failed, so `fail()` still reports its error then. The key only picks the run: it may be an order
+ * id, so a diagnostic says one was given but never what it was.
  */
 export function createWorkflow(
   name: string,
+  keyed: boolean,
   runtime: MountTelemetryRuntime,
   tracer: MountTracer,
 ): Workflow {
-  const label = `workflow "${boundName(name)}"`
+  const label = `workflow "${boundName(name)}"${keyed ? ' with a key' : ''}`
   let open = false
   let root: MountSpan | undefined
   let step: MountSpan | undefined
@@ -49,6 +58,11 @@ export function createWorkflow(
       })
     }
     return false
+  }
+
+  /** The record's link: the current step, else the workflow; none while closed or untraced. */
+  function linked(): TelemetrySpanContext | undefined {
+    return open ? contextOf(step ?? root) : undefined
   }
 
   function close(): void {
@@ -100,12 +114,44 @@ export function createWorkflow(
       step?.recordException(error).setStatus(SpanStatusCode.ERROR).end()
       if (attributes !== undefined) root?.setAttributes(attributes)
       root?.recordException(error).setStatus(SpanStatusCode.ERROR).end()
-      const spanContext: TelemetrySpanContext | undefined =
-        root === undefined
-          ? undefined
-          : Object.freeze({ traceId: root.traceId, spanId: root.spanId })
+      const spanContext = contextOf(root)
       close()
       runtime.emitError(error, attributes, spanContext)
+    },
+
+    // Records are never refused for a closed workflow: a log must not be lost to a missing start().
+    event(eventName: string, attributes?: TelemetryAttributes): void {
+      runtime.emitEvent(eventName, attributes, linked())
+    },
+
+    debug(message: string, attributes?: TelemetryAttributes): void {
+      runtime.emitLog('debug', message, attributes, undefined, linked())
+    },
+
+    info(message: string, attributes?: TelemetryAttributes): void {
+      runtime.emitLog('info', message, attributes, undefined, linked())
+    },
+
+    warn(message: string, attributes?: TelemetryAttributes): void {
+      runtime.emitLog('warn', message, attributes, undefined, linked())
+    },
+
+    error(error: unknown, attributes?: TelemetryAttributes): void {
+      runtime.emitError(error, attributes, linked())
+    },
+
+    measure(
+      measurementName: string,
+      value: number,
+      measurement: { unit: MeasurementUnit; attributes?: TelemetryAttributes },
+    ): void {
+      runtime.emitMeasurement(
+        measurementName,
+        value,
+        measurement.unit,
+        measurement.attributes,
+        linked(),
+      )
     },
   })
 }

@@ -326,11 +326,21 @@ export class MountTelemetryRuntime {
     }
   }
 
-  emitEvent(name: string, attributes: TelemetryAttributes | undefined): void {
+  /** `spanContext`, here and below, links the record to the workflow it was made in. */
+  emitEvent(
+    name: string,
+    attributes: TelemetryAttributes | undefined,
+    spanContext?: TelemetrySpanContext,
+  ): void {
     const operation = 'record a telemetry event'
     if (this.refused(operation)) return
     this.#deliver(
-      { kind: 'event', name: boundName(name), ...this.#envelope(attributes, operation) },
+      {
+        kind: 'event',
+        name: boundName(name),
+        ...withoutUndefined({ spanContext }),
+        ...this.#envelope(attributes, operation),
+      },
       operation,
     )
   }
@@ -360,7 +370,6 @@ export class MountTelemetryRuntime {
     )
   }
 
-  /** `spanContext` links the record to the workflow that failed with this error. */
   emitError(
     error: unknown,
     attributes: TelemetryAttributes | undefined,
@@ -381,6 +390,7 @@ export class MountTelemetryRuntime {
     value: number,
     unit: MeasurementUnit,
     attributes: TelemetryAttributes | undefined,
+    spanContext?: TelemetrySpanContext,
   ): void {
     const operation = 'record a measurement'
     if (this.refused(operation)) return
@@ -405,6 +415,7 @@ export class MountTelemetryRuntime {
         name: boundName(name),
         value,
         unit,
+        ...withoutUndefined({ spanContext }),
         ...this.#envelope(attributes, operation),
       },
       operation,

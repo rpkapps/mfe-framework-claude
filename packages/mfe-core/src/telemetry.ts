@@ -56,6 +56,8 @@ export interface Tracer {
 /**
  * One named piece of user-facing work, such as a checkout, traced from its start to its end. It is
  * one trace: each step is a child of the workflow, and a request joins it only through `headers()`.
+ * Its record methods emit what the same `MfeTelemetry` method would, linked to the current step, or
+ * the workflow before its first step, while open; otherwise, or with tracing off, unlinked.
  */
 export interface Workflow {
   /** Starts it; starting again while open abandons the open run first. */
@@ -71,6 +73,17 @@ export interface Workflow {
   succeed(attributes?: TelemetryAttributes): void
   /** Ends it as failed with this error, which is also reported. Ignored when not open. */
   fail(error: unknown, attributes?: TelemetryAttributes): void
+  event(name: string, attributes?: TelemetryAttributes): void
+  debug(message: string, attributes?: TelemetryAttributes): void
+  info(message: string, attributes?: TelemetryAttributes): void
+  warn(message: string, attributes?: TelemetryAttributes): void
+  /** Reports an error without ending the workflow; `fail` ends it. */
+  error(error: unknown, attributes?: TelemetryAttributes): void
+  measure(
+    name: string,
+    value: number,
+    options: { unit: MeasurementUnit; attributes?: TelemetryAttributes },
+  ): void
 }
 
 /** The author-facing surface. */
@@ -87,8 +100,12 @@ export interface MfeTelemetry {
     value: number,
     options: { unit: MeasurementUnit; attributes?: TelemetryAttributes },
   ): void
-  /** The mount's workflow with this name; the same object every call. */
-  workflow(name: string): Workflow
+  /**
+   * The mount's workflow with this name and key; the same object every call with the same pair. A
+   * key, such as an upload's id, lets several runs of one name be open at once. It only picks the
+   * run and is never recorded.
+   */
+  workflow(name: string, key?: string): Workflow
 }
 
 /** W3C trace context ids, hex-encoded: 32 characters for the trace, 16 for the span. */

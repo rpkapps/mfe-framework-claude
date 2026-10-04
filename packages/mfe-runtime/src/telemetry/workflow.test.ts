@@ -202,6 +202,141 @@ describe('a workflow with tracing off', () => {
   })
 })
 
+describe('workflows with a key', () => {
+  it('are one object per name and key, apart from the unkeyed one', () => {
+    const { telemetry } = setup()
+
+    expect(telemetry.workflow('upload', 'file-a')).toBe(telemetry.workflow('upload', 'file-a'))
+    expect(telemetry.workflow('upload', 'file-a')).not.toBe(telemetry.workflow('upload', 'file-b'))
+    expect(telemetry.workflow('upload', 'file-a')).not.toBe(telemetry.workflow('upload'))
+    expect(telemetry.workflow('upload')).toBe(telemetry.workflow('upload'))
+  })
+
+  it('run independently while open at once, each in a trace of its own', () => {
+    const { provider, telemetry } = setup()
+    const first = telemetry.workflow('upload', 'file-a')
+    const second = telemetry.workflow('upload', 'file-b')
+
+    first.start()
+    second.start()
+    first.step('send')
+    second.fail(new Error('Upload failed: 413'))
+    first.succeed()
+
+    const [a, b] = provider.spansNamed('upload')
+    expect(a?.status.code).toBe(SpanStatusCode.OK)
+    expect(b?.status.code).toBe(SpanStatusCode.ERROR)
+    expect(a?.attributes['mfe.span.end_reason']).toBeUndefined()
+    expect(a && idsOf(a).traceId).not.toBe(b && idsOf(b).traceId)
+    expect(spanNamed(provider.spans, 'send').parent).toBe(a)
+  })
+
+  it('never record the key, and diagnose only that one was given', () => {
+    const key = 'order-8812'
+    const { provider, diagnostics, telemetry } = setup()
+    const upload = telemetry.workflow('upload', key)
+
+    upload.succeed()
+    upload.start({ files: 1 })
+    upload.step('send')
+    upload.info('chunk sent')
+    upload.fail(new Error('Upload failed'))
+
+    const recorded = JSON.stringify([
+      provider.records,
+      provider.spans.map(span => [span.name, span.attributes]),
+      diagnostics.map(diagnostic => [diagnostic.error.message, diagnostic.context]),
+    ])
+    expect(recorded).not.toContain(key)
+    expect(at(diagnostics).error.message).toContain('workflow "upload" with a key')
+  })
+})
+
+describe('records made through a workflow', () => {
+  it('link to the current step, or the workflow before its first step', () => {
+    const { provider, telemetry } = setup()
+    const checkout = telemetry.workflow('checkout')
+
+    checkout.start()
+    checkout.info('cart loaded')
+    checkout.step('quote')
+    checkout.info('quote received', { carrier: 'post' })
+    checkout.event('checkout.quoted')
+    checkout.measure('checkout.quote.latency', 120, { unit: 'ms' })
+    checkout.warn('quote is stale')
+    checkout.debug('quote detail')
+    checkout.error(new Error('Tax service slow'))
+    checkout.succeed()
+
+    const root = idsOf(spanNamed(provider.spans, 'checkout'))
+    const quote = idsOf(spanNamed(provider.spans, 'quote'))
+    const [loaded, ...duringStep] = provider.records
+    expect(loaded?.spanContext).toEqual(root)
+    expect(duringStep).toHaveLength(6)
+    for (const record of duringStep) expect(record.spanContext).toEqual(quote)
+    expect(at(provider.logs('info'), 1).attributes['carrier']).toBe('post')
+    expect(at(provider.logs('error')).attributes['error.type']).toBe('Error')
+    expect(at(provider.logs('error')).attribution).toEqual(at(provider.events()).attribution)
+  })
+
+  it('are still emitted, unlinked and without a diagnostic, while the workflow is not open', () => {
+    const { provider, diagnostics, telemetry } = setup()
+    const checkout = telemetry.workflow('checkout')
+
+    checkout.info('before start')
+    checkout.start()
+    checkout.succeed()
+    checkout.event('checkout.after')
+    checkout.measure('checkout.after', 1, { unit: 'count' })
+
+    expect(provider.records).toHaveLength(3)
+    for (const record of provider.records) expect(record).not.toHaveProperty('spanContext')
+    expect(diagnostics).toHaveLength(0)
+  })
+
+  it('are emitted unlinked with tracing off', () => {
+    const { provider, telemetry } = setup({ tracing: false })
+    const checkout = telemetry.workflow('checkout')
+
+    checkout.start()
+    checkout.step('quote')
+    checkout.info('quote received')
+    checkout.event('checkout.quoted')
+
+    expect(provider.records).toHaveLength(2)
+    for (const record of provider.records) expect(record).not.toHaveProperty('spanContext')
+  })
+
+  it('pass through the level filter like any record', () => {
+    const { provider, telemetry } = setup()
+    provider.setEnabledLevels(['info', 'warn', 'error'])
+    const checkout = telemetry.workflow('checkout')
+
+    checkout.start()
+    checkout.debug('quote detail')
+    checkout.info('quote received')
+
+    expect(provider.logs('debug')).toHaveLength(0)
+    expect(provider.logs('info')).toHaveLength(1)
+    expect(telemetry.counters.droppedByLevelFilter).toBe(1)
+  })
+
+  it('are refused after the mount is disposed, like any record', () => {
+    const { provider, telemetry } = setup()
+    const checkout = telemetry.workflow('checkout')
+    checkout.start()
+
+    telemetry.dispose()
+    checkout.info('quote received')
+    checkout.event('checkout.quoted')
+    checkout.measure('checkout.quote.latency', 120, { unit: 'ms' })
+    checkout.error(new Error('late'))
+
+    expect(provider.records).toHaveLength(0)
+    expect(telemetry.counters.droppedAfterDispose).toBe(4)
+  })
+})
+
 describe('a request sent with the workflow headers', () => {
   function api() {
     const sent: Headers[] = []

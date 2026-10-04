@@ -168,6 +168,118 @@ Requests you send without it, such as background refreshes, never land in a work
 Your API must accept the `traceparent` header in its CORS settings and continue the trace with its OpenTelemetry SDK.
 
 </Step>
+<Step>
+<span id="link-records-to-a-workflow" />
+
+### 4. Link records to a workflow
+
+A workflow has the same record methods as `telemetry`: `event`, `debug`, `info`, `warn`, `error` and `measure`.
+A record made through it is linked to the current step, or to the workflow before its first step.
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="src/checkout.tsx (React)"
+async function getQuote(carrier: string) {
+  checkout.step('quote')
+  const response = await fetch(`quotes/${carrier}`, { headers: checkout.headers() })
+  if (response.ok) checkout.info('quote received', { carrier })
+  else checkout.warn('quote unavailable', { carrier, status: response.status })
+}
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/checkout.component.ts (Angular)"
+async getQuote(carrier: string): Promise<void> {
+  this.checkout.step('quote')
+  const headers = this.checkout.headers()
+  const response = await fetch(`quotes/${carrier}`, { headers })
+  if (response.ok) this.checkout.info('quote received', { carrier })
+  else this.checkout.warn('quote unavailable', { carrier, status: response.status })
+}
+```
+
+</Tab>
+</Tabs>
+
+While the workflow is not open, or tracing is off, the record is still sent, just not linked. A log is never lost for want of a `start()`.
+The shell's level filter applies as it does to `telemetry.info`. Use `fail`, not `error`, to end the workflow with an error.
+
+</Step>
+<Step>
+<span id="run-several-at-once-with-a-key" />
+
+### 5. Run several at once with a key
+
+Only one run of a workflow is open at a time. To trace several uploads at once, pass each one's id as a key.
+`telemetry.workflow(name, key)` returns the same object for the same name and key, and a run of its own for each key.
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="src/upload-row.tsx (React)"
+import { fetch } from '#mfe/fetch'
+import { useTelemetry } from '@company/mfe-react'
+
+export function UploadRow({ file }: { file: QueuedFile }) {
+  const upload = useTelemetry().workflow('upload', file.id)
+
+  async function send() {
+    upload.start({ bytes: file.size })
+    try {
+      const body = file.blob
+      const response = await fetch('files', { method: 'POST', body, headers: upload.headers() })
+      if (!response.ok) throw new Error(`Upload failed: ${response.status}`)
+      upload.succeed()
+    } catch (error) {
+      upload.fail(error)
+    }
+  }
+
+  // ...render the row and a send button
+}
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/upload-row.component.ts (Angular)"
+import { Component, computed, input } from '@angular/core'
+import { fetch } from '#mfe/fetch'
+import { injectTelemetry } from '@company/mfe-angular'
+
+@Component({
+  selector: 'app-upload-row',
+  template: `...the row and a send button`,
+})
+export class UploadRowComponent {
+  readonly file = input.required<QueuedFile>()
+  private readonly telemetry = injectTelemetry()
+  private readonly upload = computed(() => this.telemetry.workflow('upload', this.file().id))
+
+  async send(): Promise<void> {
+    const upload = this.upload()
+    upload.start({ bytes: this.file().size })
+    try {
+      const body = this.file().blob
+      const response = await fetch('files', { method: 'POST', body, headers: upload.headers() })
+      if (!response.ok) throw new Error(`Upload failed: ${response.status}`)
+      upload.succeed()
+    } catch (error) {
+      upload.fail(error)
+    }
+  }
+}
+```
+
+</Tab>
+</Tabs>
+
+The key only picks the run. It is never recorded, so an order or file id is safe to use. Without a key, a name has one run at a time.
+
+</Step>
 </Steps>
 
 ## Check it works
