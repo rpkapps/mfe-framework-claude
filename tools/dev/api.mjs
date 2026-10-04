@@ -38,7 +38,8 @@ const ASSETS = {
  */
 function cors(response) {
   response.setHeader('Access-Control-Allow-Origin', '*')
-  response.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type')
+  // `traceparent` is what a workflow's headers carry, so a request can join its trace.
+  response.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, traceparent')
   response.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
   response.setHeader('Access-Control-Max-Age', '600')
 }
@@ -137,6 +138,12 @@ const server = createServer(async (request, response) => {
     return
   }
 
+  // The lab's checkout places its order here, and reads back the trace context that arrived.
+  if (url.pathname === '/api/lab/orders' && request.method === 'POST') {
+    json(response, 201, { traceparent: request.headers.traceparent ?? null })
+    return
+  }
+
   json(response, 404, { error: `No route for ${url.pathname}.` })
 })
 
@@ -144,7 +151,7 @@ const server = createServer(async (request, response) => {
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   server.listen(DEV_API_PORT, () => {
     console.log(
-      `dev api    :${String(DEV_API_PORT)}  /api/assets, /api/lab/probe, /api/user-storage`,
+      `dev api    :${String(DEV_API_PORT)}  /api/assets, /api/lab/probe, /api/lab/orders, /api/user-storage`,
     )
   })
 }

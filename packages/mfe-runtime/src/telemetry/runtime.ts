@@ -19,10 +19,10 @@ import {
   type TelemetryLevel,
   type TelemetryProvider,
   type TelemetryRecord,
+  type TelemetrySpanContext,
 } from '@company/mfe-core'
 
 import { DEV } from '../dev.ts'
-import { getActiveSpanContextFor } from './active-span.ts'
 
 /**
  * The `mfe.*` namespace the host owns; span ids live here because an author who set them
@@ -137,8 +137,6 @@ export interface TelemetryRuntimeOptions {
 export class MountTelemetryRuntime {
   readonly provider: TelemetryProvider
   readonly attribution: TelemetryAttribution
-  /** Identity the context manager compares, created per mount and never handed out. */
-  readonly owner: object = Object.freeze({})
   readonly counters: MutableCounters = newCounters()
 
   readonly #reserved: TelemetryAttributes
@@ -279,7 +277,7 @@ export class MountTelemetryRuntime {
   }
 
   /** True when the call must be refused because the mount is gone. */
-  #refused(operation: string): boolean {
+  refused(operation: string): boolean {
     if (!this.#disposed) return false
     this.counters.droppedAfterDispose += 1
     if (DEV) {
@@ -316,28 +314,21 @@ export class MountTelemetryRuntime {
     if (delivered === true) this.counters.recorded += 1
   }
 
-  /**
-   * The fields every record shares. Only this mount's active span is stamped, for the same reason
-   * an interleaved mount's span is never a parent (§4).
-   */
+  /** The fields every record shares. */
   #envelope(
     attributes: TelemetryAttributes | undefined,
     operation: string,
-  ): Pick<TelemetryRecord, 'attributes' | 'attribution' | 'timestamp' | 'spanContext'> {
-    const active = getActiveSpanContextFor(this.owner)
+  ): Pick<TelemetryRecord, 'attributes' | 'attribution' | 'timestamp'> {
     return {
       attributes: this.mergeAttributes(attributes, operation),
       attribution: this.attribution,
       timestamp: this.now(),
-      ...(active === undefined
-        ? {}
-        : { spanContext: Object.freeze({ traceId: active.traceId, spanId: active.spanId }) }),
     }
   }
 
   emitEvent(name: string, attributes: TelemetryAttributes | undefined): void {
     const operation = 'record a telemetry event'
-    if (this.#refused(operation)) return
+    if (this.refused(operation)) return
     this.#deliver(
       { kind: 'event', name: boundName(name), ...this.#envelope(attributes, operation) },
       operation,
@@ -349,9 +340,10 @@ export class MountTelemetryRuntime {
     message: string,
     attributes: TelemetryAttributes | undefined,
     error?: unknown,
+    spanContext?: TelemetrySpanContext,
   ): void {
     const operation = `record a ${level} log`
-    if (this.#refused(operation)) return
+    if (this.refused(operation)) return
     if (!this.#levelEnabled(level)) {
       this.counters.droppedByLevelFilter += 1
       return
@@ -361,14 +353,19 @@ export class MountTelemetryRuntime {
         kind: 'log',
         level,
         message: boundName(message),
-        ...withoutUndefined({ error }),
+        ...withoutUndefined({ error, spanContext }),
         ...this.#envelope(attributes, operation),
       },
       operation,
     )
   }
 
-  emitError(error: unknown, attributes: TelemetryAttributes | undefined): void {
+  /** `spanContext` links the record to the workflow that failed with this error. */
+  emitError(
+    error: unknown,
+    attributes: TelemetryAttributes | undefined,
+    spanContext?: TelemetrySpanContext,
+  ): void {
     const normalized = normalizeError(error)
     if (typeof error === 'object' && error !== null) {
       if (this.#reportedErrors.has(error)) this.counters.duplicateErrorReports += 1
@@ -376,7 +373,7 @@ export class MountTelemetryRuntime {
     }
     // "error.type" is a convenience, not attribution, so an author who supplies it wins.
     const merged = { 'error.type': normalized.name, ...(attributes ?? {}) }
-    this.emitLog('error', normalized.message, merged, error)
+    this.emitLog('error', normalized.message, merged, error, spanContext)
   }
 
   emitMeasurement(
@@ -386,7 +383,7 @@ export class MountTelemetryRuntime {
     attributes: TelemetryAttributes | undefined,
   ): void {
     const operation = 'record a measurement'
-    if (this.#refused(operation)) return
+    if (this.refused(operation)) return
     if (!Number.isFinite(value)) {
       // NaN and the infinities would poison a histogram downstream, so nothing is
       // recorded at all.
@@ -420,7 +417,7 @@ export class MountTelemetryRuntime {
    */
   emitFramework(operation: string, details: FrameworkRecordDetails): void {
     const label = `record a framework diagnostic for ${operation}`
-    if (this.#refused(label)) return
+    if (this.refused(label)) return
 
     const level = details.level ?? 'info'
     if (!this.#levelEnabled(level)) {

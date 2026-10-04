@@ -30,7 +30,7 @@ Web Storage. Each rule below gives you the reason, the message you will see and 
 | [Keep the render function in a module that exports only components.](#keep-the-render-function-in-a-module-that-exports-only-components)   | dev loop    | Nothing                |
 | [Never edit generated output.](#never-edit-generated-output)                                                                               | dev loop    | Nothing                |
 | [Log through `useTelemetry()`, not `console.log`.](#log-through-telemetry-not-consolelog)                                                  | diagnostics | Lint                   |
-| [Start child spans before the first `await`.](#start-child-spans-before-the-first-await)                                                   | diagnostics | Nothing                |
+| [Spread `headers()` into a request that belongs to a workflow.](#spread-headers-into-a-workflows-request)                                  | diagnostics | Nothing                |
 | [Suppress a rule on one line, with a reason.](#suppress-a-rule-on-one-line-with-a-reason)                                                  | diagnostics | Nothing                |
 
 Four tools appear in that last column.
@@ -485,12 +485,12 @@ export class TelemetryComponent {
 your `src/`. Every telemetry record carries your definition id, kind, version, build hash and mount
 token, and a `console.log` carries none of that.
 
-## Start child spans before the first `await`
+## Spread `headers()` into a workflow's request
 
-Create child spans synchronously inside `startActiveSpan`. When you need one later, after an
-`await` or on another click, keep the parent span and start the child inside
-`tracer.withSpan(parent, fn)`. A span created after an `await` without it becomes a root with a
-fresh trace id. Nothing checks this rule.
+A request joins a workflow's trace only through the workflow's `headers()`, so pass them to every
+request that belongs to the workflow: `fetch('orders', { method: 'POST', headers:
+checkout.headers() })`. A request sent without them is not part of the workflow, and nothing
+checks this rule. See [Trace a workflow](/docs/telemetry#trace-a-workflow-across-clicks).
 
 ## Suppress a rule on one line, with a reason
 

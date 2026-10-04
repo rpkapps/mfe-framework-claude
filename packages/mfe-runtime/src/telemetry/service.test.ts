@@ -14,7 +14,7 @@ import { createNoopTelemetryProvider } from './tracer.ts'
 import { at, ATTRIBUTION, setup } from './__tests__/harness.ts'
 
 describe('the seven public members', () => {
-  it('exposes exactly event, debug, info, warn, error, measure and tracer', () => {
+  it('exposes exactly event, debug, info, warn, error, measure and workflow', () => {
     const { telemetry } = setup()
 
     expect(Object.keys(telemetry)).toEqual([
@@ -24,25 +24,23 @@ describe('the seven public members', () => {
       'warn',
       'error',
       'measure',
-      'tracer',
+      'workflow',
     ])
-    for (const member of ['event', 'debug', 'info', 'warn', 'error', 'measure'] as const) {
+    for (const member of Object.keys(telemetry) as (keyof MfeTelemetry)[]) {
       expect(typeof telemetry[member]).toBe('function')
     }
-    expect(typeof telemetry.tracer.startSpan).toBe('function')
-    expect(typeof telemetry.tracer.startActiveSpan).toBe('function')
   })
 
-  it('keeps the service, its actions and the tracer stable for the mount lifetime', () => {
+  it('keeps the service and its actions stable for the mount lifetime', () => {
     const { telemetry } = setup()
 
     const event = telemetry.event
-    const tracer = telemetry.tracer
+    const workflow = telemetry.workflow
     telemetry.event('first')
     telemetry.info('second')
 
     expect(telemetry.event).toBe(event)
-    expect(telemetry.tracer).toBe(tracer)
+    expect(telemetry.workflow).toBe(workflow)
     expect(telemetry.measure).toBe(telemetry.measure)
     expect(Object.isFrozen(telemetry)).toBe(true)
   })
@@ -78,10 +76,15 @@ describe('the surface the framework does not have', () => {
 
     for (const absent of ['time', 'trace', 'startTrace', 'fail', 'cancel', 'flush', 'span']) {
       expect(absent in telemetry).toBe(false)
-      expect(absent in telemetry.tracer).toBe(false)
     }
-    expect(typeof telemetry.tracer.startSpan).toBe('function')
-    expect(typeof telemetry.tracer.startActiveSpan).toBe('function')
+  })
+
+  it('hands out no tracer, so nothing about a span is ambient', () => {
+    const { telemetry } = setup()
+
+    for (const absent of ['tracer', 'startSpan', 'startActiveSpan', 'withSpan']) {
+      expect(absent in telemetry).toBe(false)
+    }
   })
 
   it('keeps the host controls off the enumerable author surface', () => {
@@ -508,15 +511,18 @@ describe('disposal', () => {
     expect(telemetry.counters.droppedAfterDispose).toBe(0)
   })
 
-  it('leaves the tracer usable as a non-recording handle', () => {
+  it('leaves a workflow callable, recording nothing', () => {
     const { provider, telemetry } = setup()
     telemetry.dispose()
 
-    const span = telemetry.tracer.startSpan('after')
-    span.setAttribute('a', 1).setStatus({ code: SpanStatusCode.OK }).end()
+    const checkout = telemetry.workflow('checkout')
+    checkout.start()
+    checkout.step('place order')
+    checkout.succeed()
 
-    expect(span.isRecording()).toBe(false)
+    expect(checkout.headers()).toEqual({})
     expect(provider.spans).toHaveLength(0)
+    expect(telemetry.counters.droppedAfterDispose).toBe(3)
   })
 })
 
@@ -525,12 +531,11 @@ describe('provider replacement', () => {
     telemetry.event('checkout.started', { step: 'address' })
     telemetry.measure('checkout.latency', 42, { unit: 'ms' })
     telemetry.info('quote requested')
-    return telemetry.tracer.startActiveSpan('checkout', span => {
-      span.setAttribute('checkout.step', 'quote')
-      span.setStatus({ code: SpanStatusCode.OK })
-      span.end()
-      return 'done'
-    })
+    const checkout = telemetry.workflow('checkout')
+    checkout.start()
+    checkout.step('quote')
+    checkout.succeed({ items: 2 })
+    return 'done'
   }
 
   it('runs identically against two recording providers and a noop provider', () => {

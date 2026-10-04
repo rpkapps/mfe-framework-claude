@@ -37,5 +37,5 @@ export function setup(
     onDiagnostic: diagnostic => diagnostics.push(diagnostic),
     ...options,
   })
-  return { provider, diagnostics, telemetry, tracer: telemetry.tracer }
+  return { provider, diagnostics, telemetry }
 }

@@ -101,6 +101,7 @@ export {
   type TelemetryRecordKind,
   type TelemetrySpanContext,
   type Tracer,
+  type Workflow,
 } from './telemetry.ts'
 
 export {

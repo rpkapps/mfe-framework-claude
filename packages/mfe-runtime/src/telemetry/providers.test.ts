@@ -1,6 +1,6 @@
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
-import { SpanKind, SpanStatusCode, type Span, type TelemetryRecord } from '@company/mfe-core'
+import { SpanKind, SpanStatusCode, type TelemetryRecord } from '@company/mfe-core'
 
 import { createRecordingTelemetryProvider } from '../testing/recording-provider.ts'
 import { createMountTelemetry } from './service.ts'
@@ -45,15 +45,10 @@ describe('the recording provider', () => {
     const telemetry = createMountTelemetry(provider, ATTRIBUTION, { dev: true })
     const failure = new Error('quote failed')
 
-    telemetry.tracer.startActiveSpan('checkout', outer => {
-      telemetry.tracer.startActiveSpan('quote', { kind: SpanKind.CLIENT }, inner => {
-        inner.addEvent('cache.miss')
-        inner.recordException(failure)
-        inner.setStatus({ code: SpanStatusCode.ERROR, message: 'quote failed' })
-        inner.end()
-      })
-      outer.end()
-    })
+    const checkout = telemetry.workflow('checkout')
+    checkout.start()
+    checkout.step('quote')
+    checkout.fail(failure)
 
     expect(provider.spans).toHaveLength(2)
     expect(provider.spansNamed('quote')).toHaveLength(1)
@@ -61,20 +56,21 @@ describe('the recording provider', () => {
     expect(provider.openSpans()).toHaveLength(0)
 
     const quote = at(provider.spansNamed('quote'))
-    expect(quote.kind).toBe(SpanKind.CLIENT)
+    expect(quote.kind).toBe(SpanKind.INTERNAL)
     expect(quote.parent?.name).toBe('checkout')
     expect(quote.exceptions).toEqual([failure])
     expect(quote.status.code).toBe(SpanStatusCode.ERROR)
-    expect(quote.events.map(event => event.name)).toEqual(['cache.miss', 'exception'])
+    expect(quote.events.map(event => event.name)).toEqual(['exception'])
   })
 
   it('reports open spans until they end', () => {
     const provider = createRecordingTelemetryProvider()
     const telemetry = createMountTelemetry(provider, ATTRIBUTION, { dev: true })
 
-    const span = telemetry.tracer.startSpan('in-flight')
+    const checkout = telemetry.workflow('checkout')
+    checkout.start()
     expect(provider.openSpans()).toHaveLength(1)
-    span.end()
+    checkout.succeed()
     expect(provider.openSpans()).toHaveLength(0)
     expect(provider.endedSpans()).toHaveLength(1)
   })
@@ -95,7 +91,7 @@ describe('the recording provider', () => {
     provider.record(eventRecord('two'))
     provider.record(eventRecord('three'))
     const telemetry = createMountTelemetry(provider, ATTRIBUTION, { dev: true })
-    telemetry.tracer.startSpan('span').end()
+    telemetry.workflow('checkout').start()
 
     provider.clear()
 
@@ -133,22 +129,6 @@ describe('the recording provider', () => {
 
     expect(provider.tracerCount).toBe(2)
   })
-
-  it('runs its own startActiveSpan callback exactly once', () => {
-    const provider = createRecordingTelemetryProvider()
-    const tracer = provider.createTracer(ATTRIBUTION)
-    const callback = vi.fn((span: Span) => {
-      span.end()
-      return 'ran'
-    })
-
-    expect(tracer.startActiveSpan('direct', callback)).toBe('ran')
-    expect(tracer.startActiveSpan('direct-with-options', { kind: SpanKind.SERVER }, callback)).toBe(
-      'ran',
-    )
-    expect(callback).toHaveBeenCalledTimes(2)
-    expect(provider.spans).toHaveLength(2)
-  })
 })
 
 describe('the noop provider', () => {
@@ -168,19 +148,11 @@ describe('the noop provider', () => {
     expect(telemetry.counters.recorded).toBe(2)
   })
 
-  it('hands out non-recording spans that still run callbacks once', () => {
+  it('hands out spans that never record', () => {
     const provider = createNoopTelemetryProvider()
     const tracer = provider.createTracer(ATTRIBUTION)
-    const callback = vi.fn((span: Span) => {
-      span.setAttribute('a', 1).addEvent('e').setStatus({ code: SpanStatusCode.OK })
-      span.end()
-      return 'ran'
-    })
 
     expect(tracer.startSpan('anything').isRecording()).toBe(false)
-    expect(tracer.startActiveSpan('anything', callback)).toBe('ran')
-    expect(tracer.startActiveSpan('anything', { kind: SpanKind.CLIENT }, callback)).toBe('ran')
-    expect(callback).toHaveBeenCalledTimes(2)
   })
 })
 
@@ -200,7 +172,6 @@ describe('the non-recording handle', () => {
 
   it('returns a tracer whose spans never record', () => {
     const tracer = createNonRecordingTracer()
-    expect(tracer.startSpan('x').isRecording()).toBe(false)
-    expect(tracer.startActiveSpan('x', span => span.isRecording())).toBe(false)
+    expect(tracer.startSpan('x')).toBe(nonRecordingSpan)
   })
 })

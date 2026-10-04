@@ -10,9 +10,9 @@ import type {
   TelemetryAttributes,
   TelemetryAttribution,
   TelemetryProvider,
+  Workflow,
 } from '@company/mfe-core'
 
-import { DEV } from '../dev.ts'
 import {
   MountTelemetryRuntime,
   type FrameworkRecordDetails,
@@ -20,9 +20,10 @@ import {
   type TelemetryRuntimeOptions,
 } from './runtime.ts'
 import { MountTracer } from './tracer.ts'
+import { createWorkflow } from './workflow.ts'
 
 export interface MountTelemetryOptions extends TelemetryRuntimeOptions {
-  /** False switches tracing off, so every span is a non-recording handle; defaults to true. */
+  /** False switches tracing off, so workflows start no spans and send no headers; defaults to true. */
   readonly tracing?: boolean
 }
 
@@ -39,8 +40,8 @@ export interface MountTelemetryHandle extends MfeTelemetry {
   /** Framework lifecycle diagnostics, deduplicated against reported errors. */
   framework(operation: string, details: FrameworkRecordDetails): void
   /**
-   * Finalizes outstanding spans as cancelled and closes the mount to new records; repeated calls
-   * are harmless.
+   * Finalizes the spans of open workflows as cancelled and closes the mount to new records;
+   * repeated calls are harmless.
    */
   dispose(): void
 }
@@ -52,6 +53,8 @@ export function createMountTelemetry(
 ): MountTelemetryHandle {
   const runtime = new MountTelemetryRuntime(provider, attribution, options)
   const tracer = new MountTracer(runtime, { enabled: options.tracing ?? true })
+  // One per name, because only one run of a name may be open; held for the mount's life.
+  const workflows = new Map<string, Workflow>()
 
   const surface: MfeTelemetry = {
     event(name: string, attributes?: TelemetryAttributes): void {
@@ -76,7 +79,14 @@ export function createMountTelemetry(
     ): void {
       runtime.emitMeasurement(name, value, measurement.unit, measurement.attributes)
     },
-    tracer,
+    workflow(name: string): Workflow {
+      let workflow = workflows.get(name)
+      if (workflow === undefined) {
+        workflow = createWorkflow(name, runtime, tracer)
+        workflows.set(name, workflow)
+      }
+      return workflow
+    },
   }
 
   const handle = surface as MountTelemetryHandle
@@ -85,18 +95,7 @@ export function createMountTelemetry(
     if (runtime.disposed) return
     // Teardown finalization runs before the gate closes: it is the one thing allowed to
     // touch the provider after disposal was requested.
-    const leaked = tracer.finalizeOpenSpans()
-    if (DEV && leaked.finalized > 0) {
-      const names = leaked.names.slice(0, 8).join(', ')
-      runtime.diagnose({
-        code: 'dispose/failure',
-        operation: 'dispose the mount telemetry',
-        expected: 'every span started by the mount to be ended by its author',
-        observed: `${leaked.finalized} span(s) still open: ${names}`,
-        repair: 'End each span in a finally block; they were closed as cancelled.',
-        context: { openSpans: leaked.finalized, spanNames: names },
-      })
-    }
+    tracer.finalizeOpenSpans()
     runtime.markDisposed()
   }
 

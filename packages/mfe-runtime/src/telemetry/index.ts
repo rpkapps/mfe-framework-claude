@@ -1,5 +1,5 @@
 /**
- * A provider-neutral telemetry service bound to one mount, with a framework-owned tracer.
+ * A provider-neutral telemetry service bound to one mount, with framework-owned workflows.
  * No vendor telemetry package is imported here, so an author bundle never resolves one.
  */
 

@@ -8,10 +8,9 @@ import type {
   TelemetryProvider,
   TelemetryRecord,
   TelemetrySpanContext,
+  Tracer,
 } from '@company/mfe-react/host'
 import { initializeFaro, LogLevel, type Faro } from '@grafana/faro-web-sdk'
-
-type ProviderTracer = ReturnType<TelemetryProvider['createTracer']>
 
 /** Faro's context is string-valued, so scalars are rendered, never dropped. */
 function toContext(
@@ -49,7 +48,7 @@ function asError(value: unknown): Error {
   return new Error(typeof value === 'string' ? value : JSON.stringify(value))
 }
 
-/** Faro's option shape, present only when the record was made inside a span. */
+/** Faro's option shape, present only when the record belongs to a span. */
 function linked(spanContext: TelemetrySpanContext | undefined): {
   spanContext?: TelemetrySpanContext
 } {
@@ -136,7 +135,7 @@ export interface FaroProviderOptions {
   readonly createTracer: (
     attribution: TelemetryAttribution,
     onSpanEnd: (span: SpanRecord) => void,
-  ) => ProviderTracer
+  ) => Tracer
 }
 
 export function createFaroTelemetryProvider({
@@ -188,17 +187,13 @@ export function createFaroTelemetryProvider({
       }
     },
 
-    createTracer(attribution: TelemetryAttribution): ProviderTracer {
+    createTracer(attribution: TelemetryAttribution): Tracer {
+      // A span's exceptions are not pushed as errors: a failed workflow reports its error as a
+      // record linked to the span, and pushing them too would count one failure several times.
       return createTracer(attribution, span => {
         // A span started outside a mount's tracer has no ids, so it cannot join a trace.
         const { spanContext } = span
         if (spanContext !== undefined) api.pushTraces(toOtlp(span, spanContext, faro))
-        for (const exception of span.exceptions) {
-          api.pushError(asError(exception), {
-            context: toContext(span.attributes, span.attribution, { span: span.name }),
-            ...linked(spanContext),
-          })
-        }
       })
     },
   }

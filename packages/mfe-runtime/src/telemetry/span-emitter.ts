@@ -1,7 +1,6 @@
 /**
- * The one span implementation in the repo: the emitter owns span state, `end()`
- * idempotency, the per-mount open-span bound and the `startActiveSpan` callback contract,
- * so a provider supplies only what it does with a `SpanRecord`.
+ * The one span implementation in the repo: the emitter owns span state, `end()` idempotency and
+ * the per-mount open-span bound, so a provider supplies only what it does with a `SpanRecord`.
  */
 
 import {
@@ -10,7 +9,6 @@ import {
   SpanStatusCode,
   TELEMETRY_LIMITS,
   type Span,
-  type SpanOptions,
   type SpanRecord,
   type TelemetryAttribution,
   type Tracer,
@@ -29,37 +27,8 @@ export const nonRecordingSpan: Span = Object.freeze({
   isRecording: (): boolean => false,
 })
 
-function activeSpanArgs<T>(
-  optionsOrCallback: SpanOptions | ((span: Span) => T),
-  maybeCallback: ((span: Span) => T) | undefined,
-): { options: SpanOptions | undefined; callback: ((span: Span) => T) | undefined } {
-  return typeof optionsOrCallback === 'function'
-    ? { options: undefined, callback: optionsOrCallback }
-    : { options: optionsOrCallback, callback: maybeCallback }
-}
-
-/** What a provider's tracer offers: activation, `withSpan`, is the mount tracer's own. */
-export type ProviderTracer = Omit<Tracer, 'withSpan'>
-
-/** `startActiveSpan` runs the callback exactly once and returns its result unchanged. */
-function asTracer(startSpan: (name: string, options?: SpanOptions) => Span): ProviderTracer {
-  return Object.freeze({
-    startSpan,
-    startActiveSpan: <T>(
-      name: string,
-      optionsOrCallback: SpanOptions | ((span: Span) => T),
-      maybeCallback?: (span: Span) => T,
-    ): T => {
-      const { options, callback } = activeSpanArgs(optionsOrCallback, maybeCallback)
-      if (typeof callback !== 'function') return undefined as unknown as T
-      return callback(options === undefined ? startSpan(name) : startSpan(name, options))
-    },
-  })
-}
-
-/** Turning tracing off cannot change what the application does, so a callback still runs once. */
-export function createNonRecordingTracer(): ProviderTracer {
-  return asTracer(() => nonRecordingSpan)
+export function createNonRecordingTracer(): Tracer {
+  return Object.freeze({ startSpan: (): Span => nonRecordingSpan })
 }
 
 type MutableSpanRecord = {
@@ -84,13 +53,13 @@ export interface SpanEmitterOptions {
 export function createSpanEmitter(
   attribution: TelemetryAttribution,
   options: SpanEmitterOptions = {},
-): ProviderTracer {
+): Tracer {
   const now = options.now ?? Date.now
   const open = new Set<MutableSpanRecord>()
   /** Recently started spans by id, bounded the same way open spans are. */
   const byId = new Map<string, MutableSpanRecord>()
 
-  return asTracer((name, given) => {
+  const startSpan: Tracer['startSpan'] = (name, given) => {
     // Past the budget the caller still gets a usable handle, but nothing is kept: spans
     // nobody ends must not grow memory without limit.
     if (open.size >= TELEMETRY_LIMITS.maxOpenSpansPerMount) return nonRecordingSpan
@@ -164,7 +133,8 @@ export function createSpanEmitter(
       isRecording: () => record.endTime === undefined,
     }
     return span
-  })
+  }
+  return Object.freeze({ startSpan })
 }
 
 /** The oldest key in a Map, which iterates in insertion order. */

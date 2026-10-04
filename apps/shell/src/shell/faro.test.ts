@@ -46,7 +46,7 @@ function harness() {
     createTracer: (_attribution, onSpanEnd) => {
       sink = onSpanEnd
       // The adapter only forwards the tracer; these tests drive the span sink directly.
-      return { startSpan: vi.fn(), startActiveSpan: vi.fn() }
+      return { startSpan: vi.fn() }
     },
   })
 
@@ -74,7 +74,7 @@ describe('the Faro adapter', () => {
     )
   })
 
-  it('links a record made inside a span to it', () => {
+  it('links a record to the span it belongs to', () => {
     const { provider, api } = harness()
     const spanContext = { traceId: 'a'.repeat(32), spanId: 'b'.repeat(16) }
 
@@ -170,7 +170,7 @@ describe('the Faro adapter', () => {
     })
   })
 
-  it('sends a completed span as an OTLP trace with its own ids, and its exceptions as errors', () => {
+  it('sends a completed span as an OTLP trace with its own ids, and not its exceptions as errors', () => {
     const { api, endSpan } = harness()
     const spanContext = { traceId: 'a'.repeat(32), spanId: 'b'.repeat(16) }
 
@@ -239,8 +239,8 @@ describe('the Faro adapter', () => {
         },
       ],
     })
-    expect(api.pushError).toHaveBeenCalledTimes(1)
-    expect(api.pushError.mock.calls[0]?.[1]).toMatchObject({ spanContext })
+    // The failed workflow's own error record is what reaches pushError.
+    expect(api.pushError).not.toHaveBeenCalled()
   })
 
   it('sends no trace for a span that has no ids', () => {

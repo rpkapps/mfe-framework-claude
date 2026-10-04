@@ -1,15 +1,13 @@
 /**
- * One workflow, traced end to end: a span kept across clicks, children that join it through
- * `withSpan`, records linked to the active span, and a request through the framework's fetch
- * that carries the trace to the backend as `traceparent`.
+ * A named workflow, traced end to end: one trace for the workflow, a child span per step, an error
+ * record linked to the trace when it fails, and a request that joins it only through `headers()`.
  */
 
 import { describe, expect, it, vi } from 'vitest'
 
-import { SpanKind, SpanStatusCode, type SpanRecord } from '@company/mfe-core'
+import { SpanStatusCode, type SpanRecord } from '@company/mfe-core'
 
 import { createAuthenticatedFetch, type FetchLike } from '../auth/authenticated-fetch.ts'
-import { getActiveSpanContext } from './active-span.ts'
 import { at, setup, spanNamed } from './__tests__/harness.ts'
 
 const API = 'https://api.example.test'
@@ -19,311 +17,228 @@ function idsOf(span: SpanRecord): { traceId: string; spanId: string } {
   return span.spanContext
 }
 
-/** The framework's fetch over a recording inner fetch, answering every attempt with `respond`. */
-function api(respond: (attempt: number) => Response | Promise<Response> = () => ok()) {
-  const sent: Headers[] = []
-  const inner: FetchLike = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
-    sent.push(new Headers(init?.headers))
-    return await respond(sent.length)
-  })
-  let token = 0
-  const fetch = createAuthenticatedFetch({
-    apiBaseUrl: `${API}/v1/`,
-    allowedOrigins: [API],
-    tokens: { getAccessToken: async () => `token-${String((token += 1))}` },
-    fetch: inner,
-  })
-  return { fetch, sent }
+function traceparentOf(span: SpanRecord): string {
+  const { traceId, spanId } = idsOf(span)
+  return `00-${traceId}-${spanId}-01`
 }
 
-function ok(): Response {
-  return new Response('{}', { status: 200 })
-}
+describe('a workflow', () => {
+  it('is one object per name for the mount', () => {
+    const { telemetry } = setup()
 
-describe('tracer.withSpan', () => {
-  it('parents work on a later click under a span kept from an earlier one', () => {
-    const { provider, tracer } = setup()
-
-    const workflow = tracer.startSpan('checkout')
-    // A later event handler: nothing is active until the span is made active again.
-    tracer.withSpan(workflow, () => {
-      tracer.startSpan('checkout.shipping').end()
-    })
-    workflow.end()
-
-    const checkout = spanNamed(provider.spans, 'checkout')
-    const shipping = spanNamed(provider.spans, 'checkout.shipping')
-    expect(shipping.parent).toBe(checkout)
-    expect(shipping.parentSpanId).toBe(idsOf(checkout).spanId)
-    expect(idsOf(shipping).traceId).toBe(idsOf(checkout).traceId)
+    expect(telemetry.workflow('checkout')).toBe(telemetry.workflow('checkout'))
+    expect(telemetry.workflow('checkout')).not.toBe(telemetry.workflow('returns'))
+    expect(Object.isFrozen(telemetry.workflow('checkout'))).toBe(true)
   })
 
-  it('continues the trace after an await, where the ambient context is gone', async () => {
-    const { provider, tracer } = setup()
-
-    const workflow = tracer.startSpan('checkout')
-    await Promise.resolve()
-    tracer.withSpan(workflow, () => tracer.startSpan('after-await').end())
-    workflow.end()
-
-    expect(spanNamed(provider.spans, 'after-await').parent).toBe(
-      spanNamed(provider.spans, 'checkout'),
-    )
-  })
-
-  it('returns what the work returns and restores the previous context on a throw', () => {
-    const { tracer } = setup()
-    const workflow = tracer.startSpan('checkout')
-
-    expect(tracer.withSpan(workflow, () => 42)).toBe(42)
-    expect(() =>
-      tracer.withSpan(workflow, () => {
-        throw new Error('step failed')
-      }),
-    ).toThrow('step failed')
-    expect(getActiveSpanContext()).toBeUndefined()
-    workflow.end()
-  })
-
-  it('still parents under a span that has already ended', () => {
-    const { provider, tracer } = setup()
-
-    const workflow = tracer.startSpan('checkout')
-    workflow.end()
-    tracer.withSpan(workflow, () => tracer.startSpan('late-step').end())
-
-    expect(spanNamed(provider.spans, 'late-step').parent).toBe(
-      spanNamed(provider.spans, 'checkout'),
-    )
-  })
-
-  it("does not adopt another mount's span, so the work starts a trace of its own", () => {
-    const orders = setup()
-    const billing = setup({}, { definitionId: 'billing', definitionKind: 'widget' })
-
-    const foreign = orders.tracer.startSpan('checkout')
-    const result = billing.tracer.withSpan(foreign, () => {
-      billing.tracer.startSpan('invoice').end()
-      return 'ran'
-    })
-    foreign.end()
-
-    expect(result).toBe('ran')
-    expect(spanNamed(billing.provider.spans, 'invoice').parent).toBeUndefined()
-    expect(spanNamed(billing.provider.spans, 'invoice').parentSpanId).toBeUndefined()
-  })
-
-  it('runs the work unchanged for a span that does not record', () => {
-    const { provider, tracer } = setup({ tracing: false })
-
-    const span = tracer.startSpan('checkout')
-
-    expect(tracer.withSpan(span, () => 'ran')).toBe('ran')
-    expect(provider.spans).toHaveLength(0)
-  })
-})
-
-describe('records made inside a span', () => {
-  it('carry the active span, so a backend can link them to it', () => {
-    const { provider, telemetry, tracer } = setup()
-
-    tracer.startActiveSpan('checkout', span => {
-      telemetry.event('checkout.address-entered')
-      telemetry.info('quote requested')
-      telemetry.error(new Error('quote failed'))
-      telemetry.measure('quote.duration', 12, { unit: 'ms' })
-      span.end()
-    })
-
-    const ids = idsOf(spanNamed(provider.spans, 'checkout'))
-    expect(provider.records).toHaveLength(4)
-    for (const record of provider.records) expect(record.spanContext).toEqual(ids)
-  })
-
-  it('carry nothing outside a span', () => {
+  it('records a root span and one child span per step, each ending at the next', () => {
     const { provider, telemetry } = setup()
+    const checkout = telemetry.workflow('checkout')
 
-    telemetry.event('page.viewed')
+    checkout.start({ items: 3 })
+    checkout.step('shipping chosen', { option: 'express' })
+    const shippingEnded = spanNamed(provider.spans, 'shipping chosen').endTime
+    checkout.step('place order')
+    checkout.succeed({ total: 42 })
 
-    expect(at(provider.records)).not.toHaveProperty('spanContext')
+    const root = spanNamed(provider.spans, 'checkout')
+    const shipping = spanNamed(provider.spans, 'shipping chosen')
+    const order = spanNamed(provider.spans, 'place order')
+    expect(shippingEnded).toBeUndefined()
+    expect(provider.openSpans()).toHaveLength(0)
+    expect(shipping.parent).toBe(root)
+    expect(order.parent).toBe(root)
+    expect(idsOf(shipping).traceId).toBe(idsOf(root).traceId)
+    expect(idsOf(order).traceId).toBe(idsOf(root).traceId)
+    expect(root.attributes).toMatchObject({ items: 3, total: 42 })
+    expect(shipping.attributes['option']).toBe('express')
+    expect(root.status.code).toBe(SpanStatusCode.OK)
   })
 
-  it("are not linked to another mount's active span", () => {
-    const orders = setup()
-    const billing = setup({}, { definitionId: 'billing', definitionKind: 'widget' })
+  it('starts a new trace for each run', () => {
+    const { provider, telemetry } = setup()
+    const checkout = telemetry.workflow('checkout')
 
-    orders.tracer.startActiveSpan('checkout', span => {
-      billing.telemetry.event('invoice.previewed')
-      span.end()
-    })
+    checkout.start()
+    checkout.succeed()
+    checkout.start()
+    checkout.succeed()
 
-    expect(at(billing.provider.records)).not.toHaveProperty('spanContext')
+    const [first, second] = provider.spansNamed('checkout')
+    expect(first && idsOf(first).traceId).not.toBe(second && idsOf(second).traceId)
+  })
+
+  it('fails the current step and the workflow, and reports the error linked to the trace', () => {
+    const { provider, telemetry } = setup()
+    const checkout = telemetry.workflow('checkout')
+    const failure = new Error('Order failed: 503')
+
+    checkout.start()
+    checkout.step('place order')
+    checkout.fail(failure, { status: 503 })
+
+    const root = spanNamed(provider.spans, 'checkout')
+    const order = spanNamed(provider.spans, 'place order')
+    for (const span of [root, order]) {
+      expect(span.status.code).toBe(SpanStatusCode.ERROR)
+      expect(span.exceptions).toEqual([failure])
+      expect(span.endTime).toBeDefined()
+    }
+    expect(root.attributes['status']).toBe(503)
+
+    const record = at(provider.logs('error'))
+    expect(record.error).toBe(failure)
+    expect(record.message).toBe('Order failed: 503')
+    expect(record.attributes['status']).toBe(503)
+    expect(record.spanContext).toEqual(idsOf(root))
+  })
+
+  it('abandons the open run when started again, without an error status', () => {
+    const { provider, telemetry } = setup()
+    const checkout = telemetry.workflow('checkout')
+
+    checkout.start()
+    checkout.step('shipping chosen')
+    checkout.start()
+
+    const [abandoned, current] = provider.spansNamed('checkout')
+    const step = spanNamed(provider.spans, 'shipping chosen')
+    for (const span of [abandoned, step]) {
+      expect(span?.attributes['mfe.span.end_reason']).toBe('abandoned')
+      expect(span?.status.code).toBe(SpanStatusCode.UNSET)
+      expect(span?.endTime).toBeDefined()
+    }
+    expect(current?.endTime).toBeUndefined()
+    expect(provider.logs('error')).toHaveLength(0)
+  })
+
+  it('ignores steps and ends while it is not open, with a development diagnostic', () => {
+    const { provider, diagnostics, telemetry } = setup()
+    const checkout = telemetry.workflow('checkout')
+
+    checkout.step('shipping chosen')
+    checkout.succeed()
+    checkout.start()
+    checkout.succeed()
+    checkout.fail(new Error('twice'))
+
+    expect(provider.spans).toHaveLength(1)
+    expect(provider.logs('error')).toHaveLength(0)
+    expect(checkout.headers()).toEqual({})
+    expect(diagnostics.filter(d => d.error.message.includes('which was not open'))).toHaveLength(3)
+  })
+
+  it('closes its open spans as cancelled when the mount is disposed', () => {
+    const { provider, telemetry } = setup()
+    const checkout = telemetry.workflow('checkout')
+    checkout.start()
+    checkout.step('place order')
+
+    telemetry.dispose()
+    checkout.succeed()
+
+    for (const span of provider.spans) {
+      expect(span.attributes['mfe.span.cancelled']).toBe(true)
+      expect(span.attributes['mfe.span.end_reason']).toBe('mount-disposed')
+      expect(span.status.code).toBe(SpanStatusCode.UNSET)
+    }
+    expect(checkout.headers()).toEqual({})
+    expect(telemetry.counters.droppedAfterDispose).toBe(1)
+    expect(telemetry.counters.mutationsAfterEnd).toBe(0)
   })
 })
 
-describe('a request through the framework fetch', () => {
-  it('sends traceparent for a client span that is a child of the workflow', async () => {
-    const { provider, tracer } = setup()
+describe('workflow headers', () => {
+  it('carry the workflow before its first step, then the current step', () => {
+    const { provider, telemetry } = setup()
+    const checkout = telemetry.workflow('checkout')
+
+    checkout.start()
+    const beforeStep = checkout.headers()
+    checkout.step('place order')
+    const duringStep = checkout.headers()
+
+    expect(beforeStep).toEqual({
+      traceparent: traceparentOf(spanNamed(provider.spans, 'checkout')),
+    })
+    expect(duringStep).toEqual({
+      traceparent: traceparentOf(spanNamed(provider.spans, 'place order')),
+    })
+    expect(duringStep).not.toBe(checkout.headers())
+  })
+
+  it('are empty before the start and after the end', () => {
+    const { telemetry } = setup()
+    const checkout = telemetry.workflow('checkout')
+
+    const before = checkout.headers()
+    checkout.start()
+    checkout.succeed()
+
+    expect(before).toEqual({})
+    expect(checkout.headers()).toEqual({})
+  })
+})
+
+describe('a workflow with tracing off', () => {
+  it('records no spans and sends no headers, but still reports a failure', () => {
+    const { provider, telemetry } = setup({ tracing: false })
+    const checkout = telemetry.workflow('checkout')
+    const failure = new Error('Order failed: 503')
+
+    checkout.start()
+    checkout.step('place order')
+    const headers = checkout.headers()
+    checkout.fail(failure)
+
+    expect(headers).toEqual({})
+    expect(provider.spans).toHaveLength(0)
+    const record = at(provider.logs('error'))
+    expect(record.error).toBe(failure)
+    expect(record).not.toHaveProperty('spanContext')
+  })
+})
+
+describe('a request sent with the workflow headers', () => {
+  function api() {
+    const sent: Headers[] = []
+    const inner: FetchLike = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      sent.push(new Headers(init?.headers))
+      return new Response('{}', { status: 200 })
+    })
+    const fetch = createAuthenticatedFetch({
+      apiBaseUrl: `${API}/v1/`,
+      allowedOrigins: [API],
+      tokens: { getAccessToken: async () => 'token-1' },
+      fetch: inner,
+    })
+    return { fetch, sent }
+  }
+
+  it('carries the step traceparent to a declared API beside the token', async () => {
+    const { provider, telemetry } = setup()
     const { fetch, sent } = api()
+    const checkout = telemetry.workflow('checkout')
+    checkout.start()
+    checkout.step('place order')
 
-    const workflow = tracer.startSpan('checkout')
-    const response = await tracer.withSpan(workflow, () => fetch('orders', { method: 'post' }))
-    workflow.end()
+    await fetch('orders', { method: 'POST', headers: checkout.headers() })
+    checkout.succeed()
 
-    const checkout = spanNamed(provider.spans, 'checkout')
-    const request = spanNamed(provider.spans, 'POST')
-    const { traceId, spanId } = idsOf(request)
-    expect(response.status).toBe(200)
-    expect(at(sent).get('traceparent')).toBe(`00-${traceId}-${spanId}-01`)
-    expect(traceId).toBe(idsOf(checkout).traceId)
-    expect(request.parent).toBe(checkout)
-    expect(request.kind).toBe(SpanKind.CLIENT)
-    expect(request.endTime).toBeDefined()
-    expect(request.attributes).toMatchObject({
-      'http.request.method': 'POST',
-      'server.address': 'api.example.test',
-      'server.port': 443,
-      'http.response.status_code': 200,
-    })
-  })
-
-  it('never records the path or the query, which can carry ids', async () => {
-    const { provider, tracer } = setup()
-    const { fetch } = api()
-
-    await tracer.startActiveSpan('lookup', async span => {
-      await fetch('customers/c-1234?email=someone%40example.test')
-      span.end()
-    })
-
-    const values = Object.values(spanNamed(provider.spans, 'GET').attributes).map(String)
-    expect(values.some(value => value.includes('c-1234') || value.includes('email'))).toBe(false)
-  })
-
-  it('marks the client span as an error for a 4xx or 5xx answer', async () => {
-    const { provider, tracer } = setup()
-    const { fetch } = api(() => new Response('', { status: 503 }))
-
-    await tracer.startActiveSpan('checkout', async span => {
-      await fetch('orders')
-      span.end()
-    })
-
-    expect(spanNamed(provider.spans, 'GET').status).toEqual({
-      code: SpanStatusCode.ERROR,
-      message: '503',
-    })
-  })
-
-  it('records a network failure on the client span and still rejects', async () => {
-    const { provider, tracer } = setup()
-    const { fetch } = api(() => Promise.reject(new TypeError('Failed to fetch')))
-
-    await tracer.startActiveSpan('checkout', async span => {
-      await expect(fetch('orders')).rejects.toThrow('Failed to fetch')
-      span.end()
-    })
-
-    const request = spanNamed(provider.spans, 'GET')
-    expect(request.status.code).toBe(SpanStatusCode.ERROR)
-    expect(request.exceptions).toHaveLength(1)
-    expect(request.endTime).toBeDefined()
-  })
-
-  it('keeps one client span and one traceparent across the retry after a 401', async () => {
-    const { provider, tracer } = setup()
-    const { fetch, sent } = api(attempt =>
-      attempt === 1 ? new Response('', { status: 401 }) : ok(),
+    expect(at(sent).get('traceparent')).toBe(
+      traceparentOf(spanNamed(provider.spans, 'place order')),
     )
-
-    await tracer.startActiveSpan('checkout', async span => {
-      await fetch('orders')
-      span.end()
-    })
-
-    expect(sent).toHaveLength(2)
-    expect(at(sent, 1).get('traceparent')).toBe(at(sent).get('traceparent'))
-    expect(provider.spansNamed('GET')).toHaveLength(1)
-    expect(spanNamed(provider.spans, 'GET').attributes).toMatchObject({
-      'http.request.resend_count': 1,
-      'http.response.status_code': 200,
-    })
+    expect(at(sent).get('authorization')).toBe('Bearer token-1')
+    expect(provider.spans).toHaveLength(2)
   })
 
-  it('leaves the client span alone when the mount went away while the request was out', async () => {
-    const { provider, telemetry, tracer, diagnostics } = setup()
-    let answer: (response: Response) => void = () => {}
-    const { fetch } = api(
-      () =>
-        new Promise<Response>(resolve => {
-          answer = resolve
-        }),
-    )
-
-    const pending = tracer.startActiveSpan('checkout', span => {
-      const request = fetch('orders')
-      span.end()
-      return request
-    })
-    await Promise.resolve()
-    telemetry.dispose()
-    answer(ok())
-    await pending
-
-    expect(spanNamed(provider.spans, 'GET').attributes).toMatchObject({
-      'mfe.span.cancelled': true,
-    })
-    expect(telemetry.counters.mutationsAfterEnd).toBe(0)
-    expect(diagnostics.filter(d => d.error.message.includes('after it ended'))).toHaveLength(0)
-  })
-
-  it('goes out untraced when no span is active', async () => {
-    const { provider } = setup()
+  it('goes out with no trace context when the caller adds none', async () => {
+    const { telemetry } = setup()
     const { fetch, sent } = api()
+    telemetry.workflow('checkout').start()
 
     await fetch('orders')
 
-    expect(at(sent).has('traceparent')).toBe(false)
-    expect(provider.spans).toHaveLength(0)
-  })
-
-  it('leaves a traceparent the caller set alone', async () => {
-    const { provider, tracer } = setup()
-    const { fetch, sent } = api()
-    const own = '00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01'
-
-    await tracer.startActiveSpan('checkout', async span => {
-      await fetch('orders', { headers: { traceparent: own } })
-      span.end()
-    })
-
-    expect(at(sent).get('traceparent')).toBe(own)
-    expect(provider.spansNamed('GET')).toHaveLength(0)
-  })
-
-  it('sends no trace context to an origin that is not a declared API', async () => {
-    const { provider, tracer } = setup()
-    const { fetch, sent } = api()
-
-    await tracer.startActiveSpan('checkout', async span => {
-      await fetch('https://analytics.vendor.test/collect')
-      span.end()
-    })
-
-    expect(at(sent).has('traceparent')).toBe(false)
-    expect(provider.spansNamed('GET')).toHaveLength(0)
-  })
-
-  it('goes out untraced when tracing is off for the mount', async () => {
-    const { tracer } = setup({ tracing: false })
-    const { fetch, sent } = api()
-
-    await tracer.startActiveSpan('checkout', async span => {
-      await fetch('orders')
-      span.end()
-    })
-
-    // A span that does not record is never made active, so there is no trace to join.
     expect(at(sent).has('traceparent')).toBe(false)
   })
 })

@@ -48,21 +48,29 @@ export interface Span {
   isRecording(): boolean
 }
 
+/** What a provider builds for one mount; only the mount's workflows start spans on it. */
 export interface Tracer {
   startSpan(name: string, options?: SpanOptions): Span
+}
+
+/**
+ * One named piece of user-facing work, such as a checkout, traced from its start to its end. It is
+ * one trace: each step is a child of the workflow, and a request joins it only through `headers()`.
+ */
+export interface Workflow {
+  /** Starts it; starting again while open abandons the open run first. */
+  start(attributes?: TelemetryAttributes): void
+  /** Marks the next step. A step lasts until the next step or the end. Ignored when not open. */
+  step(name: string, attributes?: TelemetryAttributes): void
   /**
-   * Authors end the span and record a throw themselves, and a span created after an `await` inside
-   * the callback is a root rather than a child of it (§4).
+   * `{ traceparent }` for the current step, or the workflow before its first step, while open; `{}`
+   * otherwise or when tracing is off. Spread it into a request's headers.
    */
-  startActiveSpan<T>(name: string, callback: (span: Span) => T): T
-  startActiveSpan<T>(name: string, options: SpanOptions, callback: (span: Span) => T): T
-  /**
-   * Runs `fn` synchronously with `span` active, so spans started and `#mfe/fetch` requests sent
-   * inside it join the span's trace. This is how one trace continues across clicks or after an
-   * `await`: keep the span, and wrap the later work. A span from another mount, or one that does
-   * not record, leaves the active span as it was.
-   */
-  withSpan<T>(span: Span, fn: () => T): T
+  headers(): Record<string, string>
+  /** Ends it as succeeded. Ignored when not open. */
+  succeed(attributes?: TelemetryAttributes): void
+  /** Ends it as failed with this error, which is also reported. Ignored when not open. */
+  fail(error: unknown, attributes?: TelemetryAttributes): void
 }
 
 /** The author-facing surface. */
@@ -79,7 +87,8 @@ export interface MfeTelemetry {
     value: number,
     options: { unit: MeasurementUnit; attributes?: TelemetryAttributes },
   ): void
-  readonly tracer: Tracer
+  /** The mount's workflow with this name; the same object every call. */
+  workflow(name: string): Workflow
 }
 
 /** W3C trace context ids, hex-encoded: 32 characters for the trace, 16 for the span. */
@@ -107,7 +116,7 @@ export interface TelemetryEventRecord {
   readonly attributes: TelemetryAttributes
   readonly attribution: TelemetryAttribution
   readonly timestamp: number
-  /** The mount's active span when the record was made, so a backend can link the two. */
+  /** The span the record belongs to, so a backend can link the two. */
   readonly spanContext?: TelemetrySpanContext
 }
 
@@ -119,7 +128,7 @@ export interface TelemetryLogRecord {
   readonly attributes: TelemetryAttributes
   readonly attribution: TelemetryAttribution
   readonly timestamp: number
-  /** The mount's active span when the record was made, so a backend can link the two. */
+  /** The span the record belongs to, so a backend can link the two. */
   readonly spanContext?: TelemetrySpanContext
 }
 
@@ -131,7 +140,7 @@ export interface TelemetryMeasurementRecord {
   readonly attributes: TelemetryAttributes
   readonly attribution: TelemetryAttribution
   readonly timestamp: number
-  /** The mount's active span when the record was made, so a backend can link the two. */
+  /** The span the record belongs to, so a backend can link the two. */
   readonly spanContext?: TelemetrySpanContext
 }
 
@@ -144,7 +153,7 @@ export interface TelemetryFrameworkRecord {
   readonly attributes: TelemetryAttributes
   readonly attribution: TelemetryAttribution
   readonly timestamp: number
-  /** The mount's active span when the record was made, so a backend can link the two. */
+  /** The span the record belongs to, so a backend can link the two. */
   readonly spanContext?: TelemetrySpanContext
 }
 
@@ -171,8 +180,7 @@ export interface SpanRecord {
 /** The shell owns redaction, sampling, batching and delivery; this seam only normalizes records. */
 export interface TelemetryProvider {
   record(record: TelemetryRecord): void
-  /** Activation is the mount tracer's own, so a provider's tracer has no `withSpan`. */
-  createTracer(attribution: TelemetryAttribution): Omit<Tracer, 'withSpan'>
+  createTracer(attribution: TelemetryAttribution): Tracer
   /** Lets a provider drop a record before it is formatted. */
   isLevelEnabled?(level: TelemetryLevel): boolean
 }

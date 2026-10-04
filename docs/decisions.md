@@ -59,7 +59,8 @@ and surfacing much later.
 
 ## 4. Browser async context does not propagate across `await`, and we do not pretend it does
 
-**Status:** honest limitation, documented in code and tests.
+**Status:** honest limitation; the active-span slot below was removed by §59, which has no ambient
+context at all.
 
 Trace parentage is a synchronous active-span slot, so a span created _after_ an
 `await` inside an active callback loses the ambient context and becomes a root
@@ -2082,7 +2083,8 @@ no longer starts in the system theme and flips.
 
 ## 58. A workflow is one trace: the author keeps the span, and the framework fetch carries it
 
-**Status:** decided; extends §4.
+**Status:** decided; extends §4. Its author-facing parts — `withSpan`, linked records and the
+automatic client span on `#mfe/fetch` — are superseded by §59. The OTLP export through Faro stands.
 
 A workflow that spans several clicks and a request could not be one trace. A span was a parent only
 inside the synchronous `startActiveSpan` callback, so a later click or anything after an `await`
@@ -2107,3 +2109,40 @@ land in a trace of its own.
 **Cost:** `traceparent` always carries the sampled flag, so sampling is the collector's and the
 backend's to decide. The backend must allow the header in CORS. A step that forgets `withSpan`
 still starts a trace of its own, and nothing detects it.
+
+---
+
+## 59. A workflow is named, and a request joins it only through its headers
+
+**Status:** decided, at the project owner's direction; supersedes the author-facing parts of §58
+and the active-span mechanics of §4.
+
+§58 made a workflow one trace, but the API it took was hard to follow. An author had a tracer with
+`startSpan`, `startActiveSpan` and `withSpan`, a span with `setStatus` and `recordException`, and a
+rule to keep in mind: the active span is lost after an `await`, so each later step and each request
+had to be wrapped in `withSpan` again. A step that forgot it started a trace of its own, and nothing
+noticed.
+
+So `MfeTelemetry` has no tracer. `telemetry.workflow(name)` returns the mount's workflow with that
+name, one object per name, in the manner of Datadog RUM's named operations: `start`, `step`,
+`succeed` and `fail`, and `headers()`. Only one run of a name is open at a time; starting it again
+abandons the open run, labelled `mfe.span.end_reason: abandoned` rather than failed. A workflow is a
+root span with a child span per step, and a step lasts until the next step or the end. `fail(error)`
+records the error on the step and the workflow and reports it as an error record whose
+`spanContext` is the workflow's, so the backend links the two; nothing else stamps `spanContext`,
+because there is no ambient span to stamp. Calls while the workflow is not open are ignored, with a
+development diagnostic. An unmount closes an open workflow as cancelled without a diagnostic: a
+user who leaves in the middle of a checkout did not make a mistake.
+
+Nothing is ambient, so the page-global active-span slot is gone, and so is the automatic client
+span and `traceparent` on `#mfe/fetch`. A request joins a workflow only when its author spreads
+`headers()` into it, which returns the W3C `traceparent` of the current step. Background requests,
+such as a query refetch, therefore never land in a workflow by accident, and the framework stays
+transport-agnostic: the header works with any HTTP client. The framework fetch passes a caller's
+`traceparent` through unchanged, as it passes any other header. The Faro adapter no longer pushes a
+span's exceptions as errors, because the failed workflow's error record already reports them.
+
+**Cost:** a request whose author forgets `headers()` is not in the trace, and nothing detects it,
+as with `withSpan` before. The framework no longer records a client span for the request itself;
+the backend's own span, joined through `traceparent`, is what shows its timing. Free-form spans
+are gone: work that is not a named workflow with steps is a measurement or an event.

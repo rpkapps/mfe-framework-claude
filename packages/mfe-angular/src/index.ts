@@ -46,16 +46,11 @@ export {
 export { injectWidgetEmit, type WidgetEmit } from './inject/widget-emit.ts'
 
 /** From the core, so an author never resolves `@opentelemetry/*` or `@grafana/faro-*`. */
-export {
-  SpanKind,
-  SpanStatusCode,
-  type MeasurementUnit,
-  type MfeTelemetry,
-  type Span,
-  type SpanOptions,
-  type SpanStatus,
-  type TelemetryAttributes,
-  type Tracer,
+export type {
+  MeasurementUnit,
+  MfeTelemetry,
+  TelemetryAttributes,
+  Workflow,
 } from '@company/mfe-core'
 
 /* Neutral contracts an author or host legitimately needs */
