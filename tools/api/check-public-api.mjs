@@ -13,8 +13,11 @@
  * committed files and gives the same answer either way. An export only generated code calls is listed under
  * "generatedCallers" with the generator that writes the call.
  *
- * It also fails when a public export's signature names a framework type that no entry point
- * exports, since a consumer then cannot import what it needs to implement or annotate the export.
+ * It also fails when a public export's signature names a framework type that its own package does
+ * not export. A consumer depends on an adapter, never on mfe-core, so it could not import what it
+ * needs to implement or annotate the export. And it fails when an entry declares a name that an
+ * `export *` in it also brings, as the core's public API does in each adapter, since TypeScript
+ * then drops the starred one without a word.
  *
  * And it fails when the docs fall behind the code: an authoring entry whose page no longer
  * mentions it, and a reference heading that names an API which no longer exists.
@@ -95,6 +98,9 @@ function readExports(entries) {
   const checker = program.getTypeChecker()
   const bySpecifier = new Map()
   const homes = new Map()
+  const shadowed = []
+  const resolve = symbol =>
+    symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol
   for (const entry of entries) {
     const sourceFile = program.getSourceFile(entry.file)
     const moduleSymbol = sourceFile && checker.getSymbolAtLocation(sourceFile)
@@ -117,8 +123,31 @@ function readExports(entries) {
       }
     }
     bySpecifier.set(entry.specifier, { values, all, targets })
+
+    // A name the entry declares itself wins over the same name from an `export *`, silently.
+    const own = new Map(
+      (moduleSymbol ? checker.getExportsOfModule(moduleSymbol) : []).map(symbol => [
+        symbol.name,
+        resolve(symbol),
+      ]),
+    )
+    for (const statement of sourceFile?.statements ?? []) {
+      if (
+        !ts.isExportDeclaration(statement) ||
+        statement.exportClause ||
+        !statement.moduleSpecifier
+      )
+        continue
+      const starred = checker.getSymbolAtLocation(statement.moduleSpecifier)
+      for (const symbol of starred ? checker.getExportsOfModule(starred) : []) {
+        const winner = own.get(symbol.name)
+        if (winner !== undefined && winner !== resolve(symbol)) {
+          shadowed.push(`${entry.specifier}#${symbol.name}`)
+        }
+      }
+    }
   }
-  return { bySpecifier, homes, checker }
+  return { bySpecifier, homes, checker, shadowed }
 }
 
 /**
@@ -242,7 +271,7 @@ async function referenceHeadingNames() {
 }
 
 const entries = await publicEntries()
-const { bySpecifier, homes, checker } = readExports(entries)
+const { bySpecifier, homes, checker, shadowed } = readExports(entries)
 const callers = [
   ...sourceFilesUnder(CALLER_ROOTS, false),
   ...ROOT_CONFIG_FILES.map(file => join(repoRoot, file)).filter(existsSync),
@@ -324,28 +353,57 @@ for (const key of pending) {
   }
 }
 
-const exported = new Set([...bySpecifier.values()].flatMap(({ targets }) => [...targets]))
-const knownUnexported = new Set(surface.unexportedTypes ?? [])
-const unexported = new Map()
+// A consumer imports only the packages it depends on, never mfe-core, so each type a signature
+// names must be exported by an entry point of the same package.
+const exportedAnywhere = new Set([...bySpecifier.values()].flatMap(({ targets }) => [...targets]))
+const exportedByPackage = new Map()
 for (const [specifier, { targets }] of bySpecifier) {
+  const own = exportedByPackage.get(packageOf(specifier)) ?? new Set()
+  for (const target of targets) own.add(target)
+  exportedByPackage.set(packageOf(specifier), own)
+}
+const knownUnexported = new Set(surface.unexportedTypes ?? [])
+const unexportedAnywhere = new Set()
+const reported = new Set()
+for (const [specifier, { targets }] of bySpecifier) {
+  const own = exportedByPackage.get(packageOf(specifier))
   for (const target of targets) {
-    for (const key of unexportedTypesIn(target, exported, checker)) {
-      if (!unexported.has(key)) unexported.set(key, `${specifier}#${target.name}`)
+    for (const key of unexportedTypesIn(target, exportedAnywhere, checker))
+      unexportedAnywhere.add(key)
+    // A type another framework package declares is that package's to complete, except the core's
+    // and the runtime's, which no consumer imports (a shell reaches the runtime through an
+    // adapter's `/host`): a package exposing one of their types exposes what that type names.
+    const declaredIn =
+      target.declarations?.[0] && ownPackageOf(target.declarations[0].getSourceFile().fileName)
+    if (
+      declaredIn !== packageOf(specifier) &&
+      declaredIn !== '@company/mfe-core' &&
+      declaredIn !== '@company/mfe-runtime'
+    )
+      continue
+    for (const key of unexportedTypesIn(target, own, checker)) {
+      const where = `${packageOf(specifier)} ${key}`
+      if (knownUnexported.has(key) || reported.has(where)) continue
+      reported.add(where)
+      const user = `${specifier}#${target.name}`
+      problems.push(
+        `${user} names ${key}, which ${packageOf(specifier)} does not export, so a consumer of ${packageOf(specifier)} cannot import it to implement or annotate ${target.name}. Export it from ${packageOf(specifier)} too.`,
+      )
     }
   }
 }
-for (const [key, user] of unexported) {
-  if (knownUnexported.has(key)) continue
-  problems.push(
-    `${user} names ${key}, which no framework entry point exports, so a consumer cannot import it to implement or annotate ${user.split('#')[1]}. Export it from the entry points that export ${user.split('#')[1]}.`,
-  )
-}
 for (const key of knownUnexported) {
-  if (!unexported.has(key)) {
+  if (!unexportedAnywhere.has(key)) {
     problems.push(
       `${key} is in "unexportedTypes" in api-surface.json, but no export names it unexported any more. Remove the entry.`,
     )
   }
+}
+
+for (const key of shadowed) {
+  problems.push(
+    `${key} is declared by its own package and also comes from an \`export *\`, so the starred one is silently dropped. Rename one of them.`,
+  )
 }
 
 const allNames = new Set([...bySpecifier.values()].flatMap(({ all }) => [...all]))
