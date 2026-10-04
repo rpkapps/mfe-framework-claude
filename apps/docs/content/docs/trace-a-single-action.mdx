@@ -1,0 +1,125 @@
+---
+title: 'Trace a single action'
+description: 'Trace one button, such as Save or Export, as a workflow with no steps, and handle its error.'
+---
+
+Apps and Widgets. A Save or Export button is a workflow with no steps: start it, send the request with its headers, and end it.
+The trace shows how long the user waited and whether it worked.
+For the basics of telemetry, see [Events, errors and traces](/docs/telemetry).
+
+## Steps
+
+<Steps>
+<Step>
+
+### 1. Start, send, and end the workflow in the handler
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="src/export-button.tsx"
+import { useState } from 'react'
+import { fetch } from '#mfe/fetch'
+import { useTelemetry } from '@company/mfe-react'
+
+export function ExportButton({ reportId }: { reportId: string }) {
+  const exporting = useTelemetry().workflow('export report')
+  const [failed, setFailed] = useState(false)
+
+  async function exportReport() {
+    setFailed(false)
+    exporting.start({ format: 'csv' })
+    try {
+      const response = await fetch(`reports/${reportId}/export`, {
+        method: 'POST',
+        headers: exporting.headers(),
+      })
+      if (!response.ok) throw new Error(`Export failed: ${response.status}`)
+      exporting.succeed()
+    } catch (error) {
+      exporting.fail(error)
+      setFailed(true)
+    }
+  }
+
+  return (
+    <>
+      <button onClick={() => void exportReport()}>Export</button>
+      {failed && <p role="alert">The export failed. Try again.</p>}
+    </>
+  )
+}
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/export-button.component.ts"
+import { Component, input, signal } from '@angular/core'
+import { fetch } from '#mfe/fetch'
+import { injectTelemetry } from '@company/mfe-angular'
+
+@Component({
+  selector: 'app-export-button',
+  template: `
+    <button (click)="exportReport()">Export</button>
+    @if (failed()) {
+      <p role="alert">The export failed. Try again.</p>
+    }
+  `,
+})
+export class ExportButtonComponent {
+  readonly reportId = input.required<string>()
+  readonly failed = signal(false)
+  private readonly exporting = injectTelemetry().workflow('export report')
+
+  async exportReport(): Promise<void> {
+    this.failed.set(false)
+    this.exporting.start({ format: 'csv' })
+    try {
+      const headers = this.exporting.headers()
+      const response = await fetch(`reports/${this.reportId()}/export`, { method: 'POST', headers })
+      if (!response.ok) throw new Error(`Export failed: ${response.status}`)
+      this.exporting.succeed()
+    } catch (error) {
+      this.exporting.fail(error)
+      this.failed.set(true)
+    }
+  }
+}
+```
+
+</Tab>
+</Tabs>
+
+Before the first step, `headers()` names the workflow itself, so the request's span is its direct child.
+You do not need a `step()`.
+
+</Step>
+<Step>
+
+### 2. Handle the error yourself
+
+`fail(error)` ends the workflow and reports the error, linked to the trace. It does not throw it or show anything.
+
+- **Show the user what happened.** Set your own error state, as above.
+- **Do not also call `telemetry.error`.** The error would be reported twice.
+- **Rethrow only if a caller handles it.** A rethrown error reaches whatever awaits the handler.
+
+If the mount ends while the request runs, the workflow ends as cancelled. A later `fail()` reports nothing. In development it shows a `dispose/failure` diagnostic.
+
+</Step>
+</Steps>
+
+## Check it works
+
+In a test, your test environment's `telemetry.spansNamed('export report')` returns one span per click once it ends.
+A failed export's span has an error status, and `telemetry.logs('error')` holds the error.
+Clicking again while an export runs abandons the first run. Disable the button while it runs if that matters.
+
+## Related
+
+- [Trace a workflow across several clicks](/docs/trace-a-workflow-across-clicks) — add steps.
+- [Trace a mutation with TanStack Query](/docs/trace-a-mutation-with-tanstack-query) — the same with `useMutation`.
+- [Run several of the same workflow at once](/docs/run-several-workflows-at-once) — overlapping exports.
+- [Events, errors and traces](/docs/telemetry#record-events-measurements-and-caught-errors) — errors outside a workflow.

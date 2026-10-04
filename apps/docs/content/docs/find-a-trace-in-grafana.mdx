@@ -1,0 +1,87 @@
+---
+title: 'Find a trace in Grafana'
+description: 'Find a workflow by its name in Tempo, read its steps and requests, and open the logs and errors linked to it.'
+---
+
+Apps and Widgets, for a shell that sends telemetry to Grafana Faro. A workflow arrives in Grafana as one trace, named for the workflow.
+Its logs and errors carry the same trace id, so you can move between the two.
+For the basics of telemetry, see [Events, errors and traces](/docs/telemetry).
+
+## What the shell sends
+
+The example shell sends telemetry only when `FARO_URL` names a Faro collector.
+Your collector decides where records land. A typical setup stores traces in Tempo and logs in Loki.
+
+| Your code makes                 | Faro receives                                                    |
+| ------------------------------- | ---------------------------------------------------------------- |
+| a workflow, its steps, requests | spans, with your attributes, `session.id` and `user.id`          |
+| `info`, `warn`, `debug`         | logs, with `definitionId`, `definitionKind`, `definitionVersion` |
+| `event`, `measure`              | events and measurements, with the same definition fields         |
+| `error`, `fail`                 | errors, with the same definition fields                          |
+
+Spans arrive under the shell's service name, `shell` in the example shell. Faro's view is the App on screen.
+A record made through an open workflow also carries its trace id and span id.
+
+## Steps
+
+<Steps>
+<Step>
+
+### 1. Search Tempo for the workflow's name
+
+```text shared title="TraceQL in Grafana Explore, Tempo data source"
+{ name = "checkout" }
+{ name = "checkout" && status = error }
+```
+
+The workflow's span is the root of its trace. A failed workflow, ended with `fail()`, has an error status.
+
+</Step>
+<Step>
+
+### 2. Read the trace
+
+| Span                   | Name                    | Parent                |
+| ---------------------- | ----------------------- | --------------------- |
+| the workflow           | its name, `checkout`    | none                  |
+| each step              | the step, `place order` | the workflow          |
+| each `#mfe/fetch` call | its method, `POST`      | the step that sent it |
+| your backend's span    | set by your backend     | the request           |
+
+A request without `headers()` is not in this trace. A backend span appears only when your API runs an OpenTelemetry SDK.
+
+</Step>
+<Step>
+
+### 3. Open the linked logs and errors
+
+Search your logs for the trace id from Tempo. The logs, events, measurements and errors made through the workflow carry it.
+The error from `fail()` is linked to the workflow's span. Records made through a step are linked to that step.
+
+</Step>
+<Step>
+
+### 4. Find runs that did not finish
+
+```text shared title="TraceQL in Grafana Explore, Tempo data source"
+{ span.mfe.span.end_reason = "abandoned" }
+{ span.mfe.span.end_reason = "mount-disposed" }
+```
+
+`abandoned` means the workflow was started again while it was open. `mount-disposed` means the user left the App mid-workflow.
+Neither has an error status. A cancelled span also has `mfe.span.cancelled` set to `true`.
+
+</Step>
+</Steps>
+
+## Check it works
+
+Run a workflow in a shell that sends to your collector. Search Tempo for its name and open the trace.
+The steps sit under the workflow, and each request sits under its step.
+
+## Related
+
+- [Trace a workflow across several clicks](/docs/trace-a-workflow-across-clicks) — produce the trace.
+- [Log and measure inside a workflow](/docs/log-and-measure-inside-a-workflow) — produce linked records.
+- [Trace requests to your API](/docs/trace-requests-to-your-api) — backend spans in the same trace.
+- [Events, errors and traces](/docs/telemetry) — the full telemetry guide.

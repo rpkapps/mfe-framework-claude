@@ -1,0 +1,150 @@
+---
+title: 'Trace requests to your API'
+description: 'Every #mfe/fetch request to a declared API is traced. Join a workflow, trace another HTTP client, and set up your backend.'
+---
+
+Apps and Widgets. Every request through `#mfe/fetch` to a [declared API](/docs/mark-a-url-as-your-api) is traced without any code from you.
+Spread a workflow's `headers()` into a request to make it part of that workflow. Your backend continues the trace.
+For the basics of telemetry, see [Events, errors and traces](/docs/telemetry).
+
+## What every request records
+
+`#mfe/fetch` gives each request to a declared API a client span named for its method, such as `POST`. It sends a W3C `traceparent` header naming that span.
+
+| Attribute                   | Value                           |
+| --------------------------- | ------------------------------- |
+| `http.request.method`       | `GET`, `POST` and so on         |
+| `server.address`            | the API's host                  |
+| `server.port`               | the API's port                  |
+| `http.response.status_code` | the response status             |
+| `http.request.resend_count` | `1` when a 401 was retried once |
+
+The span never records the path or the query. A status of 400 or above marks the span as an error.
+A request to an undeclared origin gets no span and no `traceparent`, as it gets no token.
+A `traceparent` you spread in yourself still goes out as written.
+
+## Steps
+
+<Steps>
+<Step>
+
+### 1. Join a workflow with `headers()`
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="src/checkout.tsx"
+import { fetch } from '#mfe/fetch'
+
+const response = await fetch('orders', { method: 'POST', body, headers: checkout.headers() })
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/checkout.component.ts"
+import { fetch } from '#mfe/fetch'
+
+const headers = this.checkout.headers()
+const response = await fetch('orders', { method: 'POST', body, headers })
+```
+
+</Tab>
+</Tabs>
+
+The request's span becomes a child of the current step. Without `headers()`, the request is a trace of its own.
+Background requests, such as a query refetch, therefore never land in a workflow by accident.
+
+</Step>
+<Step>
+
+### 2. Use `headers()` with another client
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```ts title="src/orders.ts"
+import axios from 'axios'
+import { getAccessToken } from '#mfe/fetch'
+import { config } from '#mfe/config'
+import type { Workflow } from '@company/mfe-react'
+
+export async function placeOrder(checkout: Workflow, cart: readonly CartItem[]) {
+  const token = await getAccessToken()
+  const url = new URL('orders', config.apiBaseUrl).href
+  return axios.post(url, cart, {
+    headers: { ...checkout.headers(), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  })
+}
+
+export function openOrderFeed(checkout: Workflow) {
+  const socket = new WebSocket('wss://feed.example.test/orders')
+  socket.addEventListener('open', () => {
+    socket.send(JSON.stringify({ type: 'hello', ...checkout.headers() }))
+  })
+  return socket
+}
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/orders.service.ts"
+import { HttpClient } from '@angular/common/http'
+import { Injectable, inject } from '@angular/core'
+import { config } from '#mfe/config'
+import type { Workflow } from '@company/mfe-angular'
+
+@Injectable({ providedIn: 'root' })
+export class OrdersService {
+  private readonly http = inject(HttpClient)
+
+  placeOrder(checkout: Workflow, cart: readonly CartItem[]) {
+    const url = new URL('orders', config.apiBaseUrl).href
+    return this.http.post(url, cart, { headers: checkout.headers() })
+  }
+
+  openOrderFeed(checkout: Workflow): WebSocket {
+    const socket = new WebSocket('wss://feed.example.test/orders')
+    socket.addEventListener('open', () => {
+      socket.send(JSON.stringify({ type: 'hello', ...checkout.headers() }))
+    })
+    return socket
+  }
+}
+```
+
+The [authentication interceptor](https://github.com/rpkapps/mfe-framework-claude/blob/dev/packages/mfe-angular/README.md#authenticated-httpclient-calls) adds the token and leaves `traceparent` alone.
+
+</Tab>
+</Tabs>
+
+`headers()` is a plain object, so any client can send it. Only `#mfe/fetch` adds a client span, so the backend's span is a direct child of the step.
+A browser `WebSocket` cannot send headers. Put the `traceparent` in the first message, or in the URL, and read it there on your backend.
+
+</Step>
+<Step>
+
+### 3. Let your backend continue the trace
+
+```http shared title="Your API's CORS preflight response"
+Access-Control-Allow-Headers: Authorization, Content-Type, traceparent
+```
+
+Your API must allow the `traceparent` header in its CORS settings. Without it, the browser blocks the request.
+Run an OpenTelemetry SDK in your API that reads W3C trace context. Its server span then joins the request's trace.
+
+</Step>
+</Steps>
+
+## Check it works
+
+In the shell, open the network panel and send a request to your API. It carries a `traceparent` header.
+Send one with a workflow's `headers()` while the workflow is open. Its `traceparent` carries the workflow's trace id.
+
+## Related
+
+- [API URL](/docs/mark-a-url-as-your-api) — declare which origins are your API.
+- [API requests](/docs/call-your-api) — tokens and retries on `#mfe/fetch`.
+- [Trace a workflow across several clicks](/docs/trace-a-workflow-across-clicks) — where `headers()` comes from.
+- [Find a trace in Grafana](/docs/find-a-trace-in-grafana) — see the request and backend spans.
