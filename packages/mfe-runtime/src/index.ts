@@ -231,9 +231,7 @@ export { DEFAULT_DEADLINES, withDeadline, type DeadlineContext } from './deadlin
 // this package rather than on core, so naming it has to be possible from here.
 export type {
   MeasurementUnit,
-  Span,
   SpanRecord,
-  SpanStatus,
   TelemetryAttributes,
   TelemetryAttribution,
   TelemetryLevel,

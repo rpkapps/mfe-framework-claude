@@ -41,9 +41,6 @@ export const RESERVED_ATTRIBUTE_KEYS = {
   endReason: 'mfe.span.end_reason',
 } as const
 
-export type ReservedAttributeKey =
-  (typeof RESERVED_ATTRIBUTE_KEYS)[keyof typeof RESERVED_ATTRIBUTE_KEYS]
-
 const RESERVED_KEYS: ReadonlySet<string> = new Set<string>(Object.values(RESERVED_ATTRIBUTE_KEYS))
 
 export function isReservedAttributeKey(key: string): boolean {
@@ -79,7 +76,6 @@ export interface TelemetryCounters {
   readonly spansStarted: number
   readonly spansDroppedAtLimit: number
   readonly spansFinalizedAtDisposal: number
-  readonly mutationsAfterEnd: number
   readonly diagnosticsEmitted: number
   readonly diagnosticsSuppressed: number
 }
@@ -99,7 +95,6 @@ function newCounters(): MutableCounters {
     spansStarted: 0,
     spansDroppedAtLimit: 0,
     spansFinalizedAtDisposal: 0,
-    mutationsAfterEnd: 0,
     diagnosticsEmitted: 0,
     diagnosticsSuppressed: 0,
   }

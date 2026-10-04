@@ -18,13 +18,10 @@ import { RESERVED_ATTRIBUTE_KEYS } from './runtime.ts'
 
 /** One frozen instance: the handle carries no state, so a disabled mount allocates nothing. */
 export const nonRecordingSpan: Span = Object.freeze({
-  setAttribute: (): Span => nonRecordingSpan,
   setAttributes: (): Span => nonRecordingSpan,
-  addEvent: (): Span => nonRecordingSpan,
   setStatus: (): Span => nonRecordingSpan,
   recordException: (): Span => nonRecordingSpan,
   end: (): void => {},
-  isRecording: (): boolean => false,
 })
 
 export function createNonRecordingTracer(): Tracer {
@@ -32,9 +29,7 @@ export function createNonRecordingTracer(): Tracer {
 }
 
 type MutableSpanRecord = {
-  -readonly [K in keyof SpanRecord]: K extends 'events' | 'exceptions'
-    ? SpanRecord[K][number][]
-    : SpanRecord[K]
+  -readonly [K in keyof SpanRecord]: K extends 'events' ? SpanRecord[K][number][] : SpanRecord[K]
 }
 
 export interface SpanEmitterOptions {
@@ -70,10 +65,9 @@ export function createSpanEmitter(
       kind: given?.kind ?? SpanKind.INTERNAL,
       attributes,
       attribution,
-      startTime: given?.startTime ?? now(),
+      startTime: now(),
       status: { code: SpanStatusCode.UNSET },
       events: [],
-      exceptions: [],
     }
 
     const parentSpanId = attributes[RESERVED_ATTRIBUTE_KEYS.parentSpanId]
@@ -97,31 +91,20 @@ export function createSpanEmitter(
     options.onSpanStart?.(record)
 
     const span: Span = {
-      setAttribute: (key, value) => {
-        record.attributes = Object.freeze({ ...record.attributes, [key]: value })
-        return span
-      },
       setAttributes: added => {
         record.attributes = Object.freeze({ ...record.attributes, ...added })
-        return span
-      },
-      addEvent: (eventName, eventAttributes) => {
-        record.events.push({
-          name: eventName,
-          attributes: eventAttributes ?? EMPTY_ATTRIBUTES,
-          timestamp: now(),
-        })
         return span
       },
       setStatus: status => {
         record.status = status
         return span
       },
-      recordException: (error, exceptionAttributes) => {
-        record.exceptions.push(error)
-        // OpenTelemetry models an exception as an event on the span; mirroring that keeps
-        // the attributes visible to whatever reads the record.
-        return span.addEvent('exception', exceptionAttributes)
+      // OpenTelemetry models an exception as an event on the span. The error itself is not kept:
+      // a failed workflow reports it as an error record linked to the span, and a failed request
+      // rejects to its caller.
+      recordException: () => {
+        record.events.push({ name: 'exception', attributes: EMPTY_ATTRIBUTES, timestamp: now() })
+        return span
       },
       // Repeated calls are harmless: the first one wins and the rest do nothing.
       end: endTime => {
@@ -130,7 +113,6 @@ export function createSpanEmitter(
         open.delete(record)
         options.onSpanEnd?.(record)
       },
-      isRecording: () => record.endTime === undefined,
     }
     return span
   }

@@ -26,29 +26,26 @@ export type SpanKind = (typeof SpanKind)[keyof typeof SpanKind]
 
 export interface SpanStatus {
   readonly code: SpanStatusCode
-  readonly message?: string
 }
 
 export interface SpanOptions {
   readonly kind?: SpanKind
   readonly attributes?: TelemetryAttributes
-  /** Epoch milliseconds; defaults to the creation time. */
-  readonly startTime?: number
 }
 
+/** What the framework does with a span the provider started, and no more. */
 export interface Span {
-  setAttribute(key: string, value: string | number | boolean): Span
   setAttributes(attributes: TelemetryAttributes): Span
-  /** A diagnostic milestone inside a span, distinct from `telemetry.event()`. */
-  addEvent(name: string, attributes?: TelemetryAttributes): Span
   setStatus(status: SpanStatus): Span
-  recordException(error: unknown, attributes?: TelemetryAttributes): Span
-  /** Repeated calls are harmless. */
+  recordException(error: unknown): Span
+  /** Epoch milliseconds, defaulting to now; repeated calls are harmless. */
   end(endTime?: number): void
-  isRecording(): boolean
 }
 
-/** What a provider builds for one mount; only the mount's workflows start spans on it. */
+/**
+ * What a provider builds for one attribution, a mount or a container's `#mfe/fetch`; the framework
+ * starts every span on it, for a workflow and its steps or for a request.
+ */
 export interface Tracer {
   startSpan(name: string, options?: SpanOptions): Span
 }
@@ -195,7 +192,6 @@ export interface SpanRecord {
   readonly endTime?: number
   readonly status: SpanStatus
   readonly events: readonly { name: string; attributes: TelemetryAttributes; timestamp: number }[]
-  readonly exceptions: readonly unknown[]
   readonly parent?: SpanRecord
   /** The span's own ids; absent only for a span started outside a mount's tracer. */
   readonly spanContext?: TelemetrySpanContext

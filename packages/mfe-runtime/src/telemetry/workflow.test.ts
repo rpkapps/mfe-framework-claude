@@ -99,7 +99,7 @@ describe('a workflow', () => {
     const order = spanNamed(provider.spans, 'place order')
     for (const span of [root, order]) {
       expect(span.status.code).toBe(SpanStatusCode.ERROR)
-      expect(span.exceptions).toEqual([failure])
+      expect(span.events.map(event => event.name)).toEqual(['exception'])
       expect(span.endTime).toBeDefined()
     }
     expect(root.attributes['status']).toBe(503)
@@ -165,7 +165,6 @@ describe('a workflow', () => {
     }
     expect(checkout.headers()).toEqual({})
     expect(telemetry.counters.droppedAfterDispose).toBe(1)
-    expect(telemetry.counters.mutationsAfterEnd).toBe(0)
     expect(diagnostics.filter(d => d.error.code === 'dispose/failure')).toHaveLength(1)
   })
 
@@ -492,7 +491,7 @@ describe('a workflow shared across the page', () => {
     const root = spanNamed(provider.spans, 'orders.checkout')
     for (const span of [root, spanNamed(provider.spans, 'review cart')]) {
       expect(span.status.code).toBe(SpanStatusCode.ERROR)
-      expect(span.exceptions).toEqual([declined])
+      expect(span.events.map(event => event.name)).toEqual(['exception'])
     }
     const record = at(provider.logs('error'))
     expect(record.attribution.definitionId).toBe('payment')
@@ -536,7 +535,6 @@ describe('a workflow shared across the page', () => {
     expect(cart.telemetry.openSpanCount).toBe(0)
     expect(cart.telemetry.counters).toMatchObject({
       droppedAfterDispose: 0,
-      mutationsAfterEnd: 0,
       sinkFailures: 0,
       spansFinalizedAtDisposal: 0,
     })

@@ -181,7 +181,7 @@ describe('a request to a declared API', () => {
 
     const request = spanNamed(provider.spans, 'GET')
     expect(request.status.code).toBe(SpanStatusCode.ERROR)
-    expect(request.exceptions).toEqual([failure])
+    expect(request.events.map(event => event.name)).toEqual(['exception'])
     expect(request.endTime).toBeDefined()
   })
 })

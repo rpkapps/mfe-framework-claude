@@ -176,7 +176,7 @@ describe('the Faro adapter', () => {
     })
   })
 
-  it('sends a completed span as an OTLP trace with its own ids, and not its exceptions as errors', () => {
+  it('sends a completed span as an OTLP trace with its own ids, and no error for its exception', () => {
     const { api, endSpan } = harness()
     const spanContext = { traceId: 'a'.repeat(32), spanId: 'b'.repeat(16) }
 
@@ -187,9 +187,8 @@ describe('the Faro adapter', () => {
       attribution: ATTRIBUTION,
       startTime: 1_700_000_000_100,
       endTime: 1_700_000_000_350,
-      status: { code: 2, message: '503' },
+      status: { code: 2 },
       events: [{ name: 'exception', attributes: {}, timestamp: 1_700_000_000_300 }],
-      exceptions: [new Error('upstream 503')],
       spanContext,
       parentSpanId: 'c'.repeat(16),
     })
@@ -237,7 +236,7 @@ describe('the Faro adapter', () => {
                   droppedEventsCount: 0,
                   links: [],
                   droppedLinksCount: 0,
-                  status: { code: 2, message: '503' },
+                  status: { code: 2 },
                 },
               ],
             },
@@ -306,7 +305,6 @@ describe('the Faro adapter', () => {
       endTime: 1,
       status: { code: 0 },
       events: [],
-      exceptions: [],
     })
 
     expect(api.pushTraces).not.toHaveBeenCalled()

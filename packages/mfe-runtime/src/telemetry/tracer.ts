@@ -53,6 +53,7 @@ function randomHex(byteCount: number): string {
 export class MountSpan {
   readonly #runtime: MountTelemetryRuntime
   readonly #tracer: MountTracer
+  /** Dropped once the span ends, so a change after `end()` never reaches the provider. */
   #inner: Span | undefined
   #ended = false
 
@@ -62,32 +63,14 @@ export class MountSpan {
     inner: Span,
     readonly traceId: string,
     readonly spanId: string,
-    readonly name: string,
   ) {
     this.#runtime = runtime
     this.#tracer = tracer
     this.#inner = inner
   }
 
-  /** A change after `end()` is ignored, so a closed span cannot be rewritten by a late caller. */
-  #refuseAfterEnd(operation: string): boolean {
-    if (!this.#ended) return false
-    this.#runtime.counters.mutationsAfterEnd += 1
-    if (DEV) {
-      this.#runtime.diagnose({
-        code: 'config/invalid',
-        operation,
-        expected: 'changes only while the span is open',
-        observed: `a change to span "${this.name}" after it ended`,
-        repair: 'Report this as a framework bug. The change was ignored.',
-      })
-    }
-    return true
-  }
-
   /** Forwards to the provider's span, under containment. */
   #forward(operation: string, call: (inner: Span) => unknown): this {
-    if (this.#refuseAfterEnd(operation)) return this
     const inner = this.#inner
     if (inner !== undefined) this.#runtime.safeProviderCall(operation, () => call(inner))
     return this
@@ -95,7 +78,6 @@ export class MountSpan {
 
   /** Clamping and reserved-key rejection stay the runtime's, so spans match records. */
   #applyAttributes(attributes: TelemetryAttributes, operation: string): this {
-    if (this.#refuseAfterEnd(operation)) return this
     const authored: Record<string, string | number | boolean> = {}
     for (const [key, value] of Object.entries(
       this.#runtime.mergeAttributes(attributes, operation),
@@ -116,10 +98,6 @@ export class MountSpan {
 
   recordException(error: unknown): this {
     return this.#forward('record a span exception', inner => inner.recordException(error))
-  }
-
-  isRecording(): boolean {
-    return !this.#ended && this.#inner !== undefined
   }
 
   /** Repeated calls are harmless: the first one wins and the rest do nothing. */
@@ -252,7 +230,7 @@ export class MountTracer {
     )
     if (innerSpan === undefined) return undefined
 
-    const span = new MountSpan(this.#runtime, this, innerSpan, traceId, spanId, spanName)
+    const span = new MountSpan(this.#runtime, this, innerSpan, traceId, spanId)
     this.#open.add(span)
     this.#runtime.counters.spansStarted += 1
     return span

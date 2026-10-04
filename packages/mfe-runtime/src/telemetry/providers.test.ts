@@ -42,7 +42,7 @@ describe('the recording provider', () => {
     expect(provider.frameworkRecords('mount')).toHaveLength(1)
   })
 
-  it('exposes span lifecycles including status, events, exceptions and parentage', () => {
+  it('exposes span lifecycles including status, events and parentage', () => {
     const provider = createRecordingTelemetryProvider()
     const telemetry = createMountTelemetry(provider, ATTRIBUTION, { dev: true })
     const failure = new Error('quote failed')
@@ -60,7 +60,6 @@ describe('the recording provider', () => {
     const quote = at(provider.spansNamed('quote'))
     expect(quote.kind).toBe(SpanKind.INTERNAL)
     expect(quote.parent?.name).toBe('checkout')
-    expect(quote.exceptions).toEqual([failure])
     expect(quote.status.code).toBe(SpanStatusCode.ERROR)
     expect(quote.events.map(event => event.name)).toEqual(['exception'])
   })
@@ -154,18 +153,15 @@ describe('the noop provider', () => {
     const provider = createNoopTelemetryProvider()
     const tracer = provider.createTracer(ATTRIBUTION)
 
-    expect(tracer.startSpan('anything').isRecording()).toBe(false)
+    expect(tracer.startSpan('anything')).toBe(nonRecordingSpan)
   })
 })
 
 describe('the non-recording handle', () => {
   it('satisfies the whole span surface and stays chainable', () => {
-    expect(nonRecordingSpan.setAttribute('a', 1)).toBe(nonRecordingSpan)
     expect(nonRecordingSpan.setAttributes({ a: 1 })).toBe(nonRecordingSpan)
-    expect(nonRecordingSpan.addEvent('e')).toBe(nonRecordingSpan)
     expect(nonRecordingSpan.setStatus({ code: SpanStatusCode.OK })).toBe(nonRecordingSpan)
     expect(nonRecordingSpan.recordException(new Error('x'))).toBe(nonRecordingSpan)
-    expect(nonRecordingSpan.isRecording()).toBe(false)
     expect(() => {
       nonRecordingSpan.end()
       nonRecordingSpan.end(10)

@@ -103,7 +103,6 @@ describe('ending a span', () => {
     span.end()
 
     expect(tracer.openSpanCount).toBe(0)
-    expect(span.isRecording()).toBe(false)
     expect(provider.endedSpans()).toHaveLength(1)
   })
 
@@ -120,8 +119,8 @@ describe('ending a span', () => {
     expect(tracer.openSpanCount).toBe(0)
   })
 
-  it('ignores every change after end, with a development diagnostic', () => {
-    const { provider, diagnostics, runtime, tracer } = recording()
+  it('ignores every change after end', () => {
+    const { provider, tracer } = recording()
     const span = started(tracer.startSpan('checkout'))
     span.setStatus(SpanStatusCode.OK)
     span.end()
@@ -132,10 +131,8 @@ describe('ending a span', () => {
 
     const record = at(provider.spans)
     expect(record.attributes['late']).toBeUndefined()
-    expect(record.exceptions).toHaveLength(0)
+    expect(record.events).toHaveLength(0)
     expect(record.status).toEqual({ code: SpanStatusCode.OK })
-    expect(runtime.counters.mutationsAfterEnd).toBe(3)
-    expect(diagnostics.filter(d => d.error.message.includes('after it ended'))).toHaveLength(3)
   })
 })
 
@@ -212,13 +209,10 @@ describe('tracing switched off or broken', () => {
       throw new Error('vendor span exploded')
     }
     const hostileSpan: Span = {
-      setAttribute: explode,
       setAttributes: explode,
-      addEvent: explode,
       setStatus: explode,
       recordException: explode,
       end: explode,
-      isRecording: () => true,
     }
     const { runtime, tracer } = setup({
       record: () => {},

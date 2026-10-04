@@ -100,16 +100,12 @@ describe('the surface the framework does not have', () => {
     }
   })
 
-  it('re-exports the binding from the directory index', async () => {
+  it('exports from the directory index only what a shell wires telemetry with', async () => {
     const index = await import('./index.ts')
 
     expect(Object.keys(index).sort()).toEqual([
-      'RESERVED_ATTRIBUTE_KEYS',
-      'createMountTelemetry',
       'createNoopTelemetryProvider',
       'createSpanEmitter',
-      'isReservedAttributeKey',
-      'nonRecordingSpan',
       'telemetryDiagnosticsSink',
     ])
   })

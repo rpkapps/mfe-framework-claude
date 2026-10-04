@@ -2128,10 +2128,11 @@ one object per name for the mount, in the manner of Datadog RUM's named operatio
 `step`, `succeed` and `fail`, and `headers()`. Only one run of a name is open on the page at a time,
 and `start()` while it is open joins it rather than restarting it, as below. A workflow is a root
 span with a child span per step, and a step lasts until the next step or the end. `fail(error)`
-records the error on the step and the workflow and reports it as an error record whose
-`spanContext` is the workflow's, so the backend links the two; nothing else stamps `spanContext`,
-because there is no ambient span to stamp. Calls while the workflow is not open are ignored, with a
-development diagnostic, except that `fail` still reports its error without a trace: an error is
+marks the step and the workflow as errors, each with an `exception` event, and reports the error
+itself as an error record whose `spanContext` is the workflow's, so the backend links the two; a
+span keeps no error object; nothing else stamps `spanContext`,
+because there is no ambient span to stamp. Steps and ends while the workflow is not open are ignored,
+with a development diagnostic, except that `fail` still reports its error without a trace: an error is
 never lost for want of a `start()`. An unmount that leaves nobody in an open run closes it as
 abandoned, labelled `mfe.span.end_reason: abandoned` rather than failed, and without a diagnostic: a
 user who leaves in the middle of a checkout did not make a mistake.
@@ -2141,7 +2142,9 @@ an active span. A request joins a workflow only when its author spreads `headers
 returns the W3C `traceparent` of the current step. Background requests, such as a query refetch,
 therefore never land in a workflow by accident, and the framework stays transport-agnostic: the
 header works with any HTTP client. The Faro adapter no longer pushes a
-span's exceptions as errors, because the failed workflow's error record already reports them.
+span's exceptions as errors, because the failed workflow's error record already reports them, so a
+`SpanRecord` no longer carries them. With no author holding a span, the provider's `Span` keeps only
+what the framework calls, `setAttributes`, `setStatus`, `recordException` and `end`.
 
 Several runs of one name, such as one per file in an upload queue, are open at once through a key:
 `telemetry.workflow(name, key)` picks the run by the pair, one object per pair for the mount, and

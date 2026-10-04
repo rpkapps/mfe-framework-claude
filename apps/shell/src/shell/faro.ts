@@ -113,10 +113,7 @@ function toOtlp(span: SpanRecord, spanContext: TelemetrySpanContext, faro: Faro)
     droppedEventsCount: 0,
     links: [],
     droppedLinksCount: 0,
-    status: {
-      code: span.status.code,
-      ...(span.status.message === undefined ? {} : { message: span.status.message }),
-    },
+    status: { code: span.status.code },
   }
 
   return {
@@ -188,8 +185,8 @@ export function createFaroTelemetryProvider({
     },
 
     createTracer(attribution: TelemetryAttribution): Tracer {
-      // A span's exceptions are not pushed as errors: a failed workflow reports its error as a
-      // record linked to the span, and pushing them too would count one failure several times.
+      // A span's exception event is not pushed as an error: a failed workflow reports its error as a
+      // record linked to the span, and pushing it too would count one failure several times.
       return createTracer(attribution, span => {
         // A span started outside a mount's tracer has no ids, so it cannot join a trace.
         const { spanContext } = span
