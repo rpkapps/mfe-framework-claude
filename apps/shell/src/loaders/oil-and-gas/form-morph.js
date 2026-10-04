@@ -46,9 +46,9 @@ kit.define('form-morph', (c, w, h, t, S, dt, og) => {
       }
       return g
     }
-    // The logo bounce draws (bounce.js), in its 340-unit box: the disc and the outline of its
-    // mark, whose arm the disc cuts off at its edge. Each quadratic corner is split in two.
-    const logo = circ(0.79, 48)
+    // The logo bounce draws (bounce.js), in its 340-unit box: a filled disc with its mark left
+    // empty, the mark's arm cut off at the disc's edge. Each quadratic corner is split in two.
+    const edge = []
     const q = (a, b, e) => [a, [(a[0] + 2 * b[0] + e[0]) / 4, (a[1] + 2 * b[1] + e[1]) / 4], e]
     const mk = [
       [86, 240],
@@ -66,7 +66,23 @@ kit.define('form-morph', (c, w, h, t, S, dt, og) => {
       [167, 184],
       [156, 239],
     ].map(([x, y]) => [((x - 170) / 170) * 0.82, ((y - 170) / 170) * 0.82])
-    mk.forEach((a, i) => logo.push([a, mk[(i + 1) % mk.length]]))
+    mk.forEach((a, i) => edge.push([a, mk[(i + 1) % mk.length]]))
+    const inMark = (x, y) => {
+      let o = false
+      for (let i = 0, j = mk.length - 1; i < mk.length; j = i++) {
+        const [a, b] = mk[i],
+          [c, d] = mk[j]
+        if (b > y !== d > y && x < ((c - a) * (y - b)) / (d - b) + a) o = !o
+      }
+      return o
+    }
+    // Half the points trace the mark so it stays crisp; the rest fill the disc around it.
+    const logo = segS(edge).slice(0, N / 2)
+    while (logo.length < N) {
+      const x = (Math.random() * 2 - 1) * 0.79,
+        y = (Math.random() * 2 - 1) * 0.79
+      if (x * x + y * y < 0.79 ** 2 && !inMark(x, y)) logo.push([x, y])
+    }
     const drop = []
     for (let i = 0; i < N; i++) {
       const th = Math.random() * TAU,
@@ -131,7 +147,7 @@ kit.define('form-morph', (c, w, h, t, S, dt, og) => {
       ])
     }
     const srt = p => p.sort((a, b) => Math.atan2(a[1], a[0]) - Math.atan2(b[1], b[0]))
-    S.sh = [segS(logo), drop, segS(der), segS(bar), segS(val)].map(srt)
+    S.sh = [logo, drop, segS(der), segS(bar), segS(val)].map(srt)
   }
   // Each form holds a moment and then morphs into the next; the loop starts on the logo.
   const P = 1.8,
