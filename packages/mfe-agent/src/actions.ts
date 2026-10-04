@@ -24,8 +24,38 @@ import type {
 
 import type { ApprovalQuestion, ChatTool } from './types.ts'
 
-// The runtime types this module's API names, so an agent host can name them without the runtime.
-export type { ActionApprover, AgentContextStore } from '@company/mfe-runtime'
+// The runtime types this module's API names, and the types they name, so an agent host can name
+// them without the runtime.
+export type {
+  ActionApprover,
+  ActionEffect,
+  AgentAppLocation,
+  AgentContextEntry,
+  AgentContextHandle,
+  AgentContextOwner,
+  AgentContextRegistration,
+  AgentContextStore,
+  AgentContextStoreOptions,
+  AgentPrompt,
+  AgentPromptHandler,
+  AgentPromptRequest,
+  AgentSuggestion,
+  AgentSuggestionEntry,
+  AgentSuggestionsHandle,
+  AgentTurnContext,
+  ApprovalRequest,
+  BoundaryLocation,
+  Diagnostic,
+  DiagnosticSeverity,
+  DiagnosticsHub,
+  DiagnosticsSink,
+  JsonSchemaObject,
+  JsonSchemaValue,
+  MfeError,
+  MfeErrorCode,
+  MfeErrorDirection,
+  Unsubscribe,
+} from '@company/mfe-runtime'
 
 /**
  * Model APIs take `^[a-zA-Z0-9_-]{1,64}$` as a tool name, so an action id such as

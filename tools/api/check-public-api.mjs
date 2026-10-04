@@ -370,11 +370,17 @@ for (const [specifier, { targets }] of bySpecifier) {
   for (const target of targets) {
     for (const key of unexportedTypesIn(target, exportedAnywhere, checker))
       unexportedAnywhere.add(key)
-    // A type another framework package declares is that package's to complete, except the core's,
-    // which no consumer imports: a package exposing a core type exposes what that type names.
+    // A type another framework package declares is that package's to complete, except the core's
+    // and the runtime's, which no consumer imports (a shell reaches the runtime through an
+    // adapter's `/host`): a package exposing one of their types exposes what that type names.
     const declaredIn =
       target.declarations?.[0] && ownPackageOf(target.declarations[0].getSourceFile().fileName)
-    if (declaredIn !== packageOf(specifier) && declaredIn !== '@company/mfe-core') continue
+    if (
+      declaredIn !== packageOf(specifier) &&
+      declaredIn !== '@company/mfe-core' &&
+      declaredIn !== '@company/mfe-runtime'
+    )
+      continue
     for (const key of unexportedTypesIn(target, own, checker)) {
       const where = `${packageOf(specifier)} ${key}`
       if (knownUnexported.has(key) || reported.has(where)) continue

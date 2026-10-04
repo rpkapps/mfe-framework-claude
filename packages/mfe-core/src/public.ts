@@ -18,7 +18,7 @@ export {
   SpanKind,
   SpanStatusCode,
   storedKey,
-} from './index.ts'
+} from '@company/mfe-core'
 
 export type {
   ActionEffect,
@@ -122,4 +122,4 @@ export type {
   WidgetInputType,
   WidgetOutput,
   Workflow,
-} from './index.ts'
+} from '@company/mfe-core'
