@@ -434,6 +434,26 @@ describe('#mfe/fetch', () => {
     expect(source).not.toContain('window.fetch =')
   })
 
+  it('names the container and its kind, so its request spans are attributed to it', () => {
+    const app = planFixture({ 'src/mfe.ts': APP_ENTRY }).fileFor('fetch.ts')
+    const widget = planFixture({
+      'src/mfe.ts': `
+import { createWidget } from '@acme/mfe-adapter'
+import { z } from 'zod'
+
+export const alertPanel = createWidget({
+  id: 'alert-panel',
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
+  render: () => null,
+})
+`,
+    }).fileFor('fetch.ts')
+
+    expect(app).toContain("  id: 'operations',\n  kind: 'app',\n")
+    expect(widget).toContain("  id: 'alert-panel',\n  kind: 'widget',\n")
+  })
+
   it('binds only the origins declared with { api: true }', () => {
     const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY, 'src/mfe.config.ts': CONFIG })
     const source = fileFor('fetch.ts')

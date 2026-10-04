@@ -2084,7 +2084,7 @@ no longer starts in the system theme and flips.
 ## 58. A workflow is one trace: the author keeps the span, and the framework fetch carries it
 
 **Status:** decided; extends §4. Its author-facing parts — `withSpan`, linked records and the
-automatic client span on `#mfe/fetch` — are superseded by §59. The OTLP export through Faro stands.
+client span on `#mfe/fetch` under an active span — are superseded by §59. The OTLP export through Faro stands.
 
 A workflow that spans several clicks and a request could not be one trace. A span was a parent only
 inside the synchronous `startActiveSpan` callback, so a later click or anything after an `await`
@@ -2135,12 +2135,11 @@ development diagnostic, except that `fail` still reports its error without a tra
 never lost for want of a `start()`. An unmount closes an open workflow as cancelled without a diagnostic: a
 user who leaves in the middle of a checkout did not make a mistake.
 
-Nothing is ambient, so the page-global active-span slot is gone, and so is the automatic client
-span and `traceparent` on `#mfe/fetch`. A request joins a workflow only when its author spreads
-`headers()` into it, which returns the W3C `traceparent` of the current step. Background requests,
-such as a query refetch, therefore never land in a workflow by accident, and the framework stays
-transport-agnostic: the header works with any HTTP client. The framework fetch passes a caller's
-`traceparent` through unchanged, as it passes any other header. The Faro adapter no longer pushes a
+Nothing is ambient, so the page-global active-span slot is gone, and `#mfe/fetch` no longer reads
+an active span. A request joins a workflow only when its author spreads `headers()` into it, which
+returns the W3C `traceparent` of the current step. Background requests, such as a query refetch,
+therefore never land in a workflow by accident, and the framework stays transport-agnostic: the
+header works with any HTTP client. The Faro adapter no longer pushes a
 span's exceptions as errors, because the failed workflow's error record already reports them.
 
 Several runs of one name, such as one per file in an upload queue, are open at once through a key:
@@ -2155,9 +2154,25 @@ workflow before its first step. This is the explicit form of the linking §58 di
 span. While the workflow is not open, or tracing is off, the record goes out unlinked and without a
 diagnostic: a log is never lost for want of a `start()`.
 
-**Cost:** a request whose author forgets `headers()` is not in the trace, and nothing detects it,
-as with `withSpan` before. The framework no longer records a client span for the request itself;
-the backend's own span, joined through `traceparent`, is what shows its timing. Free-form spans
+**Cost:** a request whose author forgets `headers()` is not in the workflow's trace, and nothing
+detects it, as with `withSpan` before; it is still traced, as a trace of its own. A span on every
+request is more telemetry to ship, and sampling it is the collector's. Free-form spans
 are gone: work that is not a named workflow with steps is a measurement or an event. A keyed
 workflow is held for the mount's life like any other, so a mount that keys thousands of runs keeps
 thousands of small objects until it unmounts.
+
+Every request through `#mfe/fetch` to a declared API is traced by default, because a request is
+the one piece of work every container does and its latency is what a user waits on; leaving it to
+the author meant most requests were never traced at all. The request gets a `CLIENT` span named for
+its method, with only the method, host, port, status and a resend count after a 401, never the path
+or query, and one span covers the retry. It sends `traceparent` naming that span, so the backend's
+span is its child. When the caller's headers carry a valid `traceparent`, as from `headers()`, the
+span joins that trace as the step's child and replaces the header with its own, so the trace reads
+step, request, backend; an invalid one is the caller's and goes out untouched, untraced. An
+undeclared origin gets no span and no header, like the token. The fetch is per container, not per
+mount, so the shell passes its provider to `installShellAuth({ telemetry })` and each container's
+transport builds a tracer attributed to the container, its definition id and kind, as the generated
+`#mfe/fetch` declares them; a mount's attribution would be a guess when several mounts share one
+container. Without a provider, requests go out as before, and a provider that throws leaves the
+request untraced, never failed. The backend must allow `traceparent` in CORS; the development API
+does.

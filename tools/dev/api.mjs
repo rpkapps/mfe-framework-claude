@@ -38,7 +38,7 @@ const ASSETS = {
  */
 function cors(response) {
   response.setHeader('Access-Control-Allow-Origin', '*')
-  // `traceparent` is what a workflow's headers carry, so a request can join its trace.
+  // `traceparent` names the request's client span, so the backend's span is its child.
   response.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, traceparent')
   response.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
   response.setHeader('Access-Control-Max-Age', '600')

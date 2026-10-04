@@ -163,8 +163,9 @@ export class CheckoutComponent {
 Steps and `succeed` are ignored while the workflow is not open; `fail` still reports its error, without a trace. Starting it again while it is open abandons the open run first.
 If the mount ends while a workflow is open, its spans are closed as cancelled, not failed.
 
-A request joins the workflow only when you spread `headers()` into it. It returns a W3C `traceparent` for the current step, or `{}` when nothing is open or tracing is off.
-Requests you send without it, such as background refreshes, never land in a workflow.
+Every request through `#mfe/fetch` to a declared API is traced: it gets a client span with its method, host, port and status, never its path, and sends a W3C `traceparent` naming that span.
+A request joins the workflow only when you spread `headers()` into it, which returns the `traceparent` of the current step, or `{}` when nothing is open or tracing is off. The request's span is then a child of the step.
+Requests you send without it, such as background refreshes, are traces of their own and never land in a workflow.
 Your API must accept the `traceparent` header in its CORS settings and continue the trace with its OpenTelemetry SDK.
 
 </Step>

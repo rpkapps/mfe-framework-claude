@@ -16,11 +16,7 @@ import {
 import { DEV } from '../dev.ts'
 import type { MountTelemetryRuntime } from './runtime.ts'
 import type { MountSpan, MountTracer } from './tracer.ts'
-
-/** W3C `traceparent`, version 00 with the sampled flag: sampling is the shell's to decide downstream. */
-function traceparentOf(span: MountSpan): string {
-  return `00-${span.traceId}-${span.spanId}-01`
-}
+import { formatTraceparent } from './traceparent.ts'
 
 function contextOf(span: MountSpan | undefined): TelemetrySpanContext | undefined {
   return span === undefined
@@ -94,7 +90,7 @@ export function createWorkflow(
     headers(): Record<string, string> {
       if (!open || runtime.disposed) return {}
       const current = step ?? root
-      return current === undefined ? {} : { traceparent: traceparentOf(current) }
+      return current === undefined ? {} : { traceparent: formatTraceparent(current) }
     },
 
     succeed(attributes?: TelemetryAttributes): void {

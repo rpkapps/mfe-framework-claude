@@ -5,9 +5,10 @@
  * in this module: a container may run on a copy of the runtime other than the shell's (§55).
  */
 
-import { createMfeError } from '@company/mfe-core'
+import { createMfeError, type TelemetryProvider } from '@company/mfe-core'
 
 import type { DiagnosticsHub } from '../diagnostics.ts'
+import { createRequestTracer } from '../telemetry/request-span.ts'
 import {
   createAuthTransport,
   type AccessTokenSource,
@@ -22,11 +23,15 @@ export interface ShellAuthOptions {
   readonly isDevelopment?: boolean
   /** Defaults to the browser's `fetch`, read at call time. */
   readonly fetch?: FetchLike
+  /** Traces every request to a declared API as a client span; without it, none is traced. */
+  readonly telemetry?: TelemetryProvider
 }
 
 export interface ContainerAuthBinding {
-  /** The container's definition id, used for attribution in diagnostics. */
+  /** The container's definition id, used for attribution in diagnostics and request spans. */
   readonly id: string
+  /** The kind of that definition: `app` when the container has an App. */
+  readonly kind: 'app' | 'widget'
   /** The default base for relative request URLs: the first declared API. */
   readonly apiBaseUrl?: string | URL
   /** Every origin declared `{ api: true }`; only these receive the token. */
@@ -79,6 +84,15 @@ export function createContainerTransport(binding: ContainerAuthBinding): AuthTra
       ...(shell.diagnostics === undefined ? {} : { diagnostics: shell.diagnostics }),
       ...(shell.isDevelopment === undefined ? {} : { isDevelopment: shell.isDevelopment }),
       ...(shell.fetch === undefined ? {} : { fetch: shell.fetch }),
+      // Attributed to the container, not a mount: one container's fetch serves all its mounts.
+      ...(shell.telemetry === undefined
+        ? {}
+        : {
+            tracer: createRequestTracer(shell.telemetry, {
+              definitionId: binding.id,
+              definitionKind: binding.kind,
+            }),
+          }),
     })
     return resolved
   }

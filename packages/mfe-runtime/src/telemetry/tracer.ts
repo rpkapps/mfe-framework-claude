@@ -13,6 +13,7 @@ import {
   type SpanStatusCode,
   type TelemetryAttributes,
   type TelemetryProvider,
+  type TelemetrySpanContext,
   type Tracer,
 } from '@company/mfe-core'
 
@@ -166,8 +167,13 @@ export class MountSpan {
 
 export interface MountSpanOptions {
   readonly attributes?: TelemetryAttributes | undefined
-  /** Starts the span as this one's child, in its trace; without it the span starts a trace. */
-  readonly parent?: MountSpan | undefined
+  /** Defaults to `INTERNAL`; a request through the framework fetch is a `CLIENT` span. */
+  readonly kind?: SpanKind | undefined
+  /**
+   * Starts the span as this one's child, in its trace; without it the span starts a trace. Only
+   * the ids are read, so the parent may be a span another tracer started, or a `traceparent`.
+   */
+  readonly parent?: TelemetrySpanContext | undefined
 }
 
 export class MountTracer {
@@ -222,7 +228,7 @@ export class MountTracer {
 
     const innerSpan = this.#runtime.safeProviderCall('start a span', () =>
       inner.startSpan(spanName, {
-        kind: SpanKind.INTERNAL,
+        kind: options.kind ?? SpanKind.INTERNAL,
         attributes: Object.freeze({
           ...this.#runtime.mergeAttributes(options.attributes, 'start a span'),
           [RESERVED_ATTRIBUTE_KEYS.traceId]: traceId,

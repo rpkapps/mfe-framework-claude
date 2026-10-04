@@ -93,6 +93,8 @@ installShellAuth({
   tokens,
   diagnostics,
   isDevelopment: process.env['NODE_ENV'] !== 'production',
+  // Every request to a declared API is a client span, the parent of the backend's own.
+  telemetry: telemetry.provider,
 })
 
 const overrideSource = overrideStorage()
