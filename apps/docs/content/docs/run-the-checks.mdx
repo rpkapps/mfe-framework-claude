@@ -77,8 +77,8 @@ The framework repository's package-boundary and combined-example checks are main
 ```text
 src/routes/settings.tsx
   12:10  error  `localStorage` bypasses the MFE storage boundary: the key is not namespaced, so
-  another MFE in this origin can read or overwrite it … Use `useStoredState()` for component state
-  or `useMfeStorage()` for imperative access, both from @company/mfe-react  mfe/no-raw-storage
+  another MFE in this origin can read or overwrite it … Declare the value with `storedKey` and read
+  and write it through `useStoredState()` from @company/mfe-react  mfe/no-raw-storage
 ```
 
 </Tab>
@@ -88,8 +88,8 @@ src/routes/settings.tsx
 src/settings.component.ts
   12:10  error  `localStorage` bypasses the MFE storage boundary: the key is not namespaced, so
   another MFE in this origin can read or overwrite it, it carries no version to migrate a changed
-  shape from, and a quota failure escapes as an unhandled exception. Use `injectStoredState()`
-  for component state or `injectMfeStorage()` for imperative access, both from @company/mfe-angular.
+  shape from, and a quota failure escapes as an unhandled exception. Declare the value with
+  `storedKey` and read and write it through `injectStoredState()` from @company/mfe-angular.
   The storage adapter and a documented shell override bootstrap opt out through this rule's
   `allowedScopes` option.  mfe/no-raw-storage
 ```

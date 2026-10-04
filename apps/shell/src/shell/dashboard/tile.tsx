@@ -105,6 +105,9 @@ export function Tile({
         <PanelHeader
           className="cursor-grab active:cursor-grabbing"
           onPointerDown={event => {
+            // React bubbles events through portals, so a press in the tile's open options menu
+            // arrives here too; only a press on the header itself drags.
+            if (!event.currentTarget.contains(event.target as Node)) return
             // A press that landed on a control in the header belongs to that control.
             if ((event.target as Element).closest('button,a,input,select,[role="button"]') !== null)
               return

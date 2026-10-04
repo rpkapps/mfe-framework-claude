@@ -214,6 +214,15 @@ export * from './storage/index.ts'
 export * from './auth/index.ts'
 export * from './telemetry/index.ts'
 
+/** The `user` area's adapter contract, so a shell can type its backend without importing the core. */
+export type {
+  StoredRow,
+  StoredValue,
+  UserStorageAdapter,
+  UserStorageHandle,
+  UserStorageState,
+} from '@company/mfe-core'
+
 export { KeyedListeners, ListenerSet, SnapshotSource } from './observable.ts'
 
 export { DEFAULT_DEADLINES, withDeadline, type DeadlineContext } from './deadline.ts'
@@ -243,3 +252,6 @@ export { DiagnosticsHub } from './diagnostics.ts'
 export type { Diagnostic, DiagnosticSeverity, DiagnosticsSink } from '@company/mfe-core'
 
 export { capabilityRoute } from './registry/capability-route.ts'
+
+/** The pre-paint script a host inlines in its document, reading the runtime's own theme cache. */
+export { themeBootstrapScript, type ThemePreference } from './theme/stored-theme.ts'

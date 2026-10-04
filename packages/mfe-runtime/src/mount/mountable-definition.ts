@@ -1,4 +1,3 @@
-import type { SharedStateDefinition } from '../shared-state/mount.ts'
 /**
  * The contract every host places every definition through: the definition mounts itself into an
  * element the host provides, given its mount context, and hands back what the host needs to
@@ -85,14 +84,14 @@ export interface MountedApp {
   whenStable?(): Promise<void>
 }
 
-export interface MountableWidgetDefinition extends BrandedDefinition, SharedStateDefinition {
+export interface MountableWidgetDefinition extends BrandedDefinition {
   readonly kind: 'widget'
   readonly contract: WidgetContract
   /** Rejects with the `MfeError` when the first inputs fail the provider's own contract. */
   mount(target: WidgetMountTarget): Promise<MountedWidget>
 }
 
-export interface MountableAppDefinition extends BrandedDefinition, SharedStateDefinition {
+export interface MountableAppDefinition extends BrandedDefinition {
   readonly kind: 'app'
   readonly contributesBreadcrumbs: boolean
   mount(target: AppMountTarget): Promise<MountedApp>

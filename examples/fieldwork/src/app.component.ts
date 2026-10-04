@@ -16,10 +16,10 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router'
         >Inspections</a
       >
       <a
-        routerLink="/shared-state"
+        routerLink="/user-storage"
         routerLinkActive="fieldwork-nav-active"
         ariaCurrentWhenActive="page"
-        >Shared state</a
+        >User storage</a
       >
     </nav>
     <div class="fieldwork-content"><router-outlet /></div>

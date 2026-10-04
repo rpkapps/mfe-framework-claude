@@ -59,12 +59,12 @@ jobs:
         working-directory: mfe-framework-claude
         run: pnpm run verify:page
 
-      - name: Upload Shared State devtools screenshots
+      - name: Upload Storage devtools screenshots
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: devtools-shared-state-screenshots
-          path: mfe-framework-claude/screenshots/shared-state-*.png
+          name: devtools-storage-screenshots
+          path: mfe-framework-claude/screenshots/storage-*.png
           if-no-files-found: warn
           retention-days: 14
 

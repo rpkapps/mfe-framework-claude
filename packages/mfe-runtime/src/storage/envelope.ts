@@ -10,7 +10,7 @@ import {
   isStorageEnvelope,
   type MfeError,
   type MfeErrorDetails,
-  type StorageArea,
+  type BrowserStorageArea,
   type StorageSnapshot,
 } from '@company/mfe-core'
 
@@ -29,7 +29,7 @@ export interface EnvelopeDeclaration {
 export interface EnvelopeContext {
   readonly declaration: EnvelopeDeclaration
   readonly physicalKey: string
-  readonly area: StorageArea
+  readonly area: BrowserStorageArea
   readonly defaultSnapshot: StorageSnapshot<unknown>
   // Declared as properties, not methods: `fail` is passed detached to
   // serializeEnvelope, and a method signature would claim a `this` it never has.

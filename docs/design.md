@@ -118,7 +118,7 @@ The Angular adapter is Angular 19 and zoneless. Every mount is its own applicati
 
 Nothing falls back silently. An entry naming a framework belongs to that framework's adapter, whatever state the rest of it is in. A malformed entry is set aside with a reason, and the registry lists it under `rejected`. Reading it with another adapter instead would let a typo change how an application loads, unseen.
 
-Shared services come from the runtime and are the same for every adapter. One storage store, one action registry, one breadcrumb store, one navigation bridge and one diagnostics hub are built per runtime. A shell screen reads the registry and never asks which adapter an entry came from.
+Shared services come from the runtime and are the same for every adapter. One storage service, one action registry, one breadcrumb store, one navigation bridge and one diagnostics hub are built per runtime. A shell screen reads the registry and never asks which adapter an entry came from.
 
 ## The six isolation boundaries
 
@@ -149,7 +149,7 @@ PrimeNG is outside this boundary. It writes its components' rules into unscoped 
 
 ### Storage
 
-The key is never scoped by mount token, so two mounts of one definition read the same record. A record belongs to the browser profile, not to the person signed in: the framework never clears it, so a sign-out keeps it and the next user reads it, and nothing personal belongs in one ([decision 56](/docs/how-it-works/decisions#56-a-stored-record-belongs-to-the-browser-and-nothing-clears-it-at-sign-out)). `@host` is spelled with an `@` because no definition id can contain one, which is what makes the scope unclaimable ([decision 24](/docs/how-it-works/decisions#24-the-host-page-had-no-storage-scope-and-the-lint-allowlist-was-the-evidence)).
+One storage API covers three areas: `local` and `session` in the browser, and `user` in the shell's backend through one adapter the shell supplies. A value is declared once with `storedKey`, which carries its name, schema and default, area and migrations, and it belongs to the definition that declares it; only that owner writes, and another definition reads a user value through a read-only `storedKey.from` key with its own schema ([decision 57](/docs/how-it-works/decisions#57-one-runtime-storage-api-replaces-compiler-based-shared-state)). The key is never scoped by mount token, so two mounts of one definition read the same value. Apps mount after the user area's load settles; it runs while remote entries download, and a failed load mounts Apps with defaults. A browser record belongs to the browser profile, not to the person signed in: the framework never clears it, so a sign-out keeps it and the next user reads it, and nothing personal belongs in one ([decision 56](/docs/how-it-works/decisions#56-a-stored-record-belongs-to-the-browser-and-nothing-clears-it-at-sign-out)). `@host` is spelled with an `@` because no definition id can contain one, which is what makes the scope unclaimable ([decision 24](/docs/how-it-works/decisions#24-the-host-page-had-no-storage-scope-and-the-lint-allowlist-was-the-evidence)).
 
 ### Network
 
@@ -175,7 +175,3 @@ Three costs follow. A container on its own copy of `sonner`, from another React 
 - [The Angular adapter](/docs/reference/angular-adapter) — Angular Apps and Widgets, and hosting from Angular.
 - [Glossary](/docs/reference/glossary) — every term on this page, defined once.
 - [Decision log](/docs/how-it-works/decisions) — the argument behind each rule stated here.
-
-## Shared state
-
-[Shared state](./shared-state.md) adds definition-bound React hooks, live router stores and Angular injection/signal bindings over one shell-owned structural service. Build tooling compiles authoring schemas and enforces the deployment support window. Concrete object setters preserve fields unknown to their writer; structural clears and arrays are atomic. The backend adapter must authorize, apply those operations transactionally and resolve only after durable commit.

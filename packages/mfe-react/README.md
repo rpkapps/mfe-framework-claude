@@ -99,7 +99,8 @@ Mount-only hooks require a definition's provider context.
 [Where each hook may be called](../../apps/docs/content/docs/reference/hooks-and-components.mdx#where-each-hook-may-be-called)
 is the authoritative scope table.
 
-Stored preferences survive sign-out and belong to the browser profile. Keep nothing personal in them.
+Local and session values survive sign-out and belong to the browser profile. Keep nothing personal
+in them; personal values belong in `storage: 'user'`.
 [Remember a value](../../apps/docs/content/docs/remember-a-value.mdx) explains validation, scope and updates.
 
 ## Building a container

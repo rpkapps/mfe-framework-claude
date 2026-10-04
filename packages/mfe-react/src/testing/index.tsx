@@ -13,8 +13,10 @@ import {
   withoutUndefined,
   type Diagnostic,
   type MfeError,
+  type MfeStorage,
   type ShellTheme,
   type ShellUser,
+  type UserStorageAdapter,
 } from '@company/mfe-core'
 import {
   createMountContext,
@@ -29,7 +31,9 @@ import {
   type MemoryRuntime,
   type MemoryRuntimeOptions,
   type MemoryStorageArea,
+  type MemoryUserStorage,
   type RecordingTelemetryProvider,
+  type StoredSeed,
 } from '@company/mfe-runtime/testing'
 import { act, render, waitFor, type RenderResult } from '@testing-library/react'
 import type { ReactNode } from 'react'
@@ -65,6 +69,12 @@ export interface MfeTestEnvironmentOptions {
   /** Definitions the in-process loader can resolve, by id, whichever adapter built them. */
   readonly definitions?: MemoryRuntimeOptions['definitions']
   readonly initialEntries?: readonly string[]
+  /** The host-supplied placement identity, for `perInstance` keys. */
+  readonly instanceId?: string
+  /** Stored values in place before anything renders, in any area; they belong to the mount. */
+  readonly storage?: readonly StoredSeed[]
+  /** The `user` backend; an in-memory one, seeded from `storage`, when omitted. */
+  readonly userStorage?: UserStorageAdapter
 }
 
 export interface MfeTestEnvironment {
@@ -84,15 +94,29 @@ export interface MfeTestEnvironment {
     readonly local: MemoryStorageArea
     readonly session: MemoryStorageArea
   }
+  /** The in-memory `user` backend, unless the test passed `userStorage`. */
+  readonly userStorage: MemoryUserStorage | undefined
+  /** The mount's own storage, for reading and writing values the way the mount does. */
+  readonly storage: MfeStorage
   dispose(): Promise<void>
 }
 
 /** Only the options a memory runtime reads, so an absent one stays absent. */
 function memoryOptions(options: MfeTestEnvironmentOptions): MemoryRuntimeOptions {
+  const owner = options.definitionId ?? 'test-definition'
+  const values = options.storage?.map(([key, value, caller]): StoredSeed => [
+    key,
+    value,
+    { owner, ...withoutUndefined({ instanceId: options.instanceId }), ...caller },
+  ])
   return withoutUndefined({
     shellState: options.shellState,
     definitions: options.definitions,
     initialEntries: options.initialEntries,
+    storage:
+      values === undefined && options.userStorage === undefined
+        ? undefined
+        : withoutUndefined({ values, user: options.userStorage }),
   })
 }
 
@@ -112,7 +136,7 @@ export function createMfeTestEnvironment(
     definitionId: options.definitionId ?? 'test-definition',
     ...withoutUndefined({ definitionVersion: options.definitionVersion }),
     kind: options.kind ?? 'app',
-    ...withoutUndefined({ basePath: options.basePath }),
+    ...withoutUndefined({ basePath: options.basePath, instanceId: options.instanceId }),
   })
   const mount = withQueryClient(handle.context)
 
@@ -135,6 +159,8 @@ export function createMfeTestEnvironment(
     diagnostics: memory.diagnostics,
     navigation: memory.navigation,
     storageAreas: memory.storageAreas,
+    userStorage: memory.userStorage,
+    storage: mount.storage,
     dispose: async () => {
       await handle.dispose()
       memory.dispose()
@@ -163,6 +189,8 @@ export type RenderAppOptions = MfeTestEnvironmentOptions
 
 export interface RenderedMfe extends RenderResult {
   readonly environment: MfeTestEnvironment
+  /** The mount's storage, as `environment.storage`. */
+  readonly storage: MfeStorage
   dispose(): Promise<void>
 }
 
@@ -178,6 +206,7 @@ function renderInto(environment: MfeTestEnvironment, ui: ReactNode): RenderedMfe
   return {
     ...result,
     environment,
+    storage: environment.storage,
     dispose: async () => {
       result.unmount()
       scopeRoot.remove()

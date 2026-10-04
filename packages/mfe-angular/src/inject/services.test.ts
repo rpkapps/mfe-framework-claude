@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { createApp } from '../definition.ts'
 import { createHostApplication, createMfeTestEnvironment, mountApp } from '../testing/index.ts'
 import { injectMfeMount, injectOptionalMfeMount } from './runtime.ts'
-import { injectBasePath, injectMfeSignal, injectMfeStorage, injectTelemetry } from './services.ts'
+import { injectBasePath, injectMfeSignal, injectTelemetry } from './services.ts'
 import { injectWidgetEmit } from './widget-emit.ts'
 
 @Component({ selector: 'test-page', template: '' })
@@ -21,15 +21,11 @@ describe('the mount-bound services', () => {
       telemetry: injectTelemetry(),
       signal: injectMfeSignal(),
       basePath: injectBasePath(),
-      local: injectMfeStorage(),
-      session: injectMfeStorage('session'),
     }))
 
     expect(services.mount.definitionId).toBe('orders')
     expect(services.basePath).toBe('/orders')
     expect(services.telemetry).toBe(services.mount.telemetry)
-    expect(services.local).toBe(services.mount.storage.local)
-    expect(services.session).toBe(services.mount.storage.session)
     expect(services.signal.aborted).toBe(false)
 
     await app.dispose()

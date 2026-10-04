@@ -195,7 +195,6 @@ catalog:
   # Same scope and reason as css-loader above.
   webpack: 5.98.0
   zod: 4.6.5
-  esbuild: 0.28.2
 # The documentation site (`apps/docs`) is a Vite + TanStack Start application, and
 # `@tanstack/react-start` depends on an exact `@tanstack/react-router`. Two copies of the router in
 # one bundle leave the server renderer talking to the wrong one ("router.serverSsr

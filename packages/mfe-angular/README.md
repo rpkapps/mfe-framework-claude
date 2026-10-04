@@ -265,7 +265,7 @@ initialiser — and clean up with the injector that created them.
 | ------------------------------------------------- | ------------------------------------------------------------------- | ----------------- |
 | `injectSession()`                                 | the session generation and cancellation signal                      | throws            |
 | `injectUser()`, `injectGroups()`, `injectTheme()` | a signal over one shell-state field each                            | host scope        |
-| `injectStoredState(name, schema, options)`        | `{ value: Signal<T>, set, remove }`; an unreadable value throws     | host scope        |
+| `injectStoredState(key, { select? })`             | signals `value`, `status`, `error`; `set`, `reset`, `retry`         | host scope        |
 | `injectAction(registration \| () => …)`           | an `ActionRun`; a factory re-publishes when the signals it reads do | host scope        |
 | `injectAgentContext(registration \| () => …)`     | nothing; a factory re-publishes when the signals it reads do        | host scope        |
 | `injectAgentPrompt()`                             | a function that hands a prompt to the shell's chat                  | host scope        |
@@ -273,7 +273,7 @@ initialiser — and clean up with the injector that created them.
 | `injectBreadcrumbs(items)`                        | overrides the App's own crumbs; an empty list means no override     | host crumbs, at 0 |
 | `injectNavigationBlock(shouldBlock, options)`     | `{ pending: Signal<NavigationIntent \| null>, proceed(), stay() }`  | throws            |
 | `injectTelemetry()`, `injectMfeSignal()`          | the mount's telemetry and its disposal signal                       | throws            |
-| `injectBasePath()`, `injectMfeStorage(area)`      | the boundary (`''` for a Widget) and the imperative storage handle  | throws            |
+| `injectBasePath()`                                | the boundary (`''` for a Widget)                                    | throws            |
 | `injectWidgetEmit<typeof contract>()`             | the Widget's validating emit                                        | throws            |
 | `injectMfeRuntime()`, `injectMfeMount()`          | the runtime; the mount (`injectOptionalMfeMount()` does not throw)  | runtime only      |
 
@@ -282,7 +282,8 @@ For action registration, cancellation and the returned `ActionRun`, see
 and the shared [action contract](../../apps/docs/content/docs/reference/hooks-and-components.mdx#useaction).
 That reference also covers agent context, prompts and suggestions.
 
-Stored preferences survive sign-out and are shared by the browser profile's users. Keep nothing personal in them.
+Local and session values survive sign-out and are shared by the browser profile's users. Keep
+nothing personal in them; personal values belong in `storage: 'user'`.
 See [Remember a value](../../apps/docs/content/docs/remember-a-value.mdx).
 
 **The mount's elements.** `injectMfeMount()` carries the two elements the

@@ -53,7 +53,7 @@ import {
 
 import { addTile, tileKey, type DashboardLayout } from './dashboard/layout-store.ts'
 import { useDashboardLayout } from './hooks.ts'
-import type { ShellTheme } from './preferences.ts'
+import type { ShellTheme } from '@company/mfe-react'
 import { ShortcutKeys } from './shortcut-keys.tsx'
 
 type ActionEntry = ReturnType<MfeRuntime['actions']['getSnapshot']>[number]

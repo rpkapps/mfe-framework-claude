@@ -1,5 +1,3 @@
-import type { StateValues } from '@company/mfe-core/shared-state'
-import { emptySharedStateStore } from '@company/mfe-runtime/shared-state'
 /**
  * Mounting an App: build the boundary history, call the author's factory once, validate what it
  * returned, then render the router, so an App that ignores the supplied `basePath` or `history`
@@ -24,11 +22,10 @@ import type { MfeContext, MfeRouterContext } from './router-contract.ts'
 import type { MfeMount } from './runtime.ts'
 
 /** The snapshot fields are read fresh each time, so a route callback sees current values. */
-export function createRouterContext<V = StateValues>(mount: MfeMount): MfeRouterContext<V> {
+export function createRouterContext(mount: MfeMount): MfeRouterContext {
   const shellState = mount.runtime.shellState.getSnapshot()
 
   const mfe: MfeContext = Object.freeze({
-    sharedState: mount.sharedState ?? emptySharedStateStore(),
     user: shellState.user,
     groups: shellState.groups,
     theme: shellState.theme,
@@ -37,7 +34,7 @@ export function createRouterContext<V = StateValues>(mount: MfeMount): MfeRouter
     signal: mount.signal,
   })
 
-  return Object.freeze({ mfe, queryClient: mount.queryClient }) as unknown as MfeRouterContext<V>
+  return Object.freeze({ mfe, queryClient: mount.queryClient })
 }
 
 /** Every failure names the rule that was broken; the fix is a one-line factory change. */

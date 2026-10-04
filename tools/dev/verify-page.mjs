@@ -22,8 +22,10 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
-import { verifySharedStateDevtools } from '../browser/verify-shared-state-devtools.mjs'
-import { verifySharedStateScale } from '../browser/verify-shared-state-scale.mjs'
+import { verifyDashboardTileMenu } from '../browser/verify-dashboard-tile-menu.mjs'
+import { verifyStorageDevtools } from '../browser/verify-storage-devtools.mjs'
+import { verifyStorageScale } from '../browser/verify-storage-scale.mjs'
+import { verifyUserStoragePreferences } from '../browser/verify-user-storage-preferences.mjs'
 
 const repoRoot = fileURLToPath(new URL('../..', import.meta.url))
 
@@ -65,8 +67,9 @@ const PAGES = [
     nested: [{ parent: 'lab', child: 'alert-panel', contains: 'Alert a-1001' }],
   },
   {
-    // Hydration and updates cross the real API and federation boundaries in both directions.
-    url: '/lab/shared-state',
+    // The user's values load before either MFE mounts; the Lab's writes and the Widget's read of
+    // them cross the real API and federation boundaries.
+    url: '/lab/user-storage',
     mounts: ['lab'],
     nested: [{ parent: 'lab', child: 'well-inspection', contains: 'North Ridge 42' }],
     angularPageAssets: true,
@@ -76,19 +79,22 @@ const PAGES = [
       await planner.getByText('North Ridge 42', { exact: true }).waitFor()
       // Start from metres even when a previous local run saved feet.
       await page.getByLabel('Depth units').selectOption('metric')
-      await planner.getByRole('button', { name: 'Use feet', exact: true }).click()
+      await page.getByLabel('Depth units').selectOption('imperial')
+      await planner.getByText('Inspection depth: 8,038 ft', { exact: true }).waitFor()
+      await planner.getByRole('button', { name: 'Prepare inspection', exact: true }).click()
+      await planner.getByRole('region', { name: 'Inspection brief' }).waitFor()
       const results = page.getByRole('region', { name: 'React survey results' })
       await results.getByRole('cell', { name: '8,038 ft', exact: true }).waitFor()
       check(
-        'Angular units update the React units picker through shared state',
+        'Angular reads the units the Lab owns through user storage',
         (await page.getByLabel('Depth units').inputValue()) === 'imperial',
-        'React did not read the units saved by Angular',
+        'the Lab did not keep its own units',
       )
     },
   },
   {
-    // A new App mount hydrates the selection saved by the two MFEs on the previous page.
-    url: '/fieldwork/shared-state',
+    // A new App mount reads the selection the Lab saved on the previous page.
+    url: '/fieldwork/user-storage',
     mounts: ['fieldwork'],
     nested: [{ parent: 'fieldwork', child: 'well-inspection', contains: 'North Ridge 42' }],
     contains: 'Inspection depth: 8,038 ft',
@@ -865,8 +871,10 @@ async function main() {
   }
 
   if (values.url === undefined) {
-    await verifySharedStateDevtools(browser)
-    await verifySharedStateScale(browser)
+    await verifyDashboardTileMenu(browser)
+    await verifyStorageDevtools(browser)
+    await verifyStorageScale(browser)
+    await verifyUserStoragePreferences(browser)
   }
   if (values['keep-open'] !== true) await browser.close()
 }

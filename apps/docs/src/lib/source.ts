@@ -13,14 +13,13 @@ import { REPO_DOCS_DIR } from './repo-page.ts'
 export type DocEntry = (typeof docs.docs)[number] | (typeof repoDocs.docs)[number]
 
 /**
- * `fumadocs-mdx` gives one collection one directory. The repository design, decisions and
- * shared-state protocol live outside `content/docs`. Concatenating the two virtual file lists puts
+ * `fumadocs-mdx` gives one collection one directory. The repository design map and decision log
+ * live outside `content/docs`. Concatenating the two virtual file lists puts
  * them in the same tree, so a `meta.json` can order them beside the written pages.
  *
  * `baseDir` prefixes the second list's virtual paths with `how-it-works/`, and the loader derives
  * both the slug and the folder from that path: the repository files become
- * `/docs/how-it-works/design`, `/docs/how-it-works/decisions` and
- * `/docs/how-it-works/shared-state`, ordered by
+ * `/docs/how-it-works/design` and `/docs/how-it-works/decisions`, ordered by
  * `content/docs/how-it-works/meta.json`. The files themselves are untouched.
  */
 const merged: StaticSource<{ pageData: DocEntry; metaData: MetaData }> = {
@@ -46,11 +45,9 @@ const NAV_LABELS: Record<string, string> = {
   '/docs/render-a-widget-at-run-time': 'Dynamic Widgets',
   '/docs/react-to-widget-outputs': 'Handle outputs',
   '/docs/ask-the-app-to-navigate': 'Navigation outputs',
-  '/docs/remember-a-value': 'Browser storage',
+  '/docs/remember-a-value': 'Store a value',
   '/docs/change-the-shape-of-a-stored-value': 'Storage migrations',
-  '/docs/shared-state': 'Shared state',
-  '/docs/configure-shared-state': 'Shell configuration',
-  '/docs/evolve-shared-state': 'Schema evolution',
+  '/docs/configure-user-storage': 'User storage in the shell',
   '/docs/telemetry': 'Events, errors & traces',
   '/docs/add-an-action': 'Actions',
   '/docs/offer-an-action-to-the-agent': 'Agent tools',
@@ -98,7 +95,6 @@ const NAV_LABELS: Record<string, string> = {
   '/docs/how-it-works/adapters': 'Adapters',
   '/docs/how-it-works/design': 'Design map',
   '/docs/how-it-works/decisions': 'Decisions',
-  '/docs/how-it-works/shared-state': 'Shared-state protocol',
 }
 
 export const source = loader({

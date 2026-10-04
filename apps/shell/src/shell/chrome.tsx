@@ -91,10 +91,10 @@ import {
 } from './hooks.ts'
 import { negotiateNavigation } from './navigation.ts'
 import { CommandPalette } from './palette.tsx'
-import { writeTheme } from './preferences.ts'
 import { ReleasesDialog } from './releases-dialog.tsx'
 import { ReportBugDialog } from './report-bug-dialog.tsx'
 import { SettingsSheet } from './settings-sheet.tsx'
+import { ThemeAction } from './theme-action.tsx'
 import { ShortcutKeys } from './shortcut-keys.tsx'
 import { shellUi } from './ui-store.ts'
 import { workspace } from './workspace.ts'
@@ -135,22 +135,13 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
   const navigate = useNavigate()
   const surface = useShellSurface()
   // Shell state is the theme's one source of truth, so a mounted App reads the same value
-  // through the same hook.
+  // through the same hook; the runtime applies it to the document.
   const theme = useTheme()
   useAnnounceShellNavigation()
   // The shell's own actions and their keys, and the one listener every action's keys go
   // through — a mounted App's included, which renders in a React root of its own.
   useShellActions()
   useActionShortcuts()
-
-  useEffect(() => {
-    // `dark` is what the design system's variant keys off.
-    document.documentElement.classList.toggle('dark', theme === 'dark')
-    document.documentElement.style.colorScheme = theme
-    // Remembered here rather than at each switch, because the theme has four ways to change and
-    // a fifth added later would be the one that forgets; the key is the bare `theme` (§24).
-    writeTheme(theme)
-  }, [theme])
 
   // `action` is forwarded rather than dropped, because refusing the back button while allowing a
   // redirect is a distinction an App is entitled to make.
@@ -175,6 +166,7 @@ export function ShellLayout({ children }: { readonly children: ReactNode }): Rea
     // and every breadcrumb click tore the shell down. It covers the surfaces too, whose rows link
     // to an application's pages; an App mounts in a root of its own, so none of this reaches it.
     <TectonProvider navigate={navigateTo}>
+      <ThemeAction />
       {/* A third child of this grid would land in the `1fr` row and push the mounted App down the page. */}
       <AppShell>
         <Header />
@@ -439,7 +431,7 @@ function Header(): ReactNode {
           <DropdownMenuGroup>
             <DropdownMenuItem
               onClick={() => {
-                runtime.shellState.apply({ theme: theme === 'dark' ? 'light' : 'dark' })
+                void runtime.actions.execute('@host:theme', { caller: 'ui' })
               }}
             >
               {theme === 'dark' ? <SunIcon /> : <MoonIcon />}

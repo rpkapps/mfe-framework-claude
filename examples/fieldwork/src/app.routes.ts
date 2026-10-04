@@ -4,8 +4,8 @@ import { mfeRouteData } from '@company/mfe-angular'
 import { InspectionComponent } from './inspection.component'
 import { OverviewComponent } from './overview.component'
 import { SettingsComponent } from './settings.component'
-import { SharedStateComponent } from './shared-state.component'
-import { selectionResolver } from './shared-state.resolver'
+import { UserStorageComponent } from './user-storage.component'
+import { selectionResolver } from './user-storage.resolver'
 
 // Settings, help and release notes are pages, so they are routes. Declaring the capability
 // inline, on the route's own `data`, is all an App does; the build extracts it statically into
@@ -13,8 +13,8 @@ import { selectionResolver } from './shared-state.resolver'
 export const routes: Routes = [
   { path: '', component: OverviewComponent },
   {
-    path: 'shared-state',
-    component: SharedStateComponent,
+    path: 'user-storage',
+    component: UserStorageComponent,
     resolve: { selection: selectionResolver },
   },
   // Its breadcrumb is the inspection's id, read from the parameter.

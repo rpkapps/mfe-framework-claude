@@ -114,10 +114,11 @@ host gives each copy an `instanceId`:
 <DynamicWidget widgetId="well-view" instanceId="dashboard-east-well" />
 ```
 
-Inside the Widget, pass `{ scope: 'instance' }` to `useStoredState`, `injectStoredState` or a storage
-key operation. Use the same ID when the tile returns after a reload. A new ID starts a separate
-record; reusing an ID shares it. Instance storage without a non-empty host ID fails with
-`storage/failure`. Omitting `scope` keeps the definition-wide record.
+Inside the Widget, declare the key with `storedKey(name, schema, { perInstance: true })` and read
+it with `useStoredState` or `injectStoredState` as usual. Use the same ID when the tile returns after
+a reload. A new ID starts a separate value; reusing an ID shares it. A `perInstance` key without a
+non-empty host ID fails with `storage/invalid-value`. A key without `perInstance` keeps one value
+for every copy.
 
 ## Tests and bundle size
 

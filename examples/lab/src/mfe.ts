@@ -1,9 +1,7 @@
 /** `router` is a factory called once per mount, not once per module, so two mounts get two
  * independent routers from the one generated tree (§2). */
 
-import { createApp } from '@company/mfe-react'
-import { sharedStateSchema } from '@example/shared-state-contracts'
-import type { AppRouterOptions } from '#mfe/shared-state'
+import { createApp, type AppRouterOptions } from '@company/mfe-react'
 import { createRouter } from '@tanstack/react-router'
 
 import packageJson from '../package.json'
@@ -36,5 +34,4 @@ export default createApp({
   id: 'lab',
   version: packageJson.version,
   router: makeRouter,
-  sharedStateSchema,
 })

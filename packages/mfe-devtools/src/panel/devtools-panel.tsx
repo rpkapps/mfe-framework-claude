@@ -44,7 +44,7 @@ import { MountOutlineOverlay } from './outline-overlay.tsx'
 import { useOverlayLayer } from './overlay-layer.ts'
 import { OverridesTab } from './overrides-tab.tsx'
 import { RegistryTab } from './registry-tab.tsx'
-import { SharedStateTab } from './shared-state-tab.tsx'
+import { StorageTab } from './storage-tab.tsx'
 import { useActiveOverrides } from './use-devtools.ts'
 
 const SIDE_ICON: Readonly<Record<DevtoolsSide, typeof PanelTopIcon>> = {
@@ -177,9 +177,9 @@ function DevtoolsDock({
                 <LayersIcon />
                 <span className="@max-lg:sr-only">Registry</span>
               </TabsTrigger>
-              <TabsTrigger value="shared-state" aria-label="Shared State">
+              <TabsTrigger value="storage" aria-label="Storage">
                 <DatabaseIcon data-icon="inline-start" />
-                <span className="@max-lg:sr-only">Shared State</span>
+                <span className="@max-lg:sr-only">Storage</span>
               </TabsTrigger>
             </TabsList>
 
@@ -295,8 +295,8 @@ function DevtoolsDock({
             <TabsContent value="registry" className="min-h-0 flex-1 overflow-y-auto p-3">
               <RegistryTab />
             </TabsContent>
-            <TabsContent value="shared-state" className="flex min-h-0 flex-1 flex-col">
-              <SharedStateTab />
+            <TabsContent value="storage" className="flex min-h-0 flex-1 flex-col">
+              <StorageTab />
             </TabsContent>
           </PanelContent>
         </Tabs>

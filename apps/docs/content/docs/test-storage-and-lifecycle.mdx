@@ -1,10 +1,11 @@
 ---
 title: 'Test storage and the lifecycle'
-description: 'Seed a stored record, render through the test environment, then change the signed-in user and see that it stays.'
+description: 'Seed stored values by key, render through the test environment, exercise a loading or failing user backend, and change the signed-in user.'
 ---
 
-Apps and Widgets. Seed browser storage in a memory environment, mount your component, then change the signed-in user.
-React uses a provider wrapper. Angular mounts a definition with its real injection context.
+Apps and Widgets. Seed stored values by key in a memory environment, mount your component, then
+change the signed-in user. React uses a provider wrapper. Angular mounts a definition with its real
+injection context.
 
 ## Steps
 
@@ -12,21 +13,18 @@ React uses a provider wrapper. Angular mounts a definition with its real injecti
 
 <Step>
 
-### 1. Create the environment, and dispose it after each test
+### 1. Import your keys, and dispose the environment after each test
 
 <Tabs items={['React', 'Angular']} defaultValue="React">
 <Tab value="React">
 
-```tsx title="Illustrative src/routes/storage.test.tsx"
+```tsx title="src/storage.test.tsx"
 import { useStoredState } from '@company/mfe-react'
 import { createMfeTestEnvironment } from '@company/mfe-react/testing'
-import { renderHook } from '@testing-library/react'
-import { StrictMode } from 'react'
+import { act, renderHook, waitFor } from '@testing-library/react'
 import { afterEach, expect, it } from 'vitest'
-import { z } from 'zod'
 
-const visitsSchema = z.number().int().nonnegative()
-const draftSchema = z.object({ note: z.string(), pinned: z.boolean() })
+import { draft, units, visits } from './storage.ts'
 
 let environment: ReturnType<typeof createMfeTestEnvironment> | null = null
 
@@ -40,15 +38,14 @@ afterEach(async () => {
 </Tab>
 <Tab value="Angular">
 
-```ts title="Illustrative Angular storage.test.ts"
+```ts title="src/storage.test.ts"
 import { Component, runInInjectionContext } from '@angular/core'
 import { createWidget, injectStoredState } from '@company/mfe-angular'
 import { cleanup, createMfeTestEnvironment, mountWidget } from '@company/mfe-angular/testing'
 import { afterEach, expect, it } from 'vitest'
 import { z } from 'zod'
 
-const visitsSchema = z.number().int().nonnegative()
-const draftSchema = z.object({ note: z.string(), pinned: z.boolean() })
+import { draft, visits } from './storage'
 
 @Component({ selector: 'storage-probe', template: '' })
 class StorageProbe {}
@@ -71,45 +68,48 @@ afterEach(async () => {
 </Tab>
 </Tabs>
 
-Declare each schema once, at module scope. The test and the component have to hand the framework
-the same schema for the same key.
+Import the keys your code declares. A test never repeats a key's name or schema.
 
 </Step>
 
 <Step>
 
-### 2. Seed the records before you render
+### 2. Seed values before you render
 
 <Tabs items={['React', 'Angular']} defaultValue="React">
 <Tab value="React">
 
-```tsx title="Illustrative src/routes/storage.test.tsx"
-environment = createMfeTestEnvironment({ definitionId: 'lab' })
+```tsx title="src/storage.test.tsx"
+environment = createMfeTestEnvironment({
+  definitionId: 'lab',
+  storage: [
+    [visits, 3],
+    [draft, { note: 'rig 4', pinned: true }],
+    [units, 'imperial'],
+  ],
+})
 const env = environment
-const storage = env.mount.storage.local
-
-storage.key('visits', visitsSchema).set(3)
-storage.key('draft', draftSchema).set({ note: 'rig 4', pinned: true })
 ```
 
 </Tab>
 <Tab value="Angular">
 
-```ts title="Illustrative Angular storage.test.ts"
-environment = createMfeTestEnvironment({ definitions: [definition] })
+```ts title="src/storage.test.ts"
+environment = createMfeTestEnvironment({
+  definitions: [definition],
+  storage: [
+    [visits, 3],
+    [draft, { note: 'rig 4', pinned: true }],
+  ],
+})
 const env = environment
-const storage = env.runtime.storage.storageFor('lab')
-
-storage.key('visits', visitsSchema).set(3)
-storage.key('draft', draftSchema).set({ note: 'rig 4', pinned: true })
 ```
 
 </Tab>
 </Tabs>
 
-The stores are in memory and start empty, so a test that reads a record writes it first.
-`definitionId` becomes the key prefix, which makes the record above `lab:visits`. Hold the environment in a local so the steps below have one that is never `null`.
-Place steps 2–5 inside an `it` callback. Use separate React test cases for the two `result` declarations.
+Seeds go in every area, `user` included, and belong to the mount's definition. `renderApp` and
+`renderWidget` take the same `storage` option. Place steps 2–5 inside an `it` callback.
 
 </Step>
 
@@ -120,22 +120,20 @@ Place steps 2–5 inside an `it` callback. Use separate React test cases for the
 <Tabs items={['React', 'Angular']} defaultValue="React">
 <Tab value="React">
 
-```tsx title="Illustrative src/routes/storage.test.tsx"
-const { result } = renderHook(() => useStoredState('visits', visitsSchema, { defaultValue: 0 }), {
-  wrapper: env.wrapper,
-})
+```tsx title="src/storage.test.tsx"
+const { result } = renderHook(() => useStoredState(visits), { wrapper: env.wrapper })
 
-expect(result.current[0]).toBe(3)
+expect(result.current.value).toBe(3)
+await act(() => result.current.set(4))
+expect(env.mount.storage.peek(visits)).toBe(4)
 ```
 
 </Tab>
 <Tab value="Angular">
 
-```ts title="Illustrative Angular storage.test.ts"
+```ts title="src/storage.test.ts"
 const widget = await mountWidget(definition, { environment: env })
-const state = runInInjectionContext(widget.injector, () =>
-  injectStoredState('visits', visitsSchema, { defaultValue: 0 }),
-)
+const state = runInInjectionContext(widget.injector, () => injectStoredState(visits))
 
 expect(state.value()).toBe(3)
 ```
@@ -145,7 +143,6 @@ expect(state.value()).toBe(3)
 
 React's wrapper supplies the mount providers. Angular's `mountWidget` supplies the mount injector.
 Run each Angular injector call synchronously inside `runInInjectionContext`.
-The awaited mount supplies a live injector; an `await` inside that injection callback would end its context.
 
 </Step>
 
@@ -156,69 +153,67 @@ The awaited mount supplies a live injector; an `await` inside that injection cal
 <Tabs items={['React', 'Angular']} defaultValue="React">
 <Tab value="React">
 
-```tsx title="Illustrative src/routes/storage.test.tsx"
+```tsx title="src/storage.test.tsx"
 env.setShellState({ user: { id: 'u-2', name: 'Sam Reyes' } })
 
-expect(result.current[0]).toBe(3)
-expect(storage.key('draft', draftSchema).get()).toEqual({ note: 'rig 4', pinned: true })
+expect(env.mount.storage.peek(draft)).toEqual({ note: 'rig 4', pinned: true })
 ```
 
 </Tab>
 <Tab value="Angular">
 
-```ts title="Illustrative Angular storage.test.ts"
+```ts title="src/storage.test.ts"
 env.setShellState({ user: { id: 'u-2', name: 'Sam Reyes' } })
 await widget.whenStable()
 
-expect(storage.key('visits', visitsSchema).get()).toBe(3)
-expect(storage.key('draft', draftSchema).get()).toEqual({ note: 'rig 4', pinned: true })
+const storage = env.runtime.storage.forCaller({ owner: 'lab' })
+expect(storage.peek(draft)).toEqual({ note: 'rig 4', pinned: true })
 ```
 
 </Tab>
 </Tabs>
 
-`setShellState` runs the identity change the shell runs. Browser storage keeps both records after the identity changes. The old Angular mount may be disposed, so check persistence through the environment's storage handle. Keep nothing
-personal in storage.
+`setShellState` runs the identity change the shell runs. Local and session values stay. User values
+are dropped and loaded again for the new user. The old Angular mount may be disposed, so read
+through the runtime's storage.
 
 </Step>
 
 <Step>
 
-### 5. Check a remount
+### 5. Exercise a loading or failing backend
 
 <Tabs items={['React', 'Angular']} defaultValue="React">
 <Tab value="React">
 
-```tsx title="Illustrative src/routes/storage.test.tsx"
-const options = { defaultValue: 0 } as const
-
-const { result } = renderHook(() => useStoredState('visits', visitsSchema, options), {
-  wrapper: ({ children }) => (
-    <StrictMode>
-      <env.wrapper>{children}</env.wrapper>
-    </StrictMode>
-  ),
+```tsx title="src/storage.test.tsx"
+const save = () => Promise.resolve(null)
+const failing = createMfeTestEnvironment({
+  userStorage: { load: () => Promise.reject(new Error('down')), save },
 })
+const { result } = renderHook(() => useStoredState(units), { wrapper: failing.wrapper })
+
+await waitFor(() => expect(result.current.status).toBe('error'))
+expect(result.current.value).toBe('metric')
+await failing.dispose()
 ```
 
 </Tab>
 <Tab value="Angular">
 
-```ts title="Illustrative Angular storage.test.ts"
-await widget.dispose()
-const remounted = await mountWidget(definition, { environment: env })
-const next = runInInjectionContext(remounted.injector, () =>
-  injectStoredState('visits', visitsSchema, { defaultValue: 0 }),
-)
-
-expect(next.value()).toBe(3)
+```ts title="src/storage.test.ts"
+const save = () => Promise.resolve(null)
+const failing = createMfeTestEnvironment({
+  definitions: [definition],
+  userStorage: { load: () => Promise.reject(new Error('down')), save },
+})
 ```
 
 </Tab>
 </Tabs>
 
-React's StrictMode checks repeated setup and cleanup. Angular checks explicit disposal and remounting.
-Both should keep the stored record while ending the old subscriptions.
+`load: () => new Promise(() => {})` keeps the area loading. `createMemoryUserStorage(rows)` is a
+working backend whose `saves` list records what was sent.
 
 </Step>
 
@@ -235,49 +230,36 @@ different user, groups or theme. The environment carries the rest of the mount t
 | `diagnostics`   | what the framework reported                   |
 | `navigation`    | where the mount asked to go                   |
 | `routerContext` | calling a React route callback                |
-| `storageAreas`  | inspecting what was written                   |
+| `storageAreas`  | inspecting what was written to the browser    |
 | `runtime`       | the registry, the stores and the shell state  |
 
 ## Errors
 
-<Callout type="error" title="mount/failure, outside a mount">
+<Callout type="error" title="storage/invalid-value, a perInstance key without an instance">
 
-<Tabs items={['React', 'Angular']} defaultValue="React">
-<Tab value="React">
-
-```text
-<unmounted> failed to call useMfeStorage: expected a component rendered inside an App or Widget
-mount, received a component rendered outside any mount.
+```text shared
+lab failed to bind a stored key camera: expected a stable host-supplied instanceId for a
+perInstance key, received undefined.
 ```
 
-</Tab>
-<Tab value="Angular">
-
-```text
-<unmounted> failed to call injectMfeStorage(): expected a component or service created inside an App or Widget mount, received one created outside any mount.
-```
-
-</Tab>
-</Tabs>
-
-**Fix.** Render React through `environment.wrapper`. Mount the Angular definition with `mountWidget` before calling its injectors.
+**Fix.** Pass `instanceId` to `createMfeTestEnvironment`, `renderWidget` or `mountWidget`.
 
 </Callout>
 
-<Callout type="error" title="the same schema object every active consumer already declared">
+<Callout type="error" title="storage/failure, two keys with one name">
 
 ```text shared
 lab failed to bind the local storage key visits: expected the same schema object every active
 consumer already declared, received a different schema object.
 ```
 
-**Fix.** Import the one schema into the test instead of writing a second copy of it.
+**Fix.** Import the one key into the test instead of declaring a second copy of it.
 
 </Callout>
 
 ## Related
 
-- [Remember a value across reloads](/docs/remember-a-value) — the hook under test.
-- [Read or write storage outside render](/docs/remember-a-value#read-or-write-outside-render) — the imperative handle used to seed.
+- [Store a value](/docs/remember-a-value) — the keys under test.
+- [Provide user storage from the shell](/docs/configure-user-storage) — the adapter being faked.
 - [The mount lifecycle](/docs/how-it-works/the-mount-lifecycle) — what a mount owns and when it is disposed.
 - [Testing API](/docs/reference/testing-api) — every field of the environment.

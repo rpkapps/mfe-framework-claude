@@ -1,0 +1,20 @@
+{
+  "name": "@example/user-storage-demo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./wells": {
+      "types": "./src/wells.d.ts",
+      "default": "./src/wells.js"
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test server.test.mjs"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "@types/node": "catalog:"
+  }
+}

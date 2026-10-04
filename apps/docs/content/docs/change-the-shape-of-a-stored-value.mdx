@@ -1,10 +1,11 @@
 ---
 title: 'Change the shape of a stored value'
-description: 'Raise version and declare migrate so an old record is converted instead of failing the read.'
+description: 'Raise version and declare migrate on the key so an old value is converted instead of failing the read.'
 ---
 
-A stored record written by an older build no longer matches your schema. Raise `version` and
-declare `migrate` beside it, and the next read converts the old record. Apps and Widgets.
+A stored value written by an older build no longer matches your schema. Raise `version` on the key
+and declare `migrate` beside it, and the next read converts the old value. Apps and Widgets, in
+every storage area.
 
 ## Steps
 
@@ -12,41 +13,51 @@ declare `migrate` beside it, and the next read converts the old record. Apps and
 <Step>
 ### 1. Raise the version and convert
 
-```ts shared title="Illustrative shared migration options"
-const draftOptions = {
-  defaultValue: { note: '', pinned: false },
-  version: 2,
-  migrate: (value: unknown, fromVersion: number) =>
-    fromVersion === 0
-      ? { note: '', pinned: false }
-      : { note: (value as { text: string }).text, pinned: false },
-}
-```
-
 <Tabs items={['React', 'Angular']} defaultValue="React">
 <Tab value="React">
 
-```tsx title="Illustrative React component body"
-import { useStoredState } from '@company/mfe-react'
+```ts title="src/storage.ts"
+import { storedKey } from '@company/mfe-react'
+import { z } from 'zod'
 
-const [draft] = useStoredState('draft', draftSchema, draftOptions)
+export const draft = storedKey(
+  'draft',
+  z.object({ note: z.string(), pinned: z.boolean() }).default({ note: '', pinned: false }),
+  {
+    version: 2,
+    migrate: (value, fromVersion) =>
+      fromVersion === 0
+        ? { note: '', pinned: false }
+        : { note: (value as { text: string }).text, pinned: false },
+  },
+)
 ```
 
 </Tab>
 <Tab value="Angular">
 
-```ts title="Illustrative Angular component field"
-import { injectStoredState } from '@company/mfe-angular'
+```ts title="src/storage.ts"
+import { storedKey } from '@company/mfe-angular'
+import { z } from 'zod'
 
-readonly draft = injectStoredState('draft', draftSchema, draftOptions)
+export const draft = storedKey(
+  'draft',
+  z.object({ note: z.string(), pinned: z.boolean() }).default({ note: '', pinned: false }),
+  {
+    version: 2,
+    migrate: (value, fromVersion) =>
+      fromVersion === 0
+        ? { note: '', pinned: false }
+        : { note: (value as { text: string }).text, pinned: false },
+  },
+)
 ```
 
 </Tab>
 </Tabs>
 
-Declare `draftSchema` and `draftOptions` at module scope. Both frameworks use the same migration options.
-
-`version` starts at `1` and is an integer. Raise it whenever the stored shape changes.
+`version` starts at `1` and is an integer. Raise it whenever the stored shape changes. Every place
+that reads the key keeps calling `useStoredState(draft)` or `injectStoredState(draft)` unchanged.
 
 </Step>
 <Step>
@@ -56,7 +67,7 @@ Declare `draftSchema` and `draftOptions` at module scope. Both frameworks use th
 if (fromVersion === 0) return { note: '', pinned: false }
 ```
 
-Older, unversioned JSON arrives as `fromVersion` 0. Handle those records explicitly in your migration.
+Older, unversioned JSON in browser storage arrives as `fromVersion` 0. Handle it explicitly.
 
 </Step>
 <Step>
@@ -67,9 +78,9 @@ Older, unversioned JSON arrives as `fromVersion` 0. Handle those records explici
 migrate: (value, fromVersion) => convert(value, fromVersion)
 ```
 
-The framework converts the value, validates it against your schema, then writes it back. Nothing is
-written when `migrate` throws or returns a value your schema rejects. The old record is left as it
-was.
+The framework converts the value, then validates it against your schema. A local or session value
+is written back at once. A user value is written back on the owner's next save, never on read.
+Nothing is written when `migrate` throws or returns a value your schema rejects.
 
 </Step>
 </Steps>
@@ -77,51 +88,49 @@ was.
 ## Check it works
 
 Store a value on the old build, then load the new one. The value on screen is the converted one,
-and the record in Local storage now carries the new version. Run it a second time and nothing
-converts, because the record already matches. In a test, seed the old record and read it back
-through the new declaration.
+and the local record now carries the new version. Run it a second time and nothing converts. In a
+test, seed the old record and read it back through the new key.
 
 ## Errors
 
-<Callout type="error" title="storage/failure, at read">
+<Callout type="error" title="storage/invalid-value, at read">
 
 ```text shared
-lab failed to read the local storage key draft: expected version 2, received version 1 with no
-migrate() declared.
+lab failed to read a user value draft: a value written at version 1. Add migrate() to 'draft' to
+convert from version 1.
 ```
 
-**Fix.** Declare `migrate` beside the raised `version`, or remove the key.
+**Fix.** Declare `migrate` beside the raised `version`. The key reads its default with status
+`error` until then, and the stored value is untouched.
 
 </Callout>
 
-<Callout type="error" title="storage/failure, at read">
+<Callout type="error" title="storage/invalid-value, at read">
 
 ```text shared
-lab failed to read the local storage key draft: expected version 1, received version 2, written by
-a newer build.
+lab failed to read a user value draft: a value written at version 3, newer than this key's 2.
+Deploy the newer reader, or keep versions in step across apps.
 ```
 
-**Fix.** Reload into the current build. A record from the future is never overwritten, so nothing
-was lost.
+**Fix.** Reload into the current build. A value from a newer build is never overwritten by a read.
 
 </Callout>
 
-<Callout type="error" title="storage/failure, at migrate">
+<Callout type="error" title="storage/invalid-value, at migrate">
 
 ```text shared
-lab failed to migrate the local storage key draft: expected a value at version 2, received
-migrate() threw (TypeError: …).
+lab failed to read a user value draft: migrate() threw: TypeError: …. Fix migrate().
 ```
 
-**Fix.** Guard the fields you read in `migrate`. The previous record is preserved, so you can try
-again with a fixed conversion.
+**Fix.** Guard the fields you read in `migrate`. The previous value is preserved, so a fixed
+conversion can try again. Local and session keys report the same failures, read from the browser.
 
 </Callout>
 
 ## Related
 
-- [Remember a value across reloads](/docs/remember-a-value) — the schema and the setter
-- [Read or write storage outside render](/docs/remember-a-value#read-or-write-outside-render) — the same options
+- [Store a value](/docs/remember-a-value) — declare the key and read it
+- [Read or write outside render](/docs/remember-a-value#read-or-write-outside-render) — the same keys
 - [Test storage and the lifecycle](/docs/test-storage-and-lifecycle) — seed an old record
-- [Error codes](/docs/reference/error-codes) — every `storage/failure` message
+- [Error codes](/docs/reference/error-codes) — every `storage/*` code
 - [Version your container and its contract](/docs/version-your-container) — the other versions

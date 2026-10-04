@@ -1,4 +1,3 @@
-import type { SharedStateOptions } from '../shared-state/store.ts'
 /**
  * A complete runtime with nothing behind it but memory: the stores a shell would build, a
  * recording telemetry provider, a memory navigation bridge and a loader resolving the definitions
@@ -7,13 +6,16 @@ import type { SharedStateOptions } from '../shared-state/store.ts'
  */
 
 import {
+  HOST_SCOPE,
   withoutUndefined,
+  type AnyStoredKey,
   type BrandedDefinition,
   type DeadlineConfig,
   type Diagnostic,
   type MfeAdapter,
   type Registry,
   type RegistryEntry,
+  type UserStorageAdapter,
 } from '@company/mfe-core'
 
 import { DiagnosticsHub } from '../diagnostics.ts'
@@ -23,17 +25,37 @@ import { readRegistry } from '../registry/read-registry.ts'
 import { assembleRuntime, reportRejectedEntries } from '../runtime/assemble-runtime.ts'
 import type { MfeRuntime } from '../runtime/create-runtime.ts'
 import { ShellStateStore, type ShellStatePatch } from '../shell-state/shell-state-store.ts'
+import { StorageService } from '../storage/service.ts'
 import { MfeStorageStore } from '../storage/storage-store.ts'
 import { createInProcessLoader } from './in-process-loader.ts'
 import { createMemoryNavigationBridge } from './memory-navigation-bridge.ts'
 import { createMemoryStorageArea, type MemoryStorageArea } from './memory-storage-area.ts'
+import { createMemoryUserStorage, type MemoryUserStorage } from './memory-user-storage.ts'
 import {
   createRecordingTelemetryProvider,
   type RecordingTelemetryProvider,
 } from './recording-provider.ts'
 
+/** A stored value a test starts with: the key, its value, and whose it is when not the key's. */
+export type StoredSeed =
+  | readonly [key: AnyStoredKey<unknown>, value: unknown]
+  | readonly [key: AnyStoredKey<unknown>, value: unknown, caller: SeedCaller]
+
+export interface SeedCaller {
+  /** The owning definition; the key's `owner`, else the only definition given, else the host. */
+  readonly owner?: string
+  readonly instanceId?: string
+}
+
+export interface MemoryRuntimeStorageOptions {
+  /** The `user` backend; an in-memory one when omitted. */
+  readonly user?: UserStorageAdapter
+  /** Values in place before anything mounts, in any area. */
+  readonly values?: readonly StoredSeed[]
+}
+
 export interface MemoryRuntimeOptions {
-  readonly sharedState?: SharedStateOptions
+  readonly storage?: MemoryRuntimeStorageOptions
   /** Merged over a signed-in test user in the `testers` group, on the light theme. */
   readonly shellState?: ShellStatePatch
   /**
@@ -63,6 +85,8 @@ export interface MemoryRuntime {
     readonly local: MemoryStorageArea
     readonly session: MemoryStorageArea
   }
+  /** The in-memory `user` backend, unless the test passed its own adapter. */
+  readonly userStorage: MemoryUserStorage | undefined
   /** Mounts are the caller's; dispose them first. */
   dispose(): void
 }
@@ -84,7 +108,7 @@ export function createMemoryRuntime(options: MemoryRuntimeOptions = {}): MemoryR
     local: createMemoryStorageArea(),
     session: createMemoryStorageArea(),
   }
-  const storage = new MfeStorageStore({
+  const browser = new MfeStorageStore({
     areas: storageAreas,
     diagnostics,
     eventTarget: null,
@@ -130,9 +154,51 @@ export function createMemoryRuntime(options: MemoryRuntimeOptions = {}): MemoryR
   const registry: Registry = { entries, rejected: read.rejected }
   reportRejectedEntries(registry, diagnostics)
 
+  const definitionIds = definitions.map(definition => definition.id)
+  const seedOwner = (key: AnyStoredKey<unknown>, caller: SeedCaller | undefined): string =>
+    key.owner ??
+    caller?.owner ??
+    (definitionIds.length === 1 ? definitionIds[0] : undefined) ??
+    HOST_SCOPE
+  const seeds = options.storage?.values ?? []
+  const userRows: Record<string, Record<string, { v: number; d: unknown; revision: number }>> = {}
+  for (const [key, value, caller] of seeds) {
+    if (key.storage !== 'user') continue
+    const owner = seedOwner(key, caller)
+    if (key.perInstance && caller?.instanceId === undefined)
+      throw new Error(`Seed '${key.name}' with an instanceId: the key is perInstance`)
+    const name = key.perInstance ? `${key.name}@${caller?.instanceId}` : key.name
+    userRows[owner] = {
+      ...userRows[owner],
+      [name]: { v: key.version, d: key.schema.parse(value), revision: 1 },
+    }
+  }
+  if (options.storage?.user !== undefined && Object.keys(userRows).length > 0)
+    throw new Error(
+      'Seed user values through your own adapter: storage.values seeds only the in-memory one',
+    )
+  const userStorage =
+    options.storage?.user === undefined ? createMemoryUserStorage(userRows) : undefined
+  const storage = new StorageService({
+    browser,
+    user: options.storage?.user ?? userStorage,
+    diagnostics,
+  })
+  for (const [key, value, caller] of seeds) {
+    if (key.storage === 'user') continue
+    const owner = seedOwner(key, caller)
+    // Parsed first, so a seed that fails its schema throws here as a user seed does.
+    const parsed = key.schema.parse(value)
+    const binding = storage.bind({ owner, instanceId: caller?.instanceId }, key)
+    try {
+      binding.set(parsed).catch(() => undefined)
+    } finally {
+      binding.release()
+    }
+  }
+
   const assembled = assembleRuntime({
     registry,
-    sharedState: options.sharedState,
     loader: createInProcessLoader(loadable),
     adapters,
     shellState,
@@ -152,6 +218,7 @@ export function createMemoryRuntime(options: MemoryRuntimeOptions = {}): MemoryR
     diagnostics: recorded,
     navigation,
     storageAreas,
+    userStorage,
     dispose: () => {
       assembled.dispose()
       diagnostics.clear()

@@ -19,7 +19,7 @@ The package has three entry points. The root holds the rules, the `tooling` pres
 
 The React Hooks, TanStack and angular-eslint plugins are optional peers of the package. A preset loads its own when you call it. A missing one throws a message that names every package to install.
 
-All five rules resolve names through ESLint's scope manager. An aliased import is caught under its alias, and a local binding that merely shares a global's name is not caught at all. None of them rewrites your code for you: `mfe/no-raw-storage` offers a suggestion, and the other four leave the repair to you. In the messages below, a `{{name}}` placeholder is filled with the code on the reported line.
+All five rules resolve names through ESLint's scope manager. An aliased import is caught under its alias, and a local binding that merely shares a global's name is not caught at all. None of them rewrites your code for you or offers a suggestion: each leaves the repair to you. In the messages below, a `{{name}}` placeholder is filled with the code on the reported line.
 
 ## mfe/no-global-patching
 
@@ -84,16 +84,10 @@ Patching `{{target}}` changes event dispatch for every MFE and outlives your own
 **Message.**
 
 ```text
-`{{access}}` bypasses the MFE storage boundary: the key is not namespaced, so another MFE in this origin can read or overwrite it, it carries no version to migrate a changed shape from, and a quota failure escapes as an unhandled exception. Use `useStoredState()` for component state or `useMfeStorage()` for imperative access, both from @company/mfe-react. The storage adapter and a documented shell override bootstrap opt out through this rule's `allowedScopes` option.
+`{{access}}` bypasses the MFE storage boundary: the key is not namespaced, so another MFE in this origin can read or overwrite it, it carries no version to migrate a changed shape from, and a quota failure escapes as an unhandled exception. Declare the value with `storedKey` and read and write it through `useStoredState()` from @company/mfe-react. The storage adapter and a documented shell override bootstrap opt out through this rule's `allowedScopes` option.
 ```
 
-**Suggestion.**
-
-```text
-Read and write through the MFE storage boundary: replace `{{access}}` with `{{accessor}}` from `const {{accessor}} = useMfeStorage()`.
-```
-
-**Fix.** Use `useStoredState()` in a component, or `useMfeStorage()` everywhere else. The suggestion rewrites the object only, so the file still has to bind the accessor and spell the read the boundary's way.
+**Fix.** Declare the value once with `storedKey`, with its schema, default and area, and read and write it through `useStoredState()` in a component. A route loader reads it from `context.mfe.storage`. There is no automatic fix: the right key and schema depend on the value.
 
 **Options.**
 
@@ -101,9 +95,7 @@ Read and write through the MFE storage boundary: replace `{{access}}` with `{{ac
 'mfe/no-raw-storage': ['error', {
   allowedScopes: [],
   objects: ['localStorage', 'sessionStorage'],
-  storageAccessor: 'storage',
   storedStateHook: 'useStoredState()',
-  storageHook: 'useMfeStorage()',
   adapterModule: '@company/mfe-react',
 }]
 ```

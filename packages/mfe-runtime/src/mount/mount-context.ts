@@ -1,4 +1,3 @@
-import type { SharedStateStore } from '@company/mfe-core/shared-state'
 /**
  * Deriving one mount from the runtime: anything on the context is owned by that mount and torn
  * down with it, whichever adapter renders the definition, and anything on the runtime outlives it.
@@ -17,7 +16,6 @@ import { applyScopeAttributes, createOverlayRoot } from './scope-root.ts'
 
 /** Everything one mount owns. */
 export interface MountContext {
-  readonly sharedState?: SharedStateStore
   readonly runtime: MfeRuntime
   readonly definitionId: string
   readonly definitionVersion: string | undefined
@@ -31,10 +29,8 @@ export interface MountContext {
   /** The App's assigned URL boundary, always `''` for a Widget. */
   readonly basePath: string
   readonly telemetry: MfeTelemetry
-  readonly storage: {
-    readonly local: MfeStorage
-    readonly session: MfeStorage
-  }
+  /** Every stored value this mount reads or writes, by the keys it declared. */
+  readonly storage: MfeStorage
   /** Aborts on disposal. */
   readonly signal: AbortSignal
   /**
@@ -133,10 +129,11 @@ export function createMountContext(options: CreateMountContextOptions): MountCon
     depth: options.depth ?? 1,
     basePath: kind === 'widget' ? '' : (options.basePath ?? ''),
     telemetry,
-    storage: {
-      local: runtime.storage.storageFor(definitionId, 'local', options.instanceId),
-      session: runtime.storage.storageFor(definitionId, 'session', options.instanceId),
-    },
+    storage: runtime.storage.forCaller({
+      owner: definitionId,
+      instanceId: options.instanceId,
+      signal: disposal.signal,
+    }),
     signal: disposal.signal,
     scopeRoot,
     overlayRoot: overlay.element,

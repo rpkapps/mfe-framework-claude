@@ -1,6 +1,6 @@
 /** React hooks over the same mount-bound services `context.mfe` gives route callbacks. */
 
-import type { MfeStorage, MfeTelemetry, StorageArea } from '@company/mfe-core'
+import type { MfeTelemetry } from '@company/mfe-core'
 
 import { useMfeMount } from '../mount-context.tsx'
 
@@ -17,12 +17,6 @@ export function useMfeSignal(): AbortSignal {
 /** The literal boundary prefix, for URLs into external systems; a Widget has none and gets `''`. */
 export function useBasePath(): string {
   return useMfeMount('useBasePath').basePath
-}
-
-/** The imperative handle: `get()` does not subscribe, so rendered state uses `useStoredState`. */
-export function useMfeStorage(area: StorageArea = 'local'): MfeStorage {
-  const mount = useMfeMount('useMfeStorage')
-  return area === 'session' ? mount.storage.session : mount.storage.local
 }
 
 /**

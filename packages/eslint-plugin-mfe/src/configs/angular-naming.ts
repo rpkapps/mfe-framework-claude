@@ -21,7 +21,6 @@ export const ANGULAR_NAVIGATION_HINT =
   "the Angular `Router`, scoped to your App's own `BoundaryLocationStrategy`"
 
 export const ANGULAR_STORED_STATE_HOOK = 'injectStoredState()'
-export const ANGULAR_STORAGE_HOOK = 'injectMfeStorage()'
 export const ANGULAR_TELEMETRY_HOOK = 'injectTelemetry()'
 
 /** How a component inside a Widget's tree reaches `emit`: `injectWidgetEmit()`, not a render prop. */
@@ -53,7 +52,6 @@ export function angularMfeRules(storageAllowedScopes: readonly string[]): Linter
       {
         allowedScopes: [...storageAllowedScopes],
         storedStateHook: ANGULAR_STORED_STATE_HOOK,
-        storageHook: ANGULAR_STORAGE_HOOK,
         adapterModule: ANGULAR_ADAPTER_MODULE,
       },
     ],

@@ -26,10 +26,7 @@ const manifest = JSON.parse(readFileSync(resolve(here, 'package.json'), 'utf8'))
 }
 
 export default defineConfig({
-  plugins: [
-    pluginReact(),
-    pluginMfe({ sharedStatePolicy: '../shared-state-contracts/release-policy.json' }),
-  ],
+  plugins: [pluginReact(), pluginMfe()],
 
   // A remote is fetched by a shell, never browsed to, so it needs no document; `tectonResolve` is
   // the shell's own resolution of the design system, so the two cannot drift.

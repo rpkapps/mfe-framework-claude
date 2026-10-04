@@ -8,7 +8,11 @@
 
 import { createServer } from 'node:http'
 import { fileURLToPath } from 'node:url'
-import { createDemoBackend, readRequestBody } from '../../examples/shared-state/server.mjs'
+import {
+  createDemoBackend,
+  DEMO_USER,
+  readRequestBody,
+} from '../../examples/user-storage/server.mjs'
 
 /** Exported so `pnpm dev` checks and waits on this port without a second copy of the number. */
 export const DEV_API_PORT = Number(process.env['MFE_DEV_API_PORT'] ?? 3010)
@@ -35,7 +39,7 @@ const ASSETS = {
 function cors(response) {
   response.setHeader('Access-Control-Allow-Origin', '*')
   response.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type')
-  response.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+  response.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS')
   response.setHeader('Access-Control-Max-Age', '600')
 }
 
@@ -45,9 +49,19 @@ function json(response, status, body) {
   response.end(JSON.stringify(body))
 }
 
-const sharedState = createDemoBackend(
-  fileURLToPath(new URL('../../.mfe/shared-state-demo/records.json', import.meta.url)),
+const userStorage = createDemoBackend(
+  fileURLToPath(new URL('../../.mfe/user-storage-demo/records.json', import.meta.url)),
 )
+
+/** Whose rows a request reads and writes. A real API reads it from the authenticated session. */
+function currentUser(url) {
+  // Identity is the server's alone: a request naming a user or scope is refused, not obeyed.
+  if (url.searchParams.has('scope') || url.searchParams.has('user'))
+    throw Object.assign(new Error('The server determines the user; do not submit scope or user'), {
+      status: 400,
+    })
+  return DEMO_USER
+}
 
 const server = createServer(async (request, response) => {
   if (request.method === 'OPTIONS') {
@@ -59,22 +73,41 @@ const server = createServer(async (request, response) => {
 
   const url = new URL(request.url ?? '/', `http://localhost:${String(DEV_API_PORT)}`)
 
-  if (url.pathname === '/api/shared-state/hydrate' || url.pathname === '/api/shared-state/write') {
-    if (request.method !== 'POST') {
-      json(response, 405, { message: 'Use POST for shared state' })
-      return
-    }
+  // GET loads every row of the user; PUT and DELETE store or remove one key of one owner.
+  if (url.pathname === '/api/user-storage' || url.pathname.startsWith('/api/user-storage/')) {
     const controller = new AbortController()
     const abort = () => controller.abort()
     request.once('aborted', abort)
     try {
-      const body = await readRequestBody(request)
-      const record = url.pathname.endsWith('/hydrate')
-        ? await sharedState.hydrate(body.scope, body.ids, controller.signal)
-        : await sharedState.write(body, controller.signal)
-      json(response, 200, record)
+      const user = currentUser(url)
+      const [owner, key, ...rest] = url.pathname
+        .slice('/api/user-storage/'.length)
+        .split('/')
+        .map(segment => decodeURIComponent(segment))
+      if (url.pathname === '/api/user-storage') {
+        if (request.method !== 'GET') {
+          json(response, 405, { message: 'Use GET to load user storage' })
+          return
+        }
+        json(response, 200, await userStorage.load(user, controller.signal))
+        return
+      }
+      if (owner === undefined || key === undefined || rest.length > 0) {
+        json(response, 404, { message: `No route for ${url.pathname}.` })
+        return
+      }
+      if (request.method === 'PUT') {
+        const value = await readRequestBody(request)
+        json(response, 200, await userStorage.save(user, owner, key, value, controller.signal))
+        return
+      }
+      if (request.method === 'DELETE') {
+        json(response, 200, await userStorage.save(user, owner, key, null, controller.signal))
+        return
+      }
+      json(response, 405, { message: 'Use PUT or DELETE for one stored key' })
     } catch (error) {
-      json(response, error.code === 'shared-state/conflict' ? 409 : 400, { message: error.message })
+      json(response, error.status ?? 500, { message: error.message })
     } finally {
       request.off('aborted', abort)
     }
@@ -110,6 +143,8 @@ const server = createServer(async (request, response) => {
 // Only when this file is the process `pnpm dev` spawned: importing it must not take the port.
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   server.listen(DEV_API_PORT, () => {
-    console.log(`dev api    :${String(DEV_API_PORT)}  /api/assets, /api/lab/probe`)
+    console.log(
+      `dev api    :${String(DEV_API_PORT)}  /api/assets, /api/lab/probe, /api/user-storage`,
+    )
   })
 }

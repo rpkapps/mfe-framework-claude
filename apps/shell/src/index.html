@@ -217,23 +217,12 @@
       </div>
     </div>
     <!-- The theme before first paint, because a document that boots dark and flips to light on
-         hydration is a flash every light-theme user sees on every load. It reads the same
-         shell-owned preference key as `preferences.ts`, before the runtime exists. -->
-    <script>
-      ;(function () {
-        try {
-          var stored = window.localStorage.getItem('theme')
-          if (stored !== 'light' && stored !== 'dark') stored = null
-          var theme =
-            stored ||
-            (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
-          document.documentElement.classList.toggle('dark', theme === 'dark')
-          document.documentElement.style.colorScheme = theme
-        } catch (error) {
-          // Storage blocked, or a value this build cannot read: the class in <html> already stands.
-        }
-      })()
-    </script>
+         hydration is a flash every light-theme user sees on every load. The runtime writes this
+         script (`themeBootstrapScript()`, given to the template by rsbuild.config.ts), so it reads
+         the runtime's own per-user cache key: the user's preference when the server names them on
+         <html> with data-user-id (and data-tenant-id, data-account-id), the system's otherwise. -->
+    <!-- prettier-ignore -->
+    <script><%= themeBootstrap %></script>
     <!-- A failure before the shell paints must not leave the loader running forever. The entry's
          own error handling cannot catch everything: the federation runtime starts before any shell
          code, and a script that fails to download never runs at all. So until the shell is ready,

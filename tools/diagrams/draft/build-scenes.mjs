@@ -951,7 +951,7 @@ async function storageKeys() {
     fill: FILL.container,
     mono: true,
     size: 12.5,
-    name: "useStoredState('filters', schema)",
+    name: 'useStoredState(filters)',
     subtitle: 'what the author writes',
   })
   const bound = tile(scene, {
@@ -1024,7 +1024,7 @@ async function storageKeys() {
     h: 64,
     fill: FILL.shell,
     name: "The page's own scope",
-    subtitle: '@host — bindHost(), hostStorage()',
+    subtitle: '@host — keys used outside a mount',
     subtitleMono: true,
   })
   tile(scene, {
@@ -1416,10 +1416,9 @@ async function capabilityConnection(options) {
   const scene = createScene(`capability-${options.id}`)
   const titles = {
     actions: 'Actions',
-    storage: 'Browser storage',
+    storage: 'Storage',
     theme: 'Theme',
     breadcrumbs: 'Breadcrumbs',
-    'shared-state': 'Shared state',
     navigation: 'Navigation',
   }
   scene.title(titles[options.id], options.caption)
@@ -1517,15 +1516,15 @@ const capabilityScenes = [
   },
   {
     id: 'storage',
-    caption: 'Both adapters bind browser records through the runtime supplied by the shell.',
-    react: 'useStoredState()',
-    angular: 'injectStoredState()',
-    runtime: 'Storage store',
-    runtimeSubtitle: 'scoped keys, schemas, subscriptions',
-    shell: 'Runtime storage adapters',
-    shellSubtitle: 'localStorage and sessionStorage',
+    caption: 'Both adapters read and write stored keys through one runtime service.',
+    react: 'useStoredState(key)',
+    angular: 'injectStoredState(key)',
+    runtime: 'Storage service',
+    runtimeSubtitle: 'keys, schemas, status per key',
+    shell: 'Browser and user storage',
+    shellSubtitle: 'web storage, and the storage.user adapter',
     adapterFlow: 'read and write',
-    shellFlow: 'browser records',
+    shellFlow: 'load and save',
     bidirectional: true,
   },
   {
@@ -1552,19 +1551,6 @@ const capabilityScenes = [
     shellSubtitle: 'subscribes to the current trail',
     adapterFlow: 'contribute items',
     shellFlow: 'current trail',
-  },
-  {
-    id: 'shared-state',
-    caption: 'Generated bindings share selections through the shell configured storage adapter.',
-    react: 'useSharedState()',
-    angular: 'injectSharedState()',
-    runtime: 'Shared state service',
-    runtimeSubtitle: 'mount binding, schema, scope',
-    shell: 'Shared state adapter',
-    shellSubtitle: 'hydrate, write, optional subscribe',
-    adapterFlow: 'read and set',
-    shellFlow: 'load and save',
-    bidirectional: true,
   },
   {
     id: 'navigation',

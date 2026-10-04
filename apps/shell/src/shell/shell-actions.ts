@@ -7,13 +7,7 @@
  * does, so it can be registered and pressed without rendering anything.
  */
 
-import {
-  allow,
-  deny,
-  type ActionRegistration,
-  type MfeRuntime,
-  type StoredStateSetter,
-} from '@company/mfe-react'
+import { allow, deny, type ActionRegistration, type MfeRuntime } from '@company/mfe-react'
 import { devtools } from '@company/mfe-devtools'
 import { toast } from 'sonner'
 
@@ -21,15 +15,15 @@ import { shellChat } from '../chat/instance.ts'
 
 import { EMPTY_LAYOUT, type DashboardLayout } from './dashboard/layout-store.ts'
 import { collectDiagnostics, formatReport } from './diagnostics.ts'
-import type { ShellTheme } from './preferences.ts'
+import type { StoredSetter } from './hooks.ts'
+import type { ShellTheme } from '@company/mfe-react'
 import { shellUi } from './ui-store.ts'
 
 /** What a shell action reads at the render it was built in. */
 export interface ShellActionContext {
   readonly runtime: MfeRuntime
-  readonly theme: ShellTheme
   readonly layout: DashboardLayout
-  readonly setLayout: StoredStateSetter<DashboardLayout>
+  readonly setLayout: StoredSetter<DashboardLayout>
   readonly goToDashboard: () => void
 }
 
@@ -39,8 +33,7 @@ export interface ShellActionContext {
  * never changes, because the registrations are matched to their handles by position.
  */
 export function shellActions(context: ShellActionContext): readonly ActionRegistration[] {
-  const { runtime, theme, layout, setLayout } = context
-  const otherTheme = theme === 'dark' ? 'light' : 'dark'
+  const { runtime, layout, setLayout } = context
 
   return [
     {
@@ -114,14 +107,6 @@ export function shellActions(context: ShellActionContext): readonly ActionRegist
       execute: context.goToDashboard,
     },
     {
-      name: 'theme',
-      label: `Switch to ${otherTheme} theme`,
-      shortcut: 'mod+j',
-      execute: () => {
-        runtime.shellState.apply({ theme: otherTheme })
-      },
-    },
-    {
       name: 'releases',
       label: 'What’s new',
       effect: 'read',
@@ -168,6 +153,24 @@ export function shellActions(context: ShellActionContext): readonly ActionRegist
       },
     },
   ]
+}
+
+/**
+ * Registered on its own by the theme action, which follows the saved preference. The shortcut stays
+ * reserved while the user's values load, and switches once it can save.
+ */
+export function themeAction(
+  theme: ShellTheme,
+  save?: (theme: ShellTheme) => Promise<void>,
+): ActionRegistration {
+  const next = theme === 'dark' ? 'light' : 'dark'
+  return {
+    name: 'theme',
+    label: `Switch to ${next} theme`,
+    shortcut: 'mod+j',
+    canExecute: () => (save ? allow() : deny('Your saved theme preference is not available yet.')),
+    execute: () => save?.(next),
+  }
 }
 
 async function copyToClipboard(value: string, success: string): Promise<void> {

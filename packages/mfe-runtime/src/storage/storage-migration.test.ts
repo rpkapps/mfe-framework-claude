@@ -7,6 +7,14 @@ import { DiagnosticsHub } from '../diagnostics.ts'
 
 import { createMemoryStorageArea, type MemoryStorageArea } from '../testing/memory-storage-area.ts'
 import { MfeStorageStore } from './storage-store.ts'
+import type { BoundStorageKey } from './types.ts'
+
+/** The current value, or the snapshot's error thrown. */
+function read<T>(key: BoundStorageKey<T>): T {
+  const snapshot = key.getSnapshot()
+  if (snapshot.status === 'error') throw snapshot.error
+  return snapshot.value
+}
 
 const ORDERS = 'acme-orders'
 
@@ -163,7 +171,7 @@ describe('migration', () => {
     })
 
     expect(filters.getSnapshot().status).toBe('error')
-    expect(() => filters.read()).toThrow(/previous record is preserved/)
+    expect(() => read(filters)).toThrow(/previous record is preserved/)
     expect(local.getItem('acme-orders:filters')).toBe(stored)
     expect(reported.at(-1)?.error.code).toBe('storage/failure')
   })
@@ -181,7 +189,7 @@ describe('migration', () => {
     })
 
     expect(filters.getSnapshot().status).toBe('error')
-    expect(() => filters.read()).toThrow(/nothing was overwritten/i)
+    expect(() => read(filters)).toThrow(/nothing was overwritten/i)
     expect(local.getItem('acme-orders:filters')).toBe(stored)
   })
 
@@ -219,7 +227,7 @@ describe('migration', () => {
     })
 
     expect(filters.getSnapshot().status).toBe('error')
-    expect(() => filters.read()).toThrow(/written by a newer build/)
+    expect(() => read(filters)).toThrow(/written by a newer build/)
     expect(local.getItem('acme-orders:filters')).toBe(stored)
   })
 
@@ -235,7 +243,7 @@ describe('migration', () => {
       defaultValue: { status: 'all', page: 1 },
     })
 
-    expect(() => filters.read()).toThrow(/no migrate\(\) declared/)
+    expect(() => read(filters)).toThrow(/no migrate\(\) declared/)
     expect(local.getItem('acme-orders:filters')).toBe(stored)
   })
 
@@ -250,7 +258,7 @@ describe('migration', () => {
       defaultValue: { status: 'all', page: 1 },
     })
 
-    expect(() => filters.read()).toThrow(/unversioned record/)
+    expect(() => read(filters)).toThrow(/unversioned record/)
     expect(local.getItem('acme-orders:filters')).toBe(stored)
   })
 

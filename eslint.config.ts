@@ -69,9 +69,8 @@ const config: Linter.Config[] = [
       // The documentation site is not an MFE, but it is first-party React in this workspace and
       // the framework preset is the one that holds first-party code to the repository's rules.
       'apps/docs/src/**/*.{ts,tsx}',
-      // Schema ownership and the host adapter are supporting packages, not MFE author code.
-      'examples/shared-state-contracts/src/**/*.ts',
-      'examples/shared-state/src/**/*.ts',
+      // The example storage backend's typed demo data, not MFE author code.
+      'examples/user-storage/src/**/*.ts',
     ],
     // `rules-of-hooks` reads any call to something named `use` as a hook call, so a bundler
     // plugin building a module rule's `use:` list is told it called a Hook outside a component.
@@ -90,8 +89,8 @@ const config: Linter.Config[] = [
       // The other end of the same bootstrap: the override key and the panel's own flag are
       // the page's, not any definition's, and are read before a store exists to read them.
       'packages/mfe-devtools/src/browser-storage.ts',
-      // The theme is read before first paint, before a framework store exists.
-      'apps/shell/src/shell/preferences.ts',
+      // The framework's pre-paint theme cache, partitioned by user, read before any store exists.
+      'packages/mfe-runtime/src/theme/stored-theme.ts',
       // The OIDC session and the sign-in request's state and PKCE verifier, in sessionStorage
       // under `shell.oidc.`, and the tab's own id under `shell.tab`: they must survive a reload
       // and the redirect to the identity provider, are read before any store exists, and die
@@ -111,11 +110,7 @@ const config: Linter.Config[] = [
       })
       .map(object => ({
         ...object,
-        ignores: [
-          ...(object.ignores ?? []),
-          'examples/shared-state-contracts/**',
-          'examples/shared-state/**',
-        ],
+        ignores: [...(object.ignores ?? []), 'examples/user-storage/**'],
       })),
   ),
 
@@ -162,7 +157,6 @@ const config: Linter.Config[] = [
         ...mfe.DEFAULT_TOOLING_FILES,
         'apps/docs/source.config.ts',
         'tools/tecton/*.d.mts',
-        'tools/shared-state/*.d.mts',
       ],
     }),
   ),

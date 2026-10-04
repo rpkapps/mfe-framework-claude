@@ -7,6 +7,14 @@ import { DiagnosticsHub } from '../diagnostics.ts'
 
 import { createMemoryStorageArea, type MemoryStorageArea } from '../testing/memory-storage-area.ts'
 import { MfeStorageStore } from './storage-store.ts'
+import type { BoundStorageKey } from './types.ts'
+
+/** The current value, or the snapshot's error thrown. */
+function read<T>(key: BoundStorageKey<T>): T {
+  const snapshot = key.getSnapshot()
+  if (snapshot.status === 'error') throw snapshot.error
+  return snapshot.value
+}
 
 const ORDERS = 'acme-orders'
 const REPORTS = 'acme-reports'
@@ -132,7 +140,7 @@ describe('defaults', () => {
     })
 
     expect(theme.getSnapshot()).toEqual({ status: 'default', value: 'light' })
-    expect(theme.read()).toBe('light')
+    expect(read(theme)).toBe('light')
     expect(local.snapshot()).toEqual({})
     expect(local.calls.writes).toBe(0)
   })
@@ -166,8 +174,8 @@ describe('defaults', () => {
 
     expect(filters.getSnapshot().status).toBe('error')
     expect(theme.getSnapshot().status).toBe('error')
-    expect(() => filters.read()).toThrow(/not JSON/)
-    expect(() => theme.read()).toThrow(/declared schema/)
+    expect(() => read(filters)).toThrow(/not JSON/)
+    expect(() => read(theme)).toThrow(/declared schema/)
   })
 
   it('reports a missing key as null when no default is declared', () => {
@@ -176,7 +184,7 @@ describe('defaults', () => {
 
     const filters = store.bind(ORDERS, { name: 'filters', schema: filtersSchema })
     expect(filters.getSnapshot()).toEqual({ status: 'default', value: null })
-    expect(filters.read()).toBeNull()
+    expect(read(filters)).toBeNull()
   })
 
   it('persists only the schema version beside the payload', () => {
@@ -186,7 +194,7 @@ describe('defaults', () => {
     const theme = store.bind(ORDERS, { name: 'theme', schema: themeSchema })
     theme.set('dark')
 
-    expect(theme.read()).toBe('dark')
+    expect(read(theme)).toBe('dark')
     expect(JSON.parse(local.getItem('acme-orders:theme') ?? '')).toEqual({ v: 1, d: 'dark' })
   })
 })
@@ -260,7 +268,7 @@ describe('validation and failure', () => {
 
     const snapshot = filters.getSnapshot()
     expect(snapshot.status).toBe('error')
-    expect(() => filters.read()).toThrow(/never falls back/)
+    expect(() => read(filters)).toThrow(/never falls back/)
     expect(() => filters.set({ status: 'open', page: 2 })).toThrow(/storage to be available/)
     expect(session.snapshot()).toEqual({})
     expect(local.snapshot()).toEqual({})
@@ -306,7 +314,7 @@ describe('validation and failure', () => {
 
     expect(listener).toHaveBeenCalledTimes(1)
     expect(theme.getSnapshot().status).toBe('error')
-    expect(() => theme.read()).toThrow(/declared schema/)
+    expect(() => read(theme)).toThrow(/declared schema/)
   })
 
   it('reports a read failure to diagnostics as well as to the reader', () => {
@@ -589,78 +597,6 @@ describe('cross-tab storage events', () => {
   })
 })
 
-describe('imperative storage', () => {
-  it('notifies reactive subscribers of an imperative write and removal', () => {
-    const { store } = harness()
-    track(store)
-    const bound = store.bind(ORDERS, { name: 'theme', schema: themeSchema, defaultValue: 'light' })
-    const listener = vi.fn()
-    bound.subscribe(listener)
-
-    const storage = store.storageFor(ORDERS)
-    const key = storage.key('theme', themeSchema)
-    key.set('dark')
-    expect(listener).toHaveBeenCalledTimes(1)
-    expect(bound.getSnapshot()).toEqual({ status: 'value', value: 'dark' })
-
-    storage.remove('theme')
-    expect(listener).toHaveBeenCalledTimes(2)
-    expect(bound.getSnapshot()).toEqual({ status: 'default', value: 'light' })
-  })
-
-  it('returns null for a missing key and throws for an invalid one', () => {
-    const { store, local } = harness()
-    track(store)
-    const storage = store.storageFor(ORDERS)
-    const theme = storage.key('theme', themeSchema)
-
-    expect(theme.get()).toBeNull()
-
-    local.setItem('acme-orders:theme', envelope('chartreuse'))
-    expect(() => theme.get()).toThrow(/declared schema/)
-  })
-
-  it('clears only the exact prefix and notifies every mount of that definition', () => {
-    const { store, local } = harness()
-    track(store)
-    local.setItem('acme-orders:theme', envelope('dark'))
-    local.setItem('acme-orders:filters', envelope({ status: 'open', page: 1 }))
-    local.setItem('acme-orders-legacy:theme', envelope('dark'))
-    local.setItem('shell:theme', 'shell-owned')
-    local.setItem('third-party-widget', 'not ours')
-
-    const mountA = store.bind(ORDERS, { name: 'theme', schema: themeSchema, defaultValue: 'light' })
-    const mountB = store.bind(ORDERS, { name: 'theme', schema: themeSchema, defaultValue: 'light' })
-    const seenA = vi.fn()
-    const seenB = vi.fn()
-    mountA.subscribe(seenA)
-    mountB.subscribe(seenB)
-
-    store.storageFor(ORDERS).clear()
-
-    expect(Object.keys(local.snapshot()).sort()).toEqual([
-      'acme-orders-legacy:theme',
-      'shell:theme',
-      'third-party-widget',
-    ])
-    expect(seenA).toHaveBeenCalledTimes(1)
-    expect(seenB).toHaveBeenCalledTimes(1)
-    expect(mountA.getSnapshot()).toEqual({ status: 'default', value: 'light' })
-  })
-
-  it('clears each store separately', () => {
-    const { store, local, session } = harness()
-    track(store)
-    local.setItem('acme-orders:theme', envelope('dark'))
-    session.setItem('acme-orders:theme', envelope('dark'))
-
-    store.storageFor(ORDERS, 'session').clear()
-
-    expect(Object.keys(local.snapshot())).toEqual(['acme-orders:theme'])
-    expect(session.snapshot()).toEqual({})
-  })
-})
-
 describe('declaration conflicts', () => {
   it('fails the conflicting declaration rather than the one that rendered first', () => {
     const { store } = harness()
@@ -690,32 +626,6 @@ describe('declaration conflicts', () => {
         version: 2,
       }),
     ).toThrow(/version/)
-  })
-
-  it('rejects an imperative declaration that disagrees with the active one', () => {
-    const { store } = harness()
-    track(store)
-    store.bind(ORDERS, { name: 'theme', schema: themeSchema })
-
-    const storage = store.storageFor(ORDERS)
-    expect(() => storage.key('theme', z.string()).get()).toThrow(/same schema object/)
-  })
-
-  it('accepts an imperative declaration that declares no default beside a bound one that does', () => {
-    const { store } = harness()
-    track(store)
-    const bound = store.bind(ORDERS, {
-      name: 'theme',
-      schema: themeSchema,
-      defaultValue: 'light',
-    })
-
-    const key = store.storageFor(ORDERS).key('theme', themeSchema)
-    expect(key.get()).toBeNull()
-
-    key.set('dark')
-    expect(bound.getSnapshot()).toEqual({ status: 'value', value: 'dark' })
-    expect(key.get()).toBe('dark')
   })
 })
 

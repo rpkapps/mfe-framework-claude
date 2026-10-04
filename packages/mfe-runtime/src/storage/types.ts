@@ -2,13 +2,7 @@
 
 import type { z } from 'zod'
 
-import type {
-  Listener,
-  StorageArea,
-  StorageScopeOptions,
-  StorageSnapshot,
-  Unsubscribe,
-} from '@company/mfe-core'
+import type { Listener, BrowserStorageArea, StorageSnapshot, Unsubscribe } from '@company/mfe-core'
 
 import type { DiagnosticsHub } from '../diagnostics.ts'
 
@@ -47,11 +41,11 @@ export interface MfeStorageStoreOptions {
 }
 
 /** `storage` defaults to `'local'` and `version` to `1`. */
-export interface StorageKeyBinding<T> extends StorageScopeOptions {
-  /** Only used for instance scope. Adapters obtain it from the mount's host control property. */
+export interface StorageKeyBinding<T> {
+  /** One value per placed copy instead of one per definition; the host supplies the id. */
   readonly instanceId?: string
   readonly name: string
-  readonly storage?: StorageArea
+  readonly storage?: BrowserStorageArea
   readonly schema: z.ZodType<T>
   readonly version?: number
   /** Schema-validated at bind time, and never persisted. */
@@ -68,13 +62,11 @@ export interface BoundStorageKey<T> {
   readonly key: string
   readonly definitionId: string
   readonly name: string
-  readonly storage: StorageArea
+  readonly storage: BrowserStorageArea
   readonly version: number
   /** Pure cache read: never touches the browser store. */
   getSnapshot(): StorageSnapshot<T>
   subscribe(listener: Listener): Unsubscribe
-  /** Throws the structured error when the current snapshot is an error snapshot. */
-  read(): T
   set(next: T | StorageUpdater<T>): void
   remove(): void
   /** Drops this consumer's declaration; the key is torn down when the last one goes. */
