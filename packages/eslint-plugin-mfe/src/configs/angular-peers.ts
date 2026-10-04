@@ -23,7 +23,7 @@ export interface AngularPeers {
   readonly templateParser: Linter.Parser
 }
 
-export const loadAngularPeers = lazyPeers<AngularPeers>(
+export const loadAngularPeers: () => AngularPeers = lazyPeers<AngularPeers>(
   ANGULAR_ESLINT_PACKAGES,
   ANGULAR_ESLINT_INSTALL,
   () => ({

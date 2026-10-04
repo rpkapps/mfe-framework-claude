@@ -2,6 +2,8 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": false,
+    // Every export spells out its type, so the public API check reads what the .d.ts will say.
+    "isolatedDeclarations": true,
     "emitDeclarationOnly": false,
     "outDir": "dist",
     "rootDir": "src"

@@ -20,8 +20,12 @@ import {
   type SimpleChanges,
   type TemplateRef,
 } from '@angular/core'
-import type { MfeError, WidgetContract } from '@company/mfe-core'
-import { mountDefinition, type WidgetDefinitionMount } from '@company/mfe-runtime'
+import type { MfeError, MountState, WidgetContract } from '@company/mfe-core'
+import {
+  mountDefinition,
+  type WidgetDefinitionMount,
+  type WidgetInputState,
+} from '@company/mfe-runtime'
 
 import { injectMfeRuntime, injectOptionalMfeMount } from '../inject/runtime.ts'
 import { HostedMount, type MountStatus } from './hosted-mount.ts'
@@ -73,11 +77,11 @@ export class MfeWidgetComponent implements OnChanges, OnDestroy {
     TemplateRef<{ readonly $implicit: MfeError; readonly error: MfeError }> | undefined
 
   /** Every output the Widget emits, by name, after the Widget's contract and this host's accept it. */
-  @Output() readonly output = new EventEmitter<MfeWidgetOutput>()
+  @Output() readonly output: EventEmitter<MfeWidgetOutput> = new EventEmitter<MfeWidgetOutput>()
   /** The Widget could not be loaded or mounted, or failed once mounted; `retry()` tries again. */
-  @Output() readonly failed = new EventEmitter<MfeError>()
+  @Output() readonly failed: EventEmitter<MfeError> = new EventEmitter<MfeError>()
   /** The Widget still displays its last valid inputs; this update was not applied. */
-  @Output() readonly inputRejected = new EventEmitter<MfeError>()
+  @Output() readonly inputRejected: EventEmitter<MfeError> = new EventEmitter<MfeError>()
 
   readonly #runtime = injectMfeRuntime('<mfe-widget>')
   readonly #parent = injectOptionalMfeMount()
@@ -88,12 +92,12 @@ export class MfeWidgetComponent implements OnChanges, OnDestroy {
 
   /** Where the Widget's mount is: `pending`, `mounted`, `error` or `disposed`. */
   readonly status: Signal<MountStatus> = this.#mount.status
-  readonly state = this.#mount.state
-  readonly attempt = this.#mount.attempt
-  readonly error = this.#mount.error
-  readonly inputState = this.#mount.inputState
-  readonly inputStatus = this.#mount.inputStatus
-  readonly inputError = this.#mount.inputError
+  readonly state: Signal<MountState> = this.#mount.state
+  readonly attempt: Signal<number> = this.#mount.attempt
+  readonly error: Signal<MfeError | null> = this.#mount.error
+  readonly inputState: Signal<WidgetInputState> = this.#mount.inputState
+  readonly inputStatus: Signal<WidgetInputState['status']> = this.#mount.inputStatus
+  readonly inputError: Signal<MfeError | null> = this.#mount.inputError
   readonly #retry = (): void => {
     this.retry()
   }

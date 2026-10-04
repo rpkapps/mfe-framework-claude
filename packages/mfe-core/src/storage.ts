@@ -26,7 +26,7 @@ export interface StoredKeyOptions<T> {
   readonly migrate?: (value: unknown, fromVersion: number) => T
 }
 
-const STORED_KEY = Symbol.for('@company/mfe.storedKey')
+const STORED_KEY: unique symbol = Symbol.for('@company/mfe.storedKey')
 
 interface StoredKeyFields<T> {
   readonly [STORED_KEY]: true
@@ -160,31 +160,42 @@ function declare<T>(
   })
 }
 
-/**
- * Declares one stored value once, in a shared module, so its name, schema, default and area
- * cannot drift apart between the places that use it. The declaring app owns it.
- */
-export function storedKey<S extends z.ZodType>(
-  name: string,
-  schema: WithDefault<S>,
-  options?: StoredKeyOptions<z.output<S>>,
-): StoredKey<z.output<S>> {
-  return declare(undefined, name, schema as z.ZodType<z.output<S>>, options) as StoredKey<
-    z.output<S>
-  >
-}
-
-/** Reads a value another app owns. Writes are refused, so the owner stays its only writer. */
-storedKey.from = function from<S extends z.ZodType>(
-  owner: string,
-  name: string,
-  schema: WithDefault<S>,
-  options?: StoredKeyOptions<z.output<S>>,
-): ReadonlyStoredKey<z.output<S>> {
-  return declare(owner, name, schema as z.ZodType<z.output<S>>, options) as ReadonlyStoredKey<
-    z.output<S>
-  >
-}
+export const storedKey: {
+  /**
+   * Declares one stored value once, in a shared module, so its name, schema, default and area
+   * cannot drift apart between the places that use it. The declaring app owns it.
+   */
+  <S extends z.ZodType>(
+    name: string,
+    schema: WithDefault<S>,
+    options?: StoredKeyOptions<z.output<S>>,
+  ): StoredKey<z.output<S>>
+  /** Reads a value another app owns. Writes are refused, so the owner stays its only writer. */
+  from<S extends z.ZodType>(
+    owner: string,
+    name: string,
+    schema: WithDefault<S>,
+    options?: StoredKeyOptions<z.output<S>>,
+  ): ReadonlyStoredKey<z.output<S>>
+} = Object.assign(
+  <S extends z.ZodType>(
+    name: string,
+    schema: WithDefault<S>,
+    options?: StoredKeyOptions<z.output<S>>,
+  ): StoredKey<z.output<S>> =>
+    declare(undefined, name, schema as z.ZodType<z.output<S>>, options) as StoredKey<z.output<S>>,
+  {
+    from: <S extends z.ZodType>(
+      owner: string,
+      name: string,
+      schema: WithDefault<S>,
+      options?: StoredKeyOptions<z.output<S>>,
+    ): ReadonlyStoredKey<z.output<S>> =>
+      declare(owner, name, schema as z.ZodType<z.output<S>>, options) as ReadonlyStoredKey<
+        z.output<S>
+      >,
+  },
+)
 
 export function isStoredKey(value: unknown): value is AnyStoredKey<unknown> {
   return (

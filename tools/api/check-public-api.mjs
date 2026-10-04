@@ -15,7 +15,8 @@
  *
  * It also fails when a public export's signature names a framework type that its own package does
  * not export. A consumer depends on an adapter, never on mfe-core, so it could not import what it
- * needs to implement or annotate the export. And it fails when an entry declares a name that an
+ * needs to implement or annotate the export. It reads the types the source spells out, which is all of them because
+ * every package builds with `isolatedDeclarations`. And it fails when an entry declares a name that an
  * `export *` in it also brings, as the core's public API does in each adapter, since TypeScript
  * then drops the starred one without a word.
  *

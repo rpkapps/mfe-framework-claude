@@ -13,18 +13,20 @@ export type MountStatus = MountState['status']
 
 export class HostedMount<M extends DefinitionMount> {
   readonly #state = signal<MountState>({ status: 'pending', attempt: 0 })
-  readonly state = this.#state.asReadonly()
+  readonly state: Signal<MountState> = this.#state.asReadonly()
   readonly #attempt = signal(0)
-  readonly attempt = this.#attempt.asReadonly()
+  readonly attempt: Signal<number> = this.#attempt.asReadonly()
   readonly status: Signal<MountStatus> = computed(() => this.#state().status)
-  readonly error = computed(() => {
+  readonly error: Signal<MfeError | null> = computed(() => {
     const state = this.#state()
     return state.status === 'error' ? state.error : null
   })
   readonly #inputState = signal<WidgetInputState>({ status: 'accepted' })
-  readonly inputState = this.#inputState.asReadonly()
-  readonly inputStatus = computed(() => this.#inputState().status)
-  readonly inputError = computed(() => {
+  readonly inputState: Signal<WidgetInputState> = this.#inputState.asReadonly()
+  readonly inputStatus: Signal<WidgetInputState['status']> = computed(
+    () => this.#inputState().status,
+  )
+  readonly inputError: Signal<MfeError | null> = computed(() => {
     const state = this.#inputState()
     return state.status === 'rejected' ? state.error : null
   })

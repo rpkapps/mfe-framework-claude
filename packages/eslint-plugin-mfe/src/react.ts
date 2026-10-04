@@ -22,7 +22,12 @@ export const configs: { readonly author: Linter.Config[] } = Object.defineProper
   get: () => author(),
 }) as { readonly author: Linter.Config[] }
 
-const plugin = {
+const plugin: {
+  readonly meta: typeof meta
+  readonly author: typeof author
+  readonly configs: typeof configs
+  readonly DEFAULT_ROUTER_FILES: typeof DEFAULT_ROUTER_FILES
+} = {
   meta,
   author,
   configs,

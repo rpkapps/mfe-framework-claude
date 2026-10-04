@@ -23,7 +23,7 @@ import {
   type TemplateRef,
 } from '@angular/core'
 import { ActivatedRoute, NavigationEnd, Router } from '@angular/router'
-import { createMfeError, type MfeError } from '@company/mfe-core'
+import { createMfeError, type MfeError, type MountState } from '@company/mfe-core'
 import { mountDefinition, type DefinitionMount } from '@company/mfe-runtime'
 import { filter, type Subscription } from 'rxjs'
 
@@ -69,7 +69,7 @@ export class MfeAppHostComponent implements OnChanges, OnInit, OnDestroy {
   @Input() fallback: TemplateRef<MfeFallbackContext> | undefined
 
   /** The App could not be loaded or mounted, or failed once mounted; `retry()` tries again. */
-  @Output() readonly failed = new EventEmitter<MfeError>()
+  @Output() readonly failed: EventEmitter<MfeError> = new EventEmitter<MfeError>()
 
   readonly #runtime = injectMfeRuntime('<mfe-app-host>')
   readonly #parent = injectOptionalMfeMount()
@@ -85,9 +85,9 @@ export class MfeAppHostComponent implements OnChanges, OnInit, OnDestroy {
 
   /** Where the App's mount is: `pending`, `mounted`, `error` or `disposed`. */
   readonly status: Signal<MountStatus> = this.#mount.status
-  readonly state = this.#mount.state
-  readonly attempt = this.#mount.attempt
-  readonly error = this.#mount.error
+  readonly state: Signal<MountState> = this.#mount.state
+  readonly attempt: Signal<number> = this.#mount.attempt
+  readonly error: Signal<MfeError | null> = this.#mount.error
   readonly #retry = (): void => {
     this.retry()
   }

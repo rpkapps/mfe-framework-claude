@@ -181,7 +181,7 @@ const UNSERIALIZABLE_CLASSES: readonly string[] = ['Date', 'Map', 'Set', 'RegExp
 export function findNonSerializableValue(
   value: unknown,
   path: readonly (string | number)[] = [],
-  seen = new Set<object>(),
+  seen: Set<object> = new Set(),
 ): { readonly path: readonly (string | number)[]; readonly description: string } | null {
   if (value === null) return null
 

@@ -17,7 +17,9 @@ export interface MfeSession {
   readonly signal: AbortSignal
 }
 
-export const MFE_SESSION = new InjectionToken<Signal<MfeSession>>('MFE_SESSION')
+export const MFE_SESSION: InjectionToken<Signal<MfeSession>> = new InjectionToken<
+  Signal<MfeSession>
+>('MFE_SESSION')
 
 /** Internal mount provider; never installed in a shell application's root injector. */
 export function provideSession(): Provider {

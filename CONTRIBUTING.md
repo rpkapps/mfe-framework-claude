@@ -31,6 +31,11 @@ Individual steps: `pnpm format`, `pnpm format:check`, `pnpm lint`,
   contract asks for one, such as a container exporting exactly one definition.
 - Every package's public surface goes through its `src/index.ts`. Deep imports
   into another package are a boundary violation and the lint preset rejects them.
+- **Exports spell out their types.** Each package builds with
+  `isolatedDeclarations`, so an exported function, constant or class member
+  states its type instead of leaving it to inference. The build fails on a
+  missing one, and `pnpm api:check` relies on it to see every type a consumer
+  receives.
 
 ## Modules that export components
 

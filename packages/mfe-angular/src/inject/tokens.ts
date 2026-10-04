@@ -7,15 +7,14 @@ import { InjectionToken } from '@angular/core'
 import type { MfeRuntime, MountContext } from '@company/mfe-runtime'
 
 /** The shell's runtime, provided once per host application and by every mount. */
-export const MFE_RUNTIME = new InjectionToken<MfeRuntime>('MFE_RUNTIME')
+export const MFE_RUNTIME: InjectionToken<MfeRuntime> = new InjectionToken<MfeRuntime>('MFE_RUNTIME')
 
 /** The mount this application was created for; absent in a host application. */
-export const MFE_MOUNT = new InjectionToken<MountContext>('MFE_MOUNT')
+export const MFE_MOUNT: InjectionToken<MountContext> = new InjectionToken<MountContext>('MFE_MOUNT')
 
 /**
  * The validating emit of the Widget mount the injector belongs to. Output subscriptions go
  * through the same function, so a nested component and the Widget's root agree on every rule.
  */
-export const WIDGET_EMIT = new InjectionToken<(output: string, payload: unknown) => void>(
-  'WIDGET_EMIT',
-)
+export const WIDGET_EMIT: InjectionToken<(output: string, payload: unknown) => void> =
+  new InjectionToken<(output: string, payload: unknown) => void>('WIDGET_EMIT')

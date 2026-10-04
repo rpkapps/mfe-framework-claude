@@ -223,7 +223,7 @@ export class UserStorageStore {
    * Takes the whole state from the shell. A key with a save in flight keeps this tab's value, and
    * a row older than the one held is ignored, so a late poll never moves a value back.
    */
-  replace(state: UserStorageState, generation = this.#generation): void {
+  replace(state: UserStorageState, generation: number = this.#generation): void {
     if (this.#disposed || generation !== this.#generation) return
     const incoming = new Map<string, StoredRow>()
     for (const [owner, keys] of Object.entries(state ?? {})) {

@@ -26,7 +26,12 @@ export const configs: { readonly angular: Linter.Config[] } = Object.definePrope
   get: () => angular(),
 }) as { readonly angular: Linter.Config[] }
 
-const plugin = {
+const plugin: {
+  readonly meta: typeof meta
+  readonly angular: typeof angular
+  readonly configs: typeof configs
+  readonly DEFAULT_ANGULAR_TEMPLATE_FILES: typeof DEFAULT_ANGULAR_TEMPLATE_FILES
+} = {
   meta,
   angular,
   configs,

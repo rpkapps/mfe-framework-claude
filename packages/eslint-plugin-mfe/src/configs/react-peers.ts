@@ -22,7 +22,11 @@ export interface TanstackPeers {
   readonly routerPlugin: TanstackPluginModule
 }
 
-export const loadTanstackPeers = lazyPeers(TANSTACK_PACKAGES, TANSTACK_INSTALL, () => ({
-  queryPlugin: loadPeer<TanstackPluginModule>('@tanstack/eslint-plugin-query'),
-  routerPlugin: loadPeer<TanstackPluginModule>('@tanstack/eslint-plugin-router'),
-}))
+export const loadTanstackPeers: () => TanstackPeers = lazyPeers<TanstackPeers>(
+  TANSTACK_PACKAGES,
+  TANSTACK_INSTALL,
+  () => ({
+    queryPlugin: loadPeer<TanstackPluginModule>('@tanstack/eslint-plugin-query'),
+    routerPlugin: loadPeer<TanstackPluginModule>('@tanstack/eslint-plugin-router'),
+  }),
+)

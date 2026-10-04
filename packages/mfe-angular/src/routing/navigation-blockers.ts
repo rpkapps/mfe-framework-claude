@@ -49,9 +49,8 @@ export class AppNavigationBlockers {
 }
 
 /** Provided only inside an App mount, so a Widget's blocker registers with the navigator itself. */
-export const APP_NAVIGATION_BLOCKERS = new InjectionToken<AppNavigationBlockers>(
-  'APP_NAVIGATION_BLOCKERS',
-)
+export const APP_NAVIGATION_BLOCKERS: InjectionToken<AppNavigationBlockers> =
+  new InjectionToken<AppNavigationBlockers>('APP_NAVIGATION_BLOCKERS')
 
 export function provideMfeNavigationBlockers(): Provider {
   return { provide: APP_NAVIGATION_BLOCKERS, useFactory: () => new AppNavigationBlockers() }
