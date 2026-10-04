@@ -13,7 +13,10 @@
  * committed files and gives the same answer either way. An export only generated code calls is listed under
  * "generatedCallers" with the generator that writes the call.
  *
- * It also fails when the docs fall behind the code: an authoring entry whose page no longer
+ * It also fails when a public export's signature names a framework type that no entry point
+ * exports, since a consumer then cannot import what it needs to implement or annotate the export.
+ *
+ * And it fails when the docs fall behind the code: an authoring entry whose page no longer
  * mentions it, and a reference heading that names an API which no longer exists.
  */
 import { execFileSync } from 'node:child_process'
@@ -97,9 +100,11 @@ function readExports(entries) {
     const moduleSymbol = sourceFile && checker.getSymbolAtLocation(sourceFile)
     const values = new Map()
     const all = new Set()
+    const targets = new Set()
     for (const symbol of moduleSymbol ? checker.getExportsOfModule(moduleSymbol) : []) {
       all.add(symbol.name)
       const target = symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol
+      targets.add(target)
       if (!(target.flags & ts.SymbolFlags.Value)) continue
       values.set(symbol.name, target)
       const declaredHere = target.declarations?.some(declaration =>
@@ -111,9 +116,53 @@ function readExports(entries) {
         homes.set(target, { key, declaredHere })
       }
     }
-    bySpecifier.set(entry.specifier, { values, all })
+    bySpecifier.set(entry.specifier, { values, all, targets })
   }
-  return { bySpecifier, homes }
+  return { bySpecifier, homes, checker }
+}
+
+/**
+ * The framework types an export's signature names that no public entry exports, keyed as
+ * `@company/<package>#<Type>` for the package that declares them. A consumer who implements or
+ * annotates against the export, as a shell does with `TelemetryProvider`, has to be able to import
+ * every type in it. Bodies and initializers are implementation, so only what a consumer sees is
+ * read, and a class's private members are skipped.
+ */
+function unexportedTypesIn(target, exported, checker) {
+  const missing = new Set()
+  const visit = node => {
+    if (ts.isBlock(node)) return
+    const modifiers = ts.canHaveModifiers(node) ? ts.getCombinedModifierFlags(node) : 0
+    if (modifiers & (ts.ModifierFlags.Private | ts.ModifierFlags.Protected)) return
+    if (node.name && ts.isPrivateIdentifier(node.name)) return
+    const name = ts.isTypeReferenceNode(node)
+      ? node.typeName
+      : ts.isExpressionWithTypeArguments(node)
+        ? node.expression
+        : undefined
+    let symbol = name && checker.getSymbolAtLocation(name)
+    if (symbol && symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol)
+    const declared =
+      symbol?.declarations?.[0] && ownPackageOf(symbol.declarations[0].getSourceFile().fileName)
+    if (
+      declared !== undefined &&
+      symbol.flags & ts.SymbolFlags.Type &&
+      !(symbol.flags & ts.SymbolFlags.TypeParameter) &&
+      !exported.has(symbol)
+    ) {
+      missing.add(`${declared}#${symbol.name}`)
+    }
+    ts.forEachChild(node, visit)
+  }
+  for (const declaration of target.declarations ?? []) {
+    if (declaration.getSourceFile().isDeclarationFile) continue
+    if (ts.isVariableDeclaration(declaration)) {
+      if (declaration.type) visit(declaration.type)
+      continue
+    }
+    ts.forEachChild(declaration, visit)
+  }
+  return missing
 }
 
 function packageOf(specifier) {
@@ -193,7 +242,7 @@ async function referenceHeadingNames() {
 }
 
 const entries = await publicEntries()
-const { bySpecifier, homes } = readExports(entries)
+const { bySpecifier, homes, checker } = readExports(entries)
 const callers = [
   ...sourceFilesUnder(CALLER_ROOTS, false),
   ...ROOT_CONFIG_FILES.map(file => join(repoRoot, file)).filter(existsSync),
@@ -271,6 +320,30 @@ for (const key of pending) {
   if (symbol === undefined || used.has(symbol)) {
     problems.push(
       `${key} is in "pendingDecision" in api-surface.json, but it is no longer an unused export. Remove the entry.`,
+    )
+  }
+}
+
+const exported = new Set([...bySpecifier.values()].flatMap(({ targets }) => [...targets]))
+const knownUnexported = new Set(surface.unexportedTypes ?? [])
+const unexported = new Map()
+for (const [specifier, { targets }] of bySpecifier) {
+  for (const target of targets) {
+    for (const key of unexportedTypesIn(target, exported, checker)) {
+      if (!unexported.has(key)) unexported.set(key, `${specifier}#${target.name}`)
+    }
+  }
+}
+for (const [key, user] of unexported) {
+  if (knownUnexported.has(key)) continue
+  problems.push(
+    `${user} names ${key}, which no framework entry point exports, so a consumer cannot import it to implement or annotate ${user.split('#')[1]}. Export it from the entry points that export ${user.split('#')[1]}.`,
+  )
+}
+for (const key of knownUnexported) {
+  if (!unexported.has(key)) {
+    problems.push(
+      `${key} is in "unexportedTypes" in api-surface.json, but no export names it unexported any more. Remove the entry.`,
     )
   }
 }

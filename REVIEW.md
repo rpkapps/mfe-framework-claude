@@ -24,6 +24,9 @@ wrong and the fix. A finding is **blocking** or **minor**. Anything under "Block
 7. **Untested behaviour.** New or changed behaviour with no test that would fail without it.
 8. **A second way to do one thing.** A new API that overlaps an existing one, or exists only for an
    example or the docs.
+9. **A removal a consumer still needs.** An export removed although an App, a Widget, a shell or a
+   telemetry provider could still call it, implement it or name it as a type. Every removed export
+   must be named in the changeset.
 
 ## Minor
 
