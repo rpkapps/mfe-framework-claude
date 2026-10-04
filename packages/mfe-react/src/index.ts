@@ -103,6 +103,9 @@ export {
   type ShellState,
   type ShellTheme,
   type ShellUser,
+  type ContractEmitPayloads,
+  type ContractInputs,
+  type ContractParsedInputs,
   type OutputSchema,
   type WidgetContract,
   /* The registry shapes are part of the host surface, because a host renders the registry. */

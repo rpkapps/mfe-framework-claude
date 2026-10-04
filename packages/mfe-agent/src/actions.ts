@@ -29,6 +29,9 @@ import type { ApprovalQuestion, ChatTool } from './types.ts'
  * `operations:acknowledge-alert` cannot go as it is. A call is matched back to its action by
  * looking the name up in the list, never by parsing it.
  */
+// The runtime types this module's API names, so an agent host can name them without the runtime.
+export type { ActionApprover, AgentContextStore } from '@company/mfe-runtime'
+
 export function toolNameOf(actionId: string): string {
   return actionId
     .replace(':', '__')

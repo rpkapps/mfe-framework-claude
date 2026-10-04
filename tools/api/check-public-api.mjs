@@ -13,8 +13,9 @@
  * committed files and gives the same answer either way. An export only generated code calls is listed under
  * "generatedCallers" with the generator that writes the call.
  *
- * It also fails when a public export's signature names a framework type that no entry point
- * exports, since a consumer then cannot import what it needs to implement or annotate the export.
+ * It also fails when a public export's signature names a framework type that its own package does
+ * not export. A consumer depends on an adapter, never on mfe-core, so it could not import what it
+ * needs to implement or annotate the export.
  *
  * And it fails when the docs fall behind the code: an authoring entry whose page no longer
  * mentions it, and a reference heading that names an API which no longer exists.
@@ -324,24 +325,41 @@ for (const key of pending) {
   }
 }
 
-const exported = new Set([...bySpecifier.values()].flatMap(({ targets }) => [...targets]))
-const knownUnexported = new Set(surface.unexportedTypes ?? [])
-const unexported = new Map()
+// A consumer imports only the packages it depends on, never mfe-core, so each type a signature
+// names must be exported by an entry point of the same package.
+const exportedAnywhere = new Set([...bySpecifier.values()].flatMap(({ targets }) => [...targets]))
+const exportedByPackage = new Map()
 for (const [specifier, { targets }] of bySpecifier) {
+  const own = exportedByPackage.get(packageOf(specifier)) ?? new Set()
+  for (const target of targets) own.add(target)
+  exportedByPackage.set(packageOf(specifier), own)
+}
+const knownUnexported = new Set(surface.unexportedTypes ?? [])
+const unexportedAnywhere = new Set()
+const reported = new Set()
+for (const [specifier, { targets }] of bySpecifier) {
+  const own = exportedByPackage.get(packageOf(specifier))
   for (const target of targets) {
-    for (const key of unexportedTypesIn(target, exported, checker)) {
-      if (!unexported.has(key)) unexported.set(key, `${specifier}#${target.name}`)
+    for (const key of unexportedTypesIn(target, exportedAnywhere, checker))
+      unexportedAnywhere.add(key)
+    // A type another framework package declares is that package's to complete, except the core's,
+    // which no consumer imports: a package exposing a core type exposes what that type names.
+    const declaredIn =
+      target.declarations?.[0] && ownPackageOf(target.declarations[0].getSourceFile().fileName)
+    if (declaredIn !== packageOf(specifier) && declaredIn !== '@company/mfe-core') continue
+    for (const key of unexportedTypesIn(target, own, checker)) {
+      const where = `${packageOf(specifier)} ${key}`
+      if (knownUnexported.has(key) || reported.has(where)) continue
+      reported.add(where)
+      const user = `${specifier}#${target.name}`
+      problems.push(
+        `${user} names ${key}, which ${packageOf(specifier)} does not export, so a consumer of ${packageOf(specifier)} cannot import it to implement or annotate ${target.name}. Export it from ${packageOf(specifier)} too.`,
+      )
     }
   }
 }
-for (const [key, user] of unexported) {
-  if (knownUnexported.has(key)) continue
-  problems.push(
-    `${user} names ${key}, which no framework entry point exports, so a consumer cannot import it to implement or annotate ${user.split('#')[1]}. Export it from the entry points that export ${user.split('#')[1]}.`,
-  )
-}
 for (const key of knownUnexported) {
-  if (!unexported.has(key)) {
+  if (!unexportedAnywhere.has(key)) {
     problems.push(
       `${key} is in "unexportedTypes" in api-surface.json, but no export names it unexported any more. Remove the entry.`,
     )

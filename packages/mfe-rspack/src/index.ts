@@ -4,6 +4,7 @@ export { pluginMfe } from './rsbuild.ts'
 export { pluginMfeHostConfig } from './host-config.ts'
 export type { HostConfigOptions } from './host-config.ts'
 export type { MfePluginOptions } from './options.ts'
+export type { ContainerOptions } from '@company/mfe-build'
 
 export { env } from './config/env.ts'
 export type { EnvOptions, EnvVarDescriptor, InferEnvConfig } from './config/env.ts'

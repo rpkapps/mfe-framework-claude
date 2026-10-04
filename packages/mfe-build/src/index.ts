@@ -111,3 +111,22 @@ export type {
   ScopePluginLoader,
 } from './css/scope.ts'
 export { scopeFallbackPlugin } from './css/scope-fallback.ts'
+
+// The core types this package's API names, so a build tool can name them without the core.
+export type {
+  BuildProvenance,
+  CapabilityDeclaration,
+  CapabilityDescriptor,
+  CapabilityIconRef,
+  CapabilityName,
+  ContainerDescriptor,
+  DefinitionIdentity,
+  DefinitionKind,
+  ExportedDefinitionDescriptor,
+  IconData,
+  IconNode,
+  JsonSchemaObject,
+  JsonSchemaValue,
+  MfeErrorCode,
+  PublishedContract,
+} from '@company/mfe-core'
