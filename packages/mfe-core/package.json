@@ -14,6 +14,11 @@
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     },
+    "./public": {
+      "mfe-source": "./src/public.ts",
+      "types": "./dist/public.d.ts",
+      "default": "./dist/public.js"
+    },
     "./runtime-compatibility": {
       "mfe-source": "./src/runtime-compatibility.ts",
       "types": "./dist/runtime-compatibility.d.ts",

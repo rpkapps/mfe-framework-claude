@@ -15,7 +15,9 @@
  *
  * It also fails when a public export's signature names a framework type that its own package does
  * not export. A consumer depends on an adapter, never on mfe-core, so it could not import what it
- * needs to implement or annotate the export.
+ * needs to implement or annotate the export. And it fails when an entry declares a name that an
+ * `export *` in it also brings, as the core's public API does in each adapter, since TypeScript
+ * then drops the starred one without a word.
  *
  * And it fails when the docs fall behind the code: an authoring entry whose page no longer
  * mentions it, and a reference heading that names an API which no longer exists.
@@ -96,6 +98,9 @@ function readExports(entries) {
   const checker = program.getTypeChecker()
   const bySpecifier = new Map()
   const homes = new Map()
+  const shadowed = []
+  const resolve = symbol =>
+    symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol
   for (const entry of entries) {
     const sourceFile = program.getSourceFile(entry.file)
     const moduleSymbol = sourceFile && checker.getSymbolAtLocation(sourceFile)
@@ -118,8 +123,31 @@ function readExports(entries) {
       }
     }
     bySpecifier.set(entry.specifier, { values, all, targets })
+
+    // A name the entry declares itself wins over the same name from an `export *`, silently.
+    const own = new Map(
+      (moduleSymbol ? checker.getExportsOfModule(moduleSymbol) : []).map(symbol => [
+        symbol.name,
+        resolve(symbol),
+      ]),
+    )
+    for (const statement of sourceFile?.statements ?? []) {
+      if (
+        !ts.isExportDeclaration(statement) ||
+        statement.exportClause ||
+        !statement.moduleSpecifier
+      )
+        continue
+      const starred = checker.getSymbolAtLocation(statement.moduleSpecifier)
+      for (const symbol of starred ? checker.getExportsOfModule(starred) : []) {
+        const winner = own.get(symbol.name)
+        if (winner !== undefined && winner !== resolve(symbol)) {
+          shadowed.push(`${entry.specifier}#${symbol.name}`)
+        }
+      }
+    }
   }
-  return { bySpecifier, homes, checker }
+  return { bySpecifier, homes, checker, shadowed }
 }
 
 /**
@@ -243,7 +271,7 @@ async function referenceHeadingNames() {
 }
 
 const entries = await publicEntries()
-const { bySpecifier, homes, checker } = readExports(entries)
+const { bySpecifier, homes, checker, shadowed } = readExports(entries)
 const callers = [
   ...sourceFilesUnder(CALLER_ROOTS, false),
   ...ROOT_CONFIG_FILES.map(file => join(repoRoot, file)).filter(existsSync),
@@ -364,6 +392,12 @@ for (const key of knownUnexported) {
       `${key} is in "unexportedTypes" in api-surface.json, but no export names it unexported any more. Remove the entry.`,
     )
   }
+}
+
+for (const key of shadowed) {
+  problems.push(
+    `${key} is declared by its own package and also comes from an \`export *\`, so the starred one is silently dropped. Rename one of them.`,
+  )
 }
 
 const allNames = new Set([...bySpecifier.values()].flatMap(({ all }) => [...all]))
