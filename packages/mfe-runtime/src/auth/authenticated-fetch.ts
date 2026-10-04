@@ -8,7 +8,7 @@ import { createMfeError } from '@company/mfe-core'
 
 import { DEV } from '../dev.ts'
 import type { DiagnosticsHub } from '../diagnostics.ts'
-import { traceRequest, type RequestTrace } from '../telemetry/request-span.ts'
+import type { RequestTrace, RequestTracer } from '../telemetry/request-span.ts'
 import { normalizeAllowedOrigins } from './origins.ts'
 import type { AccessTokenOptions, GetAccessToken } from './session.ts'
 
@@ -42,6 +42,8 @@ export interface AuthenticatedFetchOptions {
   readonly fetch?: FetchLike
   /** Attribution for diagnostics, e.g. the definition this transport serves. */
   readonly id?: string
+  /** Traces every request to a declared API; without it, requests go out untraced. */
+  readonly tracer?: RequestTracer
 }
 
 /** Both auth tiers wired to one session, so they cannot drift apart. */
@@ -172,8 +174,8 @@ interface RequestPlan {
   /** The caller's cancellation, as `fetch` itself would resolve it. */
   readonly signal: AbortSignal | undefined
   readonly hasCallerAuthorization: boolean
-  /** The caller's own trace context, which the framework leaves alone. */
-  readonly hasCallerTraceparent: boolean
+  /** The caller's own trace context, which a request span joins and replaces. */
+  readonly callerTraceparent: string | null
   readonly replay: ReplayDecision
   /** Issues one attempt, applying each header that is not `null`. */
   readonly send: (authorization: string | null, traceparent: string | null) => Promise<Response>
@@ -210,7 +212,7 @@ function planRequest(
       method: request.method.toUpperCase(),
       signal: init?.signal ?? request.signal,
       hasCallerAuthorization: snapshot.has('authorization'),
-      hasCallerTraceparent: snapshot.has('traceparent'),
+      callerTraceparent: snapshot.get('traceparent'),
       replay,
       send: (authorization, traceparent) => {
         const headers = withHeaders(snapshot, authorization, traceparent)
@@ -233,7 +235,7 @@ function planRequest(
     method: (init?.method ?? 'GET').toUpperCase(),
     signal: init?.signal ?? undefined,
     hasCallerAuthorization: snapshot.has('authorization'),
-    hasCallerTraceparent: snapshot.has('traceparent'),
+    callerTraceparent: snapshot.get('traceparent'),
     replay: isStreamBody(init?.body)
       ? { replayable: false, reason: STREAM_BODY_REASON }
       : REPLAYABLE,
@@ -252,6 +254,7 @@ export function createAuthenticatedFetch(options: AuthenticatedFetchOptions): Fe
   const isDevelopment = options.isDevelopment ?? false
   const diagnostics = options.diagnostics
   const tokens = options.tokens
+  const tracer = options.tracer
 
   const base = parseApiBaseUrl(options.apiBaseUrl, id)
   const allowlist = normalizeAllowedOrigins(options.allowedOrigins, {
@@ -351,8 +354,7 @@ export function createAuthenticatedFetch(options: AuthenticatedFetchOptions): Fe
       return await plan.send(null, null)
     }
 
-    // Read before the first `await`, after which no span is active (§4).
-    const trace = plan.hasCallerTraceparent ? undefined : traceRequest(plan.method, url)
+    const trace = tracer?.trace(plan.method, url, plan.callerTraceparent)
     if (trace === undefined) return await sendToApi(url, plan, undefined)
 
     try {
@@ -360,10 +362,16 @@ export function createAuthenticatedFetch(options: AuthenticatedFetchOptions): Fe
       trace.end({ status: response.status })
       return response
     } catch (error) {
-      trace.end({ error })
+      // Cancelled by its caller is left, not failed; a timeout is still the backend's failure.
+      if (plan.signal?.aborted === true && !isTimeout(plan.signal.reason)) trace.abandon()
+      else trace.end({ error })
       throw error
     }
   }
+}
+
+function isTimeout(reason: unknown): boolean {
+  return reason instanceof DOMException && reason.name === 'TimeoutError'
 }
 
 /** Both tiers on one session, so they share the same single-flight refresh. */

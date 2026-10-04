@@ -1,0 +1,211 @@
+---
+title: 'Trace a mutation with TanStack Query'
+description: 'Trace a useMutation call as a workflow, and pass telemetry to query functions and route loaders that cannot use a hook.'
+---
+
+Apps and Widgets. A mutation is one user action, so trace it as a workflow: start it before the request, and end it in the mutation's callbacks.
+Query functions in shared files take telemetry as an argument. The Angular adapter has no TanStack Query client, so its tabs use `HttpClient` and a resolver.
+For the basics of telemetry, see [Events, errors and traces](/docs/telemetry).
+
+## Steps
+
+<Steps>
+<Step>
+
+### 1. Trace the mutation
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="src/rename-asset.tsx"
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { fetch } from '#mfe/fetch'
+import { useTelemetry } from '@company/mfe-react'
+
+export function RenameAsset({ asset }: { asset: Asset }) {
+  const rename = useTelemetry().workflow('assets.rename')
+  const queryClient = useQueryClient()
+
+  const mutation = useMutation({
+    onMutate: () => rename.start(),
+    mutationFn: async (name: string) => {
+      const body = JSON.stringify({ name })
+      const response = await fetch(`assets/${asset.id}`, {
+        method: 'PATCH',
+        body,
+        headers: rename.headers(),
+      })
+      if (!response.ok) throw new Error(`Rename failed: ${response.status}`)
+      return response.json()
+    },
+    onSuccess: () => {
+      rename.succeed()
+      void queryClient.invalidateQueries({ queryKey: ['operations', 'assets'] })
+    },
+    onError: error => rename.fail(error),
+  })
+
+  // ...render a form that calls mutation.mutate(name), and mutation.error
+}
+```
+
+`onMutate` runs before `mutationFn`, so `headers()` already names the open workflow.
+The refetch that `invalidateQueries` starts is not in the workflow. It is traced as a request of its own.
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/asset.service.ts"
+import { HttpClient } from '@angular/common/http'
+import { Injectable, inject } from '@angular/core'
+import { injectTelemetry } from '@company/mfe-angular'
+import { config } from '#mfe/config'
+import { defer, tap, type Observable } from 'rxjs'
+
+@Injectable({ providedIn: 'root' })
+export class AssetService {
+  private readonly http = inject(HttpClient)
+  private readonly rename = injectTelemetry().workflow('assets.rename')
+
+  renameAsset(id: string, name: string): Observable<Asset> {
+    const url = new URL(`assets/${id}`, config.apiBaseUrl).href
+    return defer(() => {
+      this.rename.start()
+      return this.http.patch<Asset>(url, { name }, { headers: this.rename.headers() })
+    }).pipe(
+      tap({
+        next: () => this.rename.succeed(),
+        error: (error: unknown) => this.rename.fail(error),
+      }),
+    )
+  }
+}
+```
+
+`defer` starts the workflow when the caller subscribes, not when it calls the method.
+The [authentication interceptor](https://github.com/rpkapps/mfe-framework-claude/blob/dev/packages/mfe-angular/README.md#authenticated-httpclient-calls) adds the token. It leaves `traceparent` alone, so the API's span is a child of the workflow.
+
+</Tab>
+</Tabs>
+
+Starting the mutation again while it runs joins the open run, and the first to settle ends it. Key the workflow to trace each one on its own.
+
+</Step>
+<Step>
+
+### 2. Pass telemetry to a query function in a shared file
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```ts title="src/queries/assets.ts"
+import { queryOptions } from '@tanstack/react-query'
+import { fetch } from '#mfe/fetch'
+import type { MfeTelemetry } from '@company/mfe-react'
+
+export function assetsQueryOptions(siteId: string, telemetry: MfeTelemetry) {
+  return queryOptions({
+    queryKey: ['operations', 'assets', { siteId }],
+    queryFn: async ({ signal }): Promise<Asset[]> => {
+      const response = await fetch(`assets?site=${encodeURIComponent(siteId)}`, { signal })
+      if (!response.ok) throw new Error(`Loading assets failed: ${response.status}`)
+      const assets: Asset[] = await response.json()
+      telemetry.measure('operations.assets.loaded', assets.length, { unit: 'count' })
+      return assets
+    },
+  })
+}
+```
+
+Leave `telemetry` out of the query key. It is the same object for the mount's life.
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/assets.ts"
+import { fetch } from '#mfe/fetch'
+import type { MfeTelemetry } from '@company/mfe-angular'
+
+export async function loadAssets(siteId: string, telemetry: MfeTelemetry): Promise<Asset[]> {
+  const response = await fetch(`assets?site=${encodeURIComponent(siteId)}`)
+  if (!response.ok) throw new Error(`Loading assets failed: ${response.status}`)
+  const assets: Asset[] = await response.json()
+  telemetry.measure('operations.assets.loaded', assets.length, { unit: 'count' })
+  return assets
+}
+```
+
+</Tab>
+</Tabs>
+
+A hook or an `inject` call works only in a component. A function in a shared file takes the telemetry its caller already has.
+
+</Step>
+<Step>
+
+### 3. Call it from a route loader
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="src/routes/assets.tsx"
+import { createFileRoute } from '@tanstack/react-router'
+import { useSuspenseQuery } from '@tanstack/react-query'
+import { useTelemetry } from '@company/mfe-react'
+import { assetsQueryOptions } from '../queries/assets'
+
+export const Route = createFileRoute('/assets')({
+  validateSearch: search => ({ site: typeof search.site === 'string' ? search.site : 'north' }),
+  loaderDeps: ({ search }) => ({ site: search.site }),
+  loader: ({ context, deps }) =>
+    context.queryClient.ensureQueryData(assetsQueryOptions(deps.site, context.mfe.telemetry)),
+  component: Assets,
+})
+
+function Assets() {
+  const { site } = Route.useSearch()
+  const { data } = useSuspenseQuery(assetsQueryOptions(site, useTelemetry()))
+  return <pre>{JSON.stringify(data)}</pre>
+}
+```
+
+The loader reads telemetry from `context.mfe.telemetry`. The component reads the same object with `useTelemetry()`.
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/app.routes.ts"
+import type { ResolveFn, Routes } from '@angular/router'
+import { injectTelemetry } from '@company/mfe-angular'
+import { loadAssets } from './assets'
+import { AssetsComponent } from './assets.component'
+
+const assetsResolver: ResolveFn<Asset[]> = route => {
+  const telemetry = injectTelemetry()
+  return loadAssets(route.queryParamMap.get('site') ?? 'north', telemetry)
+}
+
+export const routes: Routes = [
+  { path: 'assets', component: AssetsComponent, resolve: { assets: assetsResolver } },
+]
+```
+
+Inject telemetry before any `await` in the resolver.
+
+</Tab>
+</Tabs>
+</Step>
+</Steps>
+
+## Check it works
+
+In a test, your test environment's `telemetry.spansNamed('assets.rename')` returns one span per mutation once it ends.
+A failed mutation's span has an error status. `telemetry.measurements('operations.assets.loaded')` holds one record per load.
+In the shell, the mutation's request carries a `traceparent` header in the network panel.
+
+## Related
+
+- [Trace a single action](/docs/trace-a-single-action) — the same pattern without a mutation.
+- [Run several of the same workflow at once](/docs/run-several-workflows-at-once) — overlapping mutations.
+- [TanStack Query](/docs/fetch-with-tanstack-query) — the mount's Query client and loaders.
+- [Trace requests to your API](/docs/trace-requests-to-your-api) — what every request records.

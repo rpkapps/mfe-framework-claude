@@ -8,7 +8,7 @@
 import { toolNameOf } from '@company/mfe-agent/actions'
 import { HOST_SCOPE } from '@company/mfe-react'
 
-import type { ActionEntry } from './hooks.ts'
+import type { ActionEntry } from '@company/mfe-react/host'
 import type { ChatAttachment } from './panel.ts'
 
 export interface ChatCommand {

@@ -1,7 +1,6 @@
 /**
- * The one span implementation in the repo: the emitter owns span state, `end()`
- * idempotency, the per-mount open-span bound and the `startActiveSpan` callback contract,
- * so a provider supplies only what it does with a `SpanRecord`.
+ * The one span implementation in the repo: the emitter owns span state, `end()` idempotency and
+ * the per-mount open-span bound, so a provider supplies only what it does with a `SpanRecord`.
  */
 
 import {
@@ -10,7 +9,6 @@ import {
   SpanStatusCode,
   TELEMETRY_LIMITS,
   type Span,
-  type SpanOptions,
   type SpanRecord,
   type TelemetryAttribution,
   type Tracer,
@@ -19,53 +17,19 @@ import {
 import { RESERVED_ATTRIBUTE_KEYS } from './runtime.ts'
 
 /** One frozen instance: the handle carries no state, so a disabled mount allocates nothing. */
-export const nonRecordingSpan: Span = Object.freeze({
-  setAttribute: (): Span => nonRecordingSpan,
+const nonRecordingSpan: Span = Object.freeze({
   setAttributes: (): Span => nonRecordingSpan,
-  addEvent: (): Span => nonRecordingSpan,
   setStatus: (): Span => nonRecordingSpan,
   recordException: (): Span => nonRecordingSpan,
   end: (): void => {},
-  isRecording: (): boolean => false,
 })
 
-function activeSpanArgs<T>(
-  optionsOrCallback: SpanOptions | ((span: Span) => T),
-  maybeCallback: ((span: Span) => T) | undefined,
-): { options: SpanOptions | undefined; callback: ((span: Span) => T) | undefined } {
-  return typeof optionsOrCallback === 'function'
-    ? { options: undefined, callback: optionsOrCallback }
-    : { options: optionsOrCallback, callback: maybeCallback }
-}
-
-/** What a provider's tracer offers: activation, `withSpan`, is the mount tracer's own. */
-export type ProviderTracer = Omit<Tracer, 'withSpan'>
-
-/** `startActiveSpan` runs the callback exactly once and returns its result unchanged. */
-function asTracer(startSpan: (name: string, options?: SpanOptions) => Span): ProviderTracer {
-  return Object.freeze({
-    startSpan,
-    startActiveSpan: <T>(
-      name: string,
-      optionsOrCallback: SpanOptions | ((span: Span) => T),
-      maybeCallback?: (span: Span) => T,
-    ): T => {
-      const { options, callback } = activeSpanArgs(optionsOrCallback, maybeCallback)
-      if (typeof callback !== 'function') return undefined as unknown as T
-      return callback(options === undefined ? startSpan(name) : startSpan(name, options))
-    },
-  })
-}
-
-/** Turning tracing off cannot change what the application does, so a callback still runs once. */
-export function createNonRecordingTracer(): ProviderTracer {
-  return asTracer(() => nonRecordingSpan)
+export function createNonRecordingTracer(): Tracer {
+  return Object.freeze({ startSpan: (): Span => nonRecordingSpan })
 }
 
 type MutableSpanRecord = {
-  -readonly [K in keyof SpanRecord]: K extends 'events' | 'exceptions'
-    ? SpanRecord[K][number][]
-    : SpanRecord[K]
+  -readonly [K in keyof SpanRecord]: K extends 'events' ? SpanRecord[K][number][] : SpanRecord[K]
 }
 
 export interface SpanEmitterOptions {
@@ -84,13 +48,13 @@ export interface SpanEmitterOptions {
 export function createSpanEmitter(
   attribution: TelemetryAttribution,
   options: SpanEmitterOptions = {},
-): ProviderTracer {
+): Tracer {
   const now = options.now ?? Date.now
   const open = new Set<MutableSpanRecord>()
   /** Recently started spans by id, bounded the same way open spans are. */
   const byId = new Map<string, MutableSpanRecord>()
 
-  return asTracer((name, given) => {
+  const startSpan: Tracer['startSpan'] = (name, given) => {
     // Past the budget the caller still gets a usable handle, but nothing is kept: spans
     // nobody ends must not grow memory without limit.
     if (open.size >= TELEMETRY_LIMITS.maxOpenSpansPerMount) return nonRecordingSpan
@@ -101,10 +65,9 @@ export function createSpanEmitter(
       kind: given?.kind ?? SpanKind.INTERNAL,
       attributes,
       attribution,
-      startTime: given?.startTime ?? now(),
+      startTime: now(),
       status: { code: SpanStatusCode.UNSET },
       events: [],
-      exceptions: [],
     }
 
     const parentSpanId = attributes[RESERVED_ATTRIBUTE_KEYS.parentSpanId]
@@ -128,43 +91,32 @@ export function createSpanEmitter(
     options.onSpanStart?.(record)
 
     const span: Span = {
-      setAttribute: (key, value) => {
-        record.attributes = Object.freeze({ ...record.attributes, [key]: value })
-        return span
-      },
       setAttributes: added => {
         record.attributes = Object.freeze({ ...record.attributes, ...added })
-        return span
-      },
-      addEvent: (eventName, eventAttributes) => {
-        record.events.push({
-          name: eventName,
-          attributes: eventAttributes ?? EMPTY_ATTRIBUTES,
-          timestamp: now(),
-        })
         return span
       },
       setStatus: status => {
         record.status = status
         return span
       },
-      recordException: (error, exceptionAttributes) => {
-        record.exceptions.push(error)
-        // OpenTelemetry models an exception as an event on the span; mirroring that keeps
-        // the attributes visible to whatever reads the record.
-        return span.addEvent('exception', exceptionAttributes)
+      // OpenTelemetry models an exception as an event on the span. The error itself is not kept:
+      // a failed workflow reports it as an error record linked to the span, and a failed request
+      // rejects to its caller.
+      recordException: () => {
+        record.events.push({ name: 'exception', attributes: EMPTY_ATTRIBUTES, timestamp: now() })
+        return span
       },
       // Repeated calls are harmless: the first one wins and the rest do nothing.
-      end: endTime => {
+      end: () => {
         if (record.endTime !== undefined) return
-        record.endTime = endTime ?? now()
+        record.endTime = now()
         open.delete(record)
         options.onSpanEnd?.(record)
       },
-      isRecording: () => record.endTime === undefined,
     }
     return span
-  })
+  }
+  return Object.freeze({ startSpan })
 }
 
 /** The oldest key in a Map, which iterates in insertion order. */

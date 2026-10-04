@@ -47,12 +47,8 @@ export {
   type MfeRuntimeHandle,
 } from './runtime/create-runtime.ts'
 
-export type {
-  RuntimeDefinitionSnapshot,
-  RuntimeMountSnapshot,
-  RuntimeRejectedEntrySnapshot,
-  RuntimeSnapshot,
-} from '@company/mfe-core'
+// The core's public API, whole: a shell depends on this package, never on the core.
+export * from '@company/mfe-core/public'
 
 export {
   MountController,
@@ -214,43 +210,15 @@ export * from './storage/index.ts'
 export * from './auth/index.ts'
 export * from './telemetry/index.ts'
 
-/** The `user` area's adapter contract, so a shell can type its backend without importing the core. */
-export type {
-  StoredRow,
-  StoredValue,
-  UserStorageAdapter,
-  UserStorageHandle,
-  UserStorageState,
-} from '@company/mfe-core'
-
 export { KeyedListeners, ListenerSet, SnapshotSource } from './observable.ts'
 
 export { DEFAULT_DEADLINES, withDeadline, type DeadlineContext } from './deadline.ts'
-
-// The provider contract a shell implements is defined in mfe-core, but a shell depends on
-// this package rather than on core, so naming it has to be possible from here.
-export type {
-  MeasurementUnit,
-  Span,
-  SpanRecord,
-  SpanStatus,
-  TelemetryAttributes,
-  TelemetryAttribution,
-  TelemetryLevel,
-  TelemetryProvider,
-  TelemetryRecord,
-  TelemetrySpanContext,
-  Tracer,
-} from '@company/mfe-core'
 
 /**
  * A shell constructs the hub itself, because `installShellAuth` runs before `createMfeRuntime`
  * exists to make one.
  */
 export { DiagnosticsHub } from './diagnostics.ts'
-
-/** The sink and event shapes are defined in `@company/mfe-core`, which holds no fan-out itself. */
-export type { Diagnostic, DiagnosticSeverity, DiagnosticsSink } from '@company/mfe-core'
 
 export { capabilityRoute } from './registry/capability-route.ts'
 

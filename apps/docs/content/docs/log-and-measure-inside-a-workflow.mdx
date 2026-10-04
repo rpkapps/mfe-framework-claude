@@ -1,0 +1,100 @@
+---
+title: 'Log and measure inside a workflow'
+description: 'Record logs, events, measurements and recovered errors through a workflow, so each is linked to the step it happened in.'
+---
+
+Apps and Widgets. A workflow has the same record methods as `telemetry`: `event`, `debug`, `info`, `warn`, `error` and `measure`.
+A record made through the workflow is linked to its current step, so your backend shows it inside the trace.
+For the basics of telemetry, see [Events, errors and traces](/docs/telemetry).
+
+## Steps
+
+<Steps>
+<Step>
+
+### 1. Record through the workflow instead of `telemetry`
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="src/checkout.tsx"
+async function getQuotes(carriers: readonly string[]) {
+  checkout.step('get quotes')
+  const started = performance.now()
+  for (const carrier of carriers) {
+    try {
+      const response = await fetch(`quotes/${carrier}`, { headers: checkout.headers() })
+      if (!response.ok) throw new Error(`Quote failed: ${response.status}`)
+      checkout.info('quote received', { carrier })
+    } catch (error) {
+      checkout.error(error, { carrier })
+    }
+  }
+  checkout.measure('checkout.quotes.duration', performance.now() - started, { unit: 'ms' })
+  checkout.event('checkout.quotes.shown', { carriers: carriers.length })
+}
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/checkout.component.ts"
+async getQuotes(carriers: readonly string[]): Promise<void> {
+  this.checkout.step('get quotes')
+  const started = performance.now()
+  for (const carrier of carriers) {
+    try {
+      const headers = this.checkout.headers()
+      const response = await fetch(`quotes/${carrier}`, { headers })
+      if (!response.ok) throw new Error(`Quote failed: ${response.status}`)
+      this.checkout.info('quote received', { carrier })
+    } catch (error) {
+      this.checkout.error(error, { carrier })
+    }
+  }
+  const duration = performance.now() - started
+  this.checkout.measure('checkout.quotes.duration', duration, { unit: 'ms' })
+  this.checkout.event('checkout.quotes.shown', { carriers: carriers.length })
+}
+```
+
+</Tab>
+</Tabs>
+
+Each record here is linked to the `get quotes` step. Before the first step, a record is linked to the workflow itself.
+
+<Details summary="When the workflow is not open">
+
+A record made through a workflow that is not open is still sent. It is just not linked to a trace.
+The same holds when the telemetry provider failed. A log is never lost for want of a `start()`, and no diagnostic appears.
+The shell's level filter applies to `checkout.debug` as it does to `telemetry.debug`.
+Measurement units are `ms`, `bytes` and `count`.
+
+</Details>
+
+</Step>
+<Step>
+
+### 2. Choose `error` or `fail`
+
+| Call                    | Reports the error | Ends the workflow |
+| ----------------------- | ----------------- | ----------------- |
+| `checkout.error(error)` | yes               | no                |
+| `checkout.fail(error)`  | yes               | yes, as failed    |
+
+Use `error` when the user can carry on, as when one carrier's quote fails. Use `fail` when the workflow is over.
+
+</Step>
+</Steps>
+
+## Check it works
+
+In a test, your test environment's `telemetry.logs('info')` returns the `quote received` records.
+Each has a `spanContext` whose `spanId` matches the `get quotes` span from `telemetry.spansNamed('get quotes')`.
+
+## Related
+
+- [Telemetry API](/docs/reference/hooks-and-components#usetelemetry) — every record and workflow method.
+- [Events, errors and traces](/docs/telemetry#record-events-measurements-and-caught-errors) — attribute rules.
+- [Trace a workflow across several clicks](/docs/trace-a-workflow-across-clicks) — steps to link to.
+- [Find a trace in Grafana](/docs/find-a-trace-in-grafana) — see linked records beside the trace.

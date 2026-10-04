@@ -13,6 +13,7 @@ const THIRD_PARTY = 'https://analytics.vendor.test'
 
 const BINDING: ContainerAuthBinding = {
   id: 'operations',
+  kind: 'app',
   apiBaseUrl: `${API}/v1/`,
   apiOrigins: [API, REPORTS],
 }
@@ -77,7 +78,11 @@ describe('createContainerTransport: the shell owns the session', () => {
 
   it('gives every container the one installed session', async () => {
     const session = installSession()
-    const reports: ContainerAuthBinding = { id: 'reports', apiOrigins: [REPORTS] }
+    const reports: ContainerAuthBinding = {
+      id: 'reports',
+      kind: 'app',
+      apiOrigins: [REPORTS],
+    }
 
     await createContainerTransport(BINDING).fetch('/assets')
     await createContainerTransport(reports).fetch(`${REPORTS}/summary`)

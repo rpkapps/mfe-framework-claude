@@ -119,15 +119,32 @@ observer.observe(scopeRoot)
 useTelemetry(): MfeTelemetry
 ```
 
-Returns the mount's telemetry handle. It has `event`, `debug`, `info`, `warn`, `error`, `measure` and `tracer`. The handle is stable for the mount's life, and emitting never causes a rerender.
+Returns the mount's telemetry handle. It has `event`, `debug`, `info`, `warn`, `error`, `measure` and `workflow`. The handle is stable for the mount's life, and emitting never causes a rerender.
 
 ```ts title="examples/lab/src/routes/telemetry.tsx"
 const telemetry = useTelemetry()
 ```
 
-`SpanKind` and `SpanStatusCode` are exported beside it, for the spans `tracer` starts. `tracer` has `startSpan`, `startActiveSpan` and `withSpan`, which makes a span you kept active again for a later step.
+`measure(name, value, { unit, attributes? })` takes a unit of `ms`, `bytes` or `count`.
 
-Recipe: [Log an event](/docs/telemetry#record-events-measurements-and-caught-errors).
+`workflow(name, key?)` returns the `Workflow` with that name and optional key. It is the same object on every call with the same pair.
+
+| Member                                               | What it does                                                                                                                               |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `start(attributes?)`                                 | Starts a run as a new trace. While a run is open, joins it and adds the attributes.                                                        |
+| `step(name, attributes?)`                            | Marks the next step, a child of the workflow. Ends the current step, whichever App or Widget marked it. Ignored when no run is open.       |
+| `headers()`                                          | Returns `{ traceparent }` for the current step, or the workflow before its first step. Returns `{}` with no open run or a failed provider. |
+| `succeed(attributes?)`                               | Ends the run as succeeded for every App and Widget in it. Ignored when no run is open.                                                     |
+| `fail(error, attributes?)`                           | Ends the run as failed and reports the error, linked to the trace. When no run is open, it still reports the error, without a trace.       |
+| `event`, `debug`, `info`, `warn`, `error`, `measure` | Records as the handle does, linked to the current step. Before the first step, links to the workflow. Never ends the run.                  |
+
+The run belongs to the page. Every App and Widget that uses the same name and key acts on the same run. Each takes part from its first call while the run is open.
+When the last one taking part unmounts, the open run ends as abandoned, with `mfe.span.end_reason: abandoned`. It has no error status.
+A record made through a workflow with no open run, or after the telemetry provider failed, goes out unlinked and without a diagnostic.
+A step or an end with no open run shows a `config/invalid` diagnostic in development.
+The key only picks the run. It is never recorded, so an order or file id is safe to use.
+
+Recipes: [Log an event](/docs/telemetry#record-events-measurements-and-caught-errors), [Trace a workflow](/docs/trace-a-workflow-across-clicks), [Run several at once](/docs/run-several-workflows-at-once), [Share a workflow](/docs/share-a-workflow-between-widgets), [Log inside a workflow](/docs/log-and-measure-inside-a-workflow).
 
 ## Shell features
 
@@ -531,19 +548,19 @@ Recipe: [Show an icon](/docs/show-an-icon).
 
 These place or compose containers. A shell calls them. An App calls `mfeRoute` when it nests a child App at a splat route, and nothing else here.
 
-| Export                                                                  | Signature                                  | What it is for                                            |
-| ----------------------------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------- |
-| `AppHost`                                                               | `{ appId, basePath, fallback?, pending? }` | Mounts an App at a boundary the caller chooses.           |
-| `mfeRoute`                                                              | `({ appId, basePath? })`                   | Route options that mount a child App. The author path.    |
-| `MfeProvider`                                                           | `{ runtime, children }`                    | Wraps a shell once at boot.                               |
-| `createContainerTransport`, `installShellAuth`                          | see `@company/mfe-runtime`                 | Bind the shell's session to `#mfe/fetch`.                 |
-| `withStyleRoot`                                                         | —                                          | Used by generated code.                                   |
-| `reactAdapter`                                                          | —                                          | Listed in the shell's `adapters`.                         |
-| `HOST_SCOPE`                                                            | `'@host'`                                  | The storage scope of the host page.                       |
-| `outputNameToHandlerProp`                                               | `(output: string) => string`               | The prop a Widget output arrives on: `alert` → `onAlert`. |
-| `outputPayloadSchema`                                                   | `(outputSchema, name)`                     | One output's payload schema, or `undefined`.              |
-| `RESERVED_CONTEXT_KEYS`                                                 | `['mfe', 'queryClient']`                   | Router context keys the framework owns.                   |
-| `createOverlayRoot`, `SCOPE_ATTRIBUTE` (from `@company/mfe-react/host`) | —                                          | Used by the shell's own chrome.                           |
+| Export                                                                  | Signature                                  | What it is for                                                                                                                                                                                          |
+| ----------------------------------------------------------------------- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `AppHost`                                                               | `{ appId, basePath, fallback?, pending? }` | Mounts an App at a boundary the caller chooses.                                                                                                                                                         |
+| `mfeRoute`                                                              | `({ appId, basePath? })`                   | Route options that mount a child App. The author path.                                                                                                                                                  |
+| `MfeProvider`                                                           | `{ runtime, children }`                    | Wraps a shell once at boot.                                                                                                                                                                             |
+| `createContainerTransport`, `installShellAuth`                          | see `@company/mfe-runtime`                 | Bind the shell's session and request tracing to `#mfe/fetch`. [Options](https://github.com/rpkapps/mfe-framework-claude/blob/dev/packages/mfe-runtime/README.md#the-pages-session-and-request-tracing). |
+| `withStyleRoot`                                                         | —                                          | Used by generated code.                                                                                                                                                                                 |
+| `reactAdapter`                                                          | —                                          | Listed in the shell's `adapters`.                                                                                                                                                                       |
+| `HOST_SCOPE`                                                            | `'@host'`                                  | The storage scope of the host page.                                                                                                                                                                     |
+| `outputNameToHandlerProp`                                               | `(output: string) => string`               | The prop a Widget output arrives on: `alert` → `onAlert`.                                                                                                                                               |
+| `outputPayloadSchema`                                                   | `(outputSchema, name)`                     | One output's payload schema, or `undefined`.                                                                                                                                                            |
+| `RESERVED_CONTEXT_KEYS`                                                 | `['mfe', 'queryClient']`                   | Router context keys the framework owns.                                                                                                                                                                 |
+| `createOverlayRoot`, `SCOPE_ATTRIBUTE` (from `@company/mfe-react/host`) | —                                          | Used by the shell's own chrome.                                                                                                                                                                         |
 
 `AppHost`, `DynamicWidget` and the component `lazyWidget` returns render an empty element and mount the definition into it through the runtime's `mountDefinition`, whichever framework built it; a React definition opens a React root of its own there. They show loading and error content in that region by default. `pending` and `fallback({ error, retry, reload })` replace it. Retry is offered for temporary failures, Reload page when the tab needs fresh code. Nothing suspends.
 

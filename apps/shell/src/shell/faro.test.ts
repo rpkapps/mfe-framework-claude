@@ -1,6 +1,12 @@
 /** Asserts the translation against a fake Faro api: no network, no SDK initialization. */
 
-import type { SpanRecord, TelemetryAttribution } from '@company/mfe-react/host'
+import {
+  createContainerTransport,
+  createSpanEmitter,
+  installShellAuth,
+  type SpanRecord,
+  type TelemetryAttribution,
+} from '@company/mfe-react/host'
 import type { Faro } from '@grafana/faro-web-sdk'
 import { describe, expect, it, vi } from 'vitest'
 
@@ -46,7 +52,7 @@ function harness() {
     createTracer: (_attribution, onSpanEnd) => {
       sink = onSpanEnd
       // The adapter only forwards the tracer; these tests drive the span sink directly.
-      return { startSpan: vi.fn(), startActiveSpan: vi.fn() }
+      return { startSpan: vi.fn() }
     },
   })
 
@@ -74,7 +80,7 @@ describe('the Faro adapter', () => {
     )
   })
 
-  it('links a record made inside a span to it', () => {
+  it('links a record to the span it belongs to', () => {
     const { provider, api } = harness()
     const spanContext = { traceId: 'a'.repeat(32), spanId: 'b'.repeat(16) }
 
@@ -170,7 +176,7 @@ describe('the Faro adapter', () => {
     })
   })
 
-  it('sends a completed span as an OTLP trace with its own ids, and its exceptions as errors', () => {
+  it('sends a completed span as an OTLP trace with its own ids, and no error for its exception', () => {
     const { api, endSpan } = harness()
     const spanContext = { traceId: 'a'.repeat(32), spanId: 'b'.repeat(16) }
 
@@ -181,9 +187,8 @@ describe('the Faro adapter', () => {
       attribution: ATTRIBUTION,
       startTime: 1_700_000_000_100,
       endTime: 1_700_000_000_350,
-      status: { code: 2, message: '503' },
+      status: { code: 2 },
       events: [{ name: 'exception', attributes: {}, timestamp: 1_700_000_000_300 }],
-      exceptions: [new Error('upstream 503')],
       spanContext,
       parentSpanId: 'c'.repeat(16),
     })
@@ -231,7 +236,7 @@ describe('the Faro adapter', () => {
                   droppedEventsCount: 0,
                   links: [],
                   droppedLinksCount: 0,
-                  status: { code: 2, message: '503' },
+                  status: { code: 2 },
                 },
               ],
             },
@@ -239,8 +244,53 @@ describe('the Faro adapter', () => {
         },
       ],
     })
-    expect(api.pushError).toHaveBeenCalledTimes(1)
-    expect(api.pushError.mock.calls[0]?.[1]).toMatchObject({ spanContext })
+    // The failed workflow's own error record is what reaches pushError.
+    expect(api.pushError).not.toHaveBeenCalled()
+  })
+
+  it("sends a request's client span with the id its traceparent names, and no path", async () => {
+    const { api } = harness()
+    const provider = createFaroTelemetryProvider({
+      faro: { api, metas: { value: {} } } as unknown as Faro,
+      createTracer: (attribution, onSpanEnd) => createSpanEmitter(attribution, { onSpanEnd }),
+    })
+    const sent: Headers[] = []
+    const uninstall = installShellAuth({
+      tokens: { getAccessToken: () => Promise.resolve('token-1') },
+      fetch: (_input, init) => {
+        sent.push(new Headers(init?.headers))
+        return Promise.resolve(new Response('', { status: 503 }))
+      },
+      telemetry: provider,
+    })
+
+    try {
+      await createContainerTransport({
+        id: 'acme-orders',
+        kind: 'app',
+        apiOrigins: ['https://api.example.test'],
+      }).fetch('https://api.example.test/orders/o-42?view=full', { method: 'POST' })
+    } finally {
+      uninstall()
+    }
+
+    const traces = api.pushTraces.mock.calls as [
+      { resourceSpans: { scopeSpans: { spans: Record<string, unknown>[] }[] }[] },
+    ][]
+    const span = traces[0]?.[0].resourceSpans[0]?.scopeSpans[0]?.spans[0]
+    expect(sent[0]?.get('traceparent')).toBe(
+      `00-${String(span?.['traceId'])}-${String(span?.['spanId'])}-01`,
+    )
+    expect(span).toMatchObject({ name: 'POST', kind: 3, status: { code: 2 } })
+    expect(span).not.toHaveProperty('parentSpanId')
+    expect(span?.['attributes']).toEqual(
+      expect.arrayContaining([
+        { key: 'mfe.definition.id', value: { stringValue: 'acme-orders' } },
+        { key: 'server.address', value: { stringValue: 'api.example.test' } },
+        { key: 'http.response.status_code', value: { intValue: 503 } },
+      ]),
+    )
+    expect(JSON.stringify(span)).not.toContain('o-42')
   })
 
   it('sends no trace for a span that has no ids', () => {
@@ -255,7 +305,6 @@ describe('the Faro adapter', () => {
       endTime: 1,
       status: { code: 0 },
       events: [],
-      exceptions: [],
     })
 
     expect(api.pushTraces).not.toHaveBeenCalled()

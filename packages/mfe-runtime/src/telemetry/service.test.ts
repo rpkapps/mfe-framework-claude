@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   SpanStatusCode,
@@ -11,10 +11,12 @@ import { createRecordingTelemetryProvider } from '../testing/recording-provider.
 import { createMountTelemetry } from './service.ts'
 import { createNonRecordingTracer } from './span-emitter.ts'
 import { createNoopTelemetryProvider } from './tracer.ts'
-import { at, ATTRIBUTION, setup } from './__tests__/harness.ts'
+import { at, ATTRIBUTION, resetPageWorkflows, setup } from './__tests__/harness.ts'
+
+beforeEach(resetPageWorkflows)
 
 describe('the seven public members', () => {
-  it('exposes exactly event, debug, info, warn, error, measure and tracer', () => {
+  it('exposes exactly event, debug, info, warn, error, measure and workflow', () => {
     const { telemetry } = setup()
 
     expect(Object.keys(telemetry)).toEqual([
@@ -24,25 +26,23 @@ describe('the seven public members', () => {
       'warn',
       'error',
       'measure',
-      'tracer',
+      'workflow',
     ])
-    for (const member of ['event', 'debug', 'info', 'warn', 'error', 'measure'] as const) {
+    for (const member of Object.keys(telemetry) as (keyof MfeTelemetry)[]) {
       expect(typeof telemetry[member]).toBe('function')
     }
-    expect(typeof telemetry.tracer.startSpan).toBe('function')
-    expect(typeof telemetry.tracer.startActiveSpan).toBe('function')
   })
 
-  it('keeps the service, its actions and the tracer stable for the mount lifetime', () => {
+  it('keeps the service and its actions stable for the mount lifetime', () => {
     const { telemetry } = setup()
 
     const event = telemetry.event
-    const tracer = telemetry.tracer
+    const workflow = telemetry.workflow
     telemetry.event('first')
     telemetry.info('second')
 
     expect(telemetry.event).toBe(event)
-    expect(telemetry.tracer).toBe(tracer)
+    expect(telemetry.workflow).toBe(workflow)
     expect(telemetry.measure).toBe(telemetry.measure)
     expect(Object.isFrozen(telemetry)).toBe(true)
   })
@@ -78,33 +78,30 @@ describe('the surface the framework does not have', () => {
 
     for (const absent of ['time', 'trace', 'startTrace', 'fail', 'cancel', 'flush', 'span']) {
       expect(absent in telemetry).toBe(false)
-      expect(absent in telemetry.tracer).toBe(false)
     }
-    expect(typeof telemetry.tracer.startSpan).toBe('function')
-    expect(typeof telemetry.tracer.startActiveSpan).toBe('function')
   })
 
-  it('keeps the host controls off the enumerable author surface', () => {
+  it('hands out no tracer, so nothing about a span is ambient', () => {
+    const { telemetry } = setup()
+
+    for (const absent of ['tracer', 'startSpan', 'startActiveSpan', 'withSpan']) {
+      expect(absent in telemetry).toBe(false)
+    }
+  })
+
+  it('keeps dispose off the enumerable author surface', () => {
     const { telemetry } = setup()
 
     expect(typeof telemetry.dispose).toBe('function')
-    expect(typeof telemetry.framework).toBe('function')
-    expect(telemetry.attribution).toEqual(ATTRIBUTION)
-    for (const hostOnly of ['dispose', 'framework', 'counters', 'attribution', 'openSpanCount']) {
-      expect(Object.keys(telemetry)).not.toContain(hostOnly)
-    }
+    expect(Object.keys(telemetry)).not.toContain('dispose')
   })
 
-  it('re-exports the binding from the directory index', async () => {
+  it('exports from the directory index only what a shell wires telemetry with', async () => {
     const index = await import('./index.ts')
 
     expect(Object.keys(index).sort()).toEqual([
-      'RESERVED_ATTRIBUTE_KEYS',
-      'createMountTelemetry',
       'createNoopTelemetryProvider',
       'createSpanEmitter',
-      'isReservedAttributeKey',
-      'nonRecordingSpan',
       'telemetryDiagnosticsSink',
     ])
   })
@@ -173,9 +170,8 @@ describe('automatic attribution', () => {
     expect(record.attributes['mfe.definition.id']).toBe('operations-console')
     expect(record.attributes['mfe.span.id']).toBeUndefined()
     expect(record.attributes['keep']).toBe('this')
-    expect(telemetry.counters.reservedOverrideAttempts).toBe(2)
     expect(diagnostics).toHaveLength(1)
-    expect(at(diagnostics).error.message).toContain('mfe.definition.id')
+    expect(at(diagnostics).error.message).toContain('mfe.definition.id, mfe.span.id')
   })
 
   it('keeps attribution even when the author sends a full budget of attributes', () => {
@@ -263,7 +259,6 @@ describe('logs and levels', () => {
     telemetry.warn('kept')
 
     expect(provider.logs().map(log => log.message)).toEqual(['kept'])
-    expect(telemetry.counters.droppedByLevelFilter).toBe(2)
   })
 
   it('records everything when the provider declares no level filter', () => {
@@ -290,7 +285,6 @@ describe('logs and levels', () => {
 
     expect(() => telemetry.info('still important')).not.toThrow()
     expect(provider.logs('info')).toHaveLength(1)
-    expect(telemetry.counters.sinkFailures).toBe(1)
   })
 
   it('does not filter events or measurements, which carry no level', () => {
@@ -335,41 +329,39 @@ describe('measurements', () => {
     telemetry.measure('broken', Number.NEGATIVE_INFINITY, { unit: 'ms' })
 
     expect(provider.measurements()).toHaveLength(0)
-    expect(telemetry.counters.invalidMeasurements).toBe(3)
     expect(diagnostics).toHaveLength(3)
     expect(at(diagnostics).error.message).toContain('finite')
     expect(at(diagnostics).severity).toBe('warning')
   })
 
   it('stays silent about invalid measurements outside development', () => {
-    const { diagnostics, telemetry } = setup({ dev: false })
+    const { provider, diagnostics, telemetry } = setup({ dev: false })
 
     telemetry.measure('broken', Number.NaN, { unit: 'ms' })
 
+    expect(provider.measurements()).toHaveLength(0)
     expect(diagnostics).toHaveLength(0)
-    expect(telemetry.counters.invalidMeasurements).toBe(1)
   })
 })
 
 describe('provider failures are contained', () => {
-  it('swallows a throwing provider, counts it, and keeps working afterwards', () => {
+  it('swallows a throwing provider, reports it, and keeps working afterwards', () => {
     const { provider, diagnostics, telemetry } = setup()
     provider.failRecords(true)
 
     expect(() => telemetry.event('checkout.started')).not.toThrow()
     expect(provider.records).toHaveLength(0)
-    expect(telemetry.counters.sinkFailures).toBe(1)
-    expect(telemetry.counters.recorded).toBe(0)
+    expect(diagnostics).toHaveLength(1)
     expect(at(diagnostics).error.code).toBe('config/invalid')
 
     provider.failRecords(false)
     telemetry.event('checkout.completed')
     expect(provider.events('checkout.completed')).toHaveLength(1)
-    expect(telemetry.counters.recorded).toBe(1)
+    expect(diagnostics).toHaveLength(1)
   })
 
   it('contains a provider that fails only for some records', () => {
-    const { provider, telemetry } = setup()
+    const { provider, diagnostics, telemetry } = setup()
     provider.failRecords(record => record.kind === 'measurement')
 
     telemetry.event('kept')
@@ -377,10 +369,11 @@ describe('provider failures are contained', () => {
 
     expect(provider.events()).toHaveLength(1)
     expect(provider.measurements()).toHaveLength(0)
-    expect(telemetry.counters.sinkFailures).toBe(1)
+    expect(diagnostics).toHaveLength(1)
+    expect(at(diagnostics).error.operation).toBe('record a measurement')
   })
 
-  it('bounds the diagnostic budget and counts what it withheld', () => {
+  it('bounds the diagnostic budget', () => {
     const { diagnostics, telemetry } = setup({ maxDiagnostics: 3 })
 
     for (let index = 0; index < 10; index += 1) {
@@ -388,12 +381,9 @@ describe('provider failures are contained', () => {
     }
 
     expect(diagnostics).toHaveLength(3)
-    expect(telemetry.counters.diagnosticsEmitted).toBe(3)
-    expect(telemetry.counters.diagnosticsSuppressed).toBe(7)
-    expect(telemetry.counters.invalidMeasurements).toBe(10)
   })
 
-  it('counts a throwing diagnostics sink without reporting it through itself', () => {
+  it('contains a throwing diagnostics sink without reporting it through itself', () => {
     const sink = vi.fn(() => {
       throw new Error('sink exploded')
     })
@@ -402,26 +392,11 @@ describe('provider failures are contained', () => {
     expect(() => telemetry.measure('broken', Number.NaN, { unit: 'ms' })).not.toThrow()
 
     expect(sink).toHaveBeenCalledTimes(1)
-    expect(telemetry.counters.sinkFailures).toBe(1)
-    expect(telemetry.counters.diagnosticsEmitted).toBe(1)
   })
 })
 
-describe('framework records and error deduplication', () => {
-  it('emits a framework record that stays distinguishable from author telemetry', () => {
-    const { provider, telemetry } = setup()
-
-    telemetry.framework('mount', { message: 'mounted in 42ms', attributes: { attempt: 1 } })
-
-    const record = at(provider.frameworkRecords('mount'))
-    expect(record.kind).toBe('framework')
-    expect(record.level).toBe('info')
-    expect(record.message).toBe('mounted in 42ms')
-    expect(record.attributes['attempt']).toBe(1)
-    expect(provider.logs()).toHaveLength(0)
-  })
-
-  it('records a repeated author report but counts the duplicate', () => {
+describe('repeated error reports', () => {
+  it('records a repeated author report', () => {
     const { provider, telemetry } = setup()
     const failure = new Error('quote service unavailable')
 
@@ -430,50 +405,11 @@ describe('framework records and error deduplication', () => {
 
     // Both are recorded, because a retry loop reporting the same instance is meaningful.
     expect(provider.logs('error')).toHaveLength(2)
-    expect(telemetry.counters.duplicateErrorReports).toBe(1)
-  })
-
-  it('drops a framework report of an error the author already reported', () => {
-    const { provider, telemetry } = setup()
-    const failure = new Error('quote service unavailable')
-
-    telemetry.error(failure)
-    telemetry.framework('mount', { level: 'error', message: 'mount failed', error: failure })
-
-    expect(provider.logs('error')).toHaveLength(1)
-    expect(provider.frameworkRecords()).toHaveLength(0)
-    expect(telemetry.counters.deduplicatedErrors).toBe(1)
-  })
-
-  it('records a framework report of an error nobody has reported yet', () => {
-    const { provider, telemetry } = setup()
-    const failure = new Error('load failed')
-
-    telemetry.framework('load', { level: 'error', message: 'entry failed', error: failure })
-    telemetry.framework('load', { level: 'error', message: 'entry failed', error: failure })
-
-    expect(provider.frameworkRecords()).toHaveLength(1)
-    expect(telemetry.counters.deduplicatedErrors).toBe(1)
-  })
-
-  it('cannot deduplicate a non-object error and records both', () => {
-    const { provider, telemetry } = setup()
-
-    telemetry.error('string failure')
-    telemetry.framework('mount', {
-      level: 'error',
-      message: 'mount failed',
-      error: 'string failure',
-    })
-
-    expect(provider.logs('error')).toHaveLength(1)
-    expect(provider.frameworkRecords()).toHaveLength(1)
-    expect(telemetry.counters.deduplicatedErrors).toBe(0)
   })
 })
 
 describe('disposal', () => {
-  it('stops accepting new records and counts what it dropped', () => {
+  it('stops accepting new records and reports each one it dropped', () => {
     const { provider, diagnostics, telemetry } = setup()
     telemetry.event('before')
 
@@ -481,12 +417,10 @@ describe('disposal', () => {
     telemetry.event('after')
     telemetry.info('after')
     telemetry.measure('after', 1, { unit: 'count' })
-    telemetry.framework('dispose', { message: 'after' })
 
-    expect(telemetry.disposed).toBe(true)
     expect(provider.records).toHaveLength(1)
     expect(at(provider.events()).name).toBe('before')
-    expect(telemetry.counters.droppedAfterDispose).toBe(4)
+    expect(diagnostics).toHaveLength(3)
     expect(diagnostics.every(diagnostic => diagnostic.error.code === 'dispose/failure')).toBe(true)
   })
 
@@ -502,21 +436,28 @@ describe('disposal', () => {
   })
 
   it('is idempotent', () => {
-    const { telemetry } = setup()
+    const { diagnostics, telemetry } = setup()
     telemetry.dispose()
     expect(() => telemetry.dispose()).not.toThrow()
-    expect(telemetry.counters.droppedAfterDispose).toBe(0)
+    expect(diagnostics).toHaveLength(0)
   })
 
-  it('leaves the tracer usable as a non-recording handle', () => {
-    const { provider, telemetry } = setup()
+  it('leaves a workflow callable, recording nothing', () => {
+    const { provider, diagnostics, telemetry } = setup()
     telemetry.dispose()
 
-    const span = telemetry.tracer.startSpan('after')
-    span.setAttribute('a', 1).setStatus({ code: SpanStatusCode.OK }).end()
+    const checkout = telemetry.workflow('checkout')
+    checkout.start()
+    checkout.step('place order')
+    checkout.succeed()
 
-    expect(span.isRecording()).toBe(false)
+    expect(checkout.headers()).toEqual({})
     expect(provider.spans).toHaveLength(0)
+    expect(diagnostics.map(diagnostic => diagnostic.error.code)).toEqual([
+      'dispose/failure',
+      'dispose/failure',
+      'dispose/failure',
+    ])
   })
 })
 
@@ -525,12 +466,11 @@ describe('provider replacement', () => {
     telemetry.event('checkout.started', { step: 'address' })
     telemetry.measure('checkout.latency', 42, { unit: 'ms' })
     telemetry.info('quote requested')
-    return telemetry.tracer.startActiveSpan('checkout', span => {
-      span.setAttribute('checkout.step', 'quote')
-      span.setStatus({ code: SpanStatusCode.OK })
-      span.end()
-      return 'done'
-    })
+    const checkout = telemetry.workflow('checkout')
+    checkout.start()
+    checkout.step('quote')
+    checkout.succeed({ items: 2 })
+    return 'done'
   }
 
   it('runs identically against two recording providers and a noop provider', () => {

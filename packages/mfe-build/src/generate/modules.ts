@@ -364,6 +364,7 @@ export function fetchModule(context: GenerateContext): GeneratedFile {
         ' */',
         'const transport = createContainerTransport({',
         `  id: ${quote(containerId(context))},`,
+        `  kind: ${quote(containerKind(context))},`,
         ...base,
         '  apiOrigins,',
         '})',
@@ -616,13 +617,18 @@ export function exportedName(definition: DiscoveredDefinition): string {
   return definition.isDefaultExport ? 'default' : definition.exportName
 }
 
-/** The id a container reports itself as: its App's, or its first Widget's. */
 /** The name a configuration's files and errors carry: the host's, or the container's. */
 export function configOwnerId(context: ConfigGenerateContext): string {
   if (context.host !== undefined) return context.host.id
   return 'discovery' in context ? containerId(context as GenerateContext) : 'container'
 }
 
+/** The id a container reports itself as: its App's, or its first Widget's. */
 export function containerId(context: GenerateContext): string {
   return context.discovery.app?.id ?? context.discovery.definitions[0]?.id ?? 'container'
+}
+
+/** The kind of the definition `containerId` names. */
+export function containerKind(context: GenerateContext): 'app' | 'widget' {
+  return context.discovery.app === undefined ? 'widget' : 'app'
 }

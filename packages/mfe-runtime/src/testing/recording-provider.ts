@@ -31,7 +31,7 @@ export interface RecordingTelemetryProvider extends TelemetryProvider {
   readonly spans: readonly SpanRecord[]
   /** Entries dropped because a bounded buffer was full. */
   readonly overflowCount: number
-  /** One per mount with tracing on. */
+  /** One per `createTracer()` call, so one per mount and per request tracer. */
   readonly tracerCount: number
 
   events(name?: string): readonly TelemetryEventRecord[]

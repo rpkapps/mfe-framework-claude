@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { HOST_SCOPE } from '@company/mfe-react'
 
 import { actionAttachment, chatCommands, NEW_CONVERSATION } from './commands.ts'
-import type { ActionEntry } from './hooks.ts'
+import type { ActionEntry } from '@company/mfe-react/host'
 
 function action(id: string, name: string, label: string): ActionEntry {
   const definitionId = id.split(':', 1)[0] ?? id

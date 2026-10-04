@@ -13,7 +13,13 @@
  * committed files and gives the same answer either way. An export only generated code calls is listed under
  * "generatedCallers" with the generator that writes the call.
  *
- * It also fails when the docs fall behind the code: an authoring entry whose page no longer
+ * It also fails when a public export's signature names a framework type that its own package does
+ * not export. A consumer depends on an adapter, never on mfe-core, so it could not import what it
+ * needs to implement or annotate the export. And it fails when an entry declares a name that an
+ * `export *` in it also brings, as the core's public API does in each adapter, since TypeScript
+ * then drops the starred one without a word.
+ *
+ * And it fails when the docs fall behind the code: an authoring entry whose page no longer
  * mentions it, and a reference heading that names an API which no longer exists.
  */
 import { execFileSync } from 'node:child_process'
@@ -92,14 +98,19 @@ function readExports(entries) {
   const checker = program.getTypeChecker()
   const bySpecifier = new Map()
   const homes = new Map()
+  const shadowed = []
+  const resolve = symbol =>
+    symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol
   for (const entry of entries) {
     const sourceFile = program.getSourceFile(entry.file)
     const moduleSymbol = sourceFile && checker.getSymbolAtLocation(sourceFile)
     const values = new Map()
     const all = new Set()
+    const targets = new Set()
     for (const symbol of moduleSymbol ? checker.getExportsOfModule(moduleSymbol) : []) {
       all.add(symbol.name)
       const target = symbol.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(symbol) : symbol
+      targets.add(target)
       if (!(target.flags & ts.SymbolFlags.Value)) continue
       values.set(symbol.name, target)
       const declaredHere = target.declarations?.some(declaration =>
@@ -111,9 +122,124 @@ function readExports(entries) {
         homes.set(target, { key, declaredHere })
       }
     }
-    bySpecifier.set(entry.specifier, { values, all })
+    bySpecifier.set(entry.specifier, { values, all, targets })
+
+    // A name the entry declares itself wins over the same name from an `export *`, silently.
+    const own = new Map(
+      (moduleSymbol ? checker.getExportsOfModule(moduleSymbol) : []).map(symbol => [
+        symbol.name,
+        resolve(symbol),
+      ]),
+    )
+    for (const statement of sourceFile?.statements ?? []) {
+      if (
+        !ts.isExportDeclaration(statement) ||
+        statement.exportClause ||
+        !statement.moduleSpecifier
+      )
+        continue
+      const starred = checker.getSymbolAtLocation(statement.moduleSpecifier)
+      for (const symbol of starred ? checker.getExportsOfModule(starred) : []) {
+        const winner = own.get(symbol.name)
+        if (winner !== undefined && winner !== resolve(symbol)) {
+          shadowed.push(`${entry.specifier}#${symbol.name}`)
+        }
+      }
+    }
   }
-  return { bySpecifier, homes }
+  return { bySpecifier, homes, checker, shadowed }
+}
+
+/**
+ * The framework types an export's signature names that no public entry exports, keyed as
+ * `@company/<package>#<Type>` for the package that declares them. A consumer who implements or
+ * annotates against the export, as a shell does with `TelemetryProvider`, has to be able to import
+ * every type in it. Bodies and initializers are implementation, so only what a consumer sees is
+ * read, and a class's private members are skipped. Where the source leaves a type to inference,
+ * such as a component field set to a signal, the inferred type is read instead, as the emitted
+ * declaration would spell it.
+ */
+function unexportedTypesIn(target, exported, checker) {
+  const missing = new Set()
+  const visit = node => {
+    if (ts.isBlock(node)) return
+    const modifiers = ts.canHaveModifiers(node) ? ts.getCombinedModifierFlags(node) : 0
+    if (modifiers & (ts.ModifierFlags.Private | ts.ModifierFlags.Protected)) return
+    if (node.name && ts.isPrivateIdentifier(node.name)) return
+    const name = ts.isTypeReferenceNode(node)
+      ? node.typeName
+      : ts.isExpressionWithTypeArguments(node)
+        ? node.expression
+        : undefined
+    if (name) note(checker.getSymbolAtLocation(name))
+    if (isInferred(node)) visitInferred(inferredTypeOf(node))
+    ts.forEachChild(node, visit)
+  }
+  const note = found => {
+    const symbol =
+      found && found.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(found) : found
+    const declared =
+      symbol?.declarations?.[0] && ownPackageOf(symbol.declarations[0].getSourceFile().fileName)
+    if (
+      declared !== undefined &&
+      symbol.flags & ts.SymbolFlags.Type &&
+      !(symbol.flags & ts.SymbolFlags.TypeParameter) &&
+      !exported.has(symbol)
+    ) {
+      missing.add(`${declared}#${symbol.name}`)
+    }
+  }
+  // The named types an inferred type is built from, and their type arguments: what a declaration
+  // file would print. Anonymous object types are not opened, as their members print inline.
+  const seen = new Set()
+  const visitInferred = type => {
+    if (!type || seen.has(type)) return
+    seen.add(type)
+    note(type.aliasSymbol)
+    for (const argument of type.aliasTypeArguments ?? []) visitInferred(argument)
+    if (type.isUnionOrIntersection()) for (const part of type.types) visitInferred(part)
+    if (type.flags & ts.TypeFlags.Object) {
+      if (!(type.objectFlags & ts.ObjectFlags.Anonymous)) note(type.symbol)
+      if (type.objectFlags & ts.ObjectFlags.Reference) {
+        for (const argument of checker.getTypeArguments(type)) visitInferred(argument)
+      }
+      // A function's type prints as its signature, so its parameters and result are read.
+      if (type.objectFlags & ts.ObjectFlags.Anonymous) {
+        for (const signature of type.getCallSignatures()) {
+          for (const parameter of signature.getParameters()) {
+            visitInferred(checker.getTypeOfSymbol(parameter))
+          }
+          visitInferred(signature.getReturnType())
+        }
+      }
+    }
+  }
+  const inferredTypeOf = node =>
+    ts.isFunctionLike(node)
+      ? checker.getSignatureFromDeclaration(node)?.getReturnType()
+      : checker.getTypeAtLocation(node)
+  for (const declaration of target.declarations ?? []) {
+    if (declaration.getSourceFile().isDeclarationFile) continue
+    if (ts.isVariableDeclaration(declaration)) {
+      if (declaration.type) visit(declaration.type)
+      else visitInferred(checker.getTypeAtLocation(declaration))
+      continue
+    }
+    if (isInferred(declaration)) visitInferred(inferredTypeOf(declaration))
+    ts.forEachChild(declaration, visit)
+  }
+  return missing
+}
+
+/** A member or function whose type the source leaves to inference. */
+function isInferred(node) {
+  if (node.type) return false
+  return (
+    ts.isPropertyDeclaration(node) ||
+    ts.isGetAccessorDeclaration(node) ||
+    ts.isMethodDeclaration(node) ||
+    ts.isFunctionDeclaration(node)
+  )
 }
 
 function packageOf(specifier) {
@@ -193,7 +319,7 @@ async function referenceHeadingNames() {
 }
 
 const entries = await publicEntries()
-const { bySpecifier, homes } = readExports(entries)
+const { bySpecifier, homes, checker, shadowed } = readExports(entries)
 const callers = [
   ...sourceFilesUnder(CALLER_ROOTS, false),
   ...ROOT_CONFIG_FILES.map(file => join(repoRoot, file)).filter(existsSync),
@@ -273,6 +399,59 @@ for (const key of pending) {
       `${key} is in "pendingDecision" in api-surface.json, but it is no longer an unused export. Remove the entry.`,
     )
   }
+}
+
+// A consumer imports only the packages it depends on, never mfe-core, so each type a signature
+// names must be exported by an entry point of the same package.
+const exportedAnywhere = new Set([...bySpecifier.values()].flatMap(({ targets }) => [...targets]))
+const exportedByPackage = new Map()
+for (const [specifier, { targets }] of bySpecifier) {
+  const own = exportedByPackage.get(packageOf(specifier)) ?? new Set()
+  for (const target of targets) own.add(target)
+  exportedByPackage.set(packageOf(specifier), own)
+}
+const knownUnexported = new Set(surface.unexportedTypes ?? [])
+const unexportedAnywhere = new Set()
+const reported = new Set()
+for (const [specifier, { targets }] of bySpecifier) {
+  const own = exportedByPackage.get(packageOf(specifier))
+  for (const target of targets) {
+    for (const key of unexportedTypesIn(target, exportedAnywhere, checker))
+      unexportedAnywhere.add(key)
+    // A type another framework package declares is that package's to complete, except the core's
+    // and the runtime's, which no consumer imports (a shell reaches the runtime through an
+    // adapter's `/host`): a package exposing one of their types exposes what that type names.
+    const declaredIn =
+      target.declarations?.[0] && ownPackageOf(target.declarations[0].getSourceFile().fileName)
+    if (
+      declaredIn !== packageOf(specifier) &&
+      declaredIn !== '@company/mfe-core' &&
+      declaredIn !== '@company/mfe-runtime'
+    )
+      continue
+    for (const key of unexportedTypesIn(target, own, checker)) {
+      const where = `${packageOf(specifier)} ${key}`
+      if (knownUnexported.has(key) || reported.has(where)) continue
+      reported.add(where)
+      const user = `${specifier}#${target.name}`
+      problems.push(
+        `${user} names ${key}, which ${packageOf(specifier)} does not export, so a consumer of ${packageOf(specifier)} cannot import it to implement or annotate ${target.name}. Export it from ${packageOf(specifier)} too.`,
+      )
+    }
+  }
+}
+for (const key of knownUnexported) {
+  if (!unexportedAnywhere.has(key)) {
+    problems.push(
+      `${key} is in "unexportedTypes" in api-surface.json, but no export names it unexported any more. Remove the entry.`,
+    )
+  }
+}
+
+for (const key of shadowed) {
+  problems.push(
+    `${key} is declared by its own package and also comes from an \`export *\`, so the starred one is silently dropped. Rename one of them.`,
+  )
 }
 
 const allNames = new Set([...bySpecifier.values()].flatMap(({ all }) => [...all]))

@@ -44,6 +44,37 @@ happens and only for entries that adapter parsed. `parseFederatedEntry` is the
 one reading of the entry shape every framework build publishes, so each
 framework adapter keeps only its `detect` and its `kind`.
 
+## The page's session and request tracing
+
+```ts
+const uninstall = installShellAuth({
+  tokens, // the shell's access-token source
+  diagnostics, // the hub createMfeRuntime adopts later
+  isDevelopment: process.env['NODE_ENV'] !== 'production',
+  telemetry: telemetryProvider, // the provider createMfeRuntime receives
+})
+```
+
+Call `installShellAuth` at boot, before any remote is registered. It installs one session for
+the page under a registered symbol. Each container's generated `#mfe/fetch` reads it through
+`createContainerTransport` at its first request. The call returns an uninstall.
+
+| Option          | What it does                                                                                   |
+| --------------- | ---------------------------------------------------------------------------------------------- |
+| `tokens`        | Required. The access-token source: the shell's auth library, or `createSessionTokenService()`. |
+| `diagnostics`   | Optional. The hub that receives session and request failures.                                  |
+| `isDevelopment` | Optional. Turns on developer-only warnings.                                                    |
+| `fetch`         | Optional. The underlying `fetch`. Defaults to the browser's, read at call time.                |
+| `telemetry`     | Optional. The `TelemetryProvider` that traces requests. Without it, no request is traced.      |
+
+With `telemetry`, every `#mfe/fetch` request to a declared API gets a client span and sends a W3C
+`traceparent` naming it. The span is attributed to the container, not a mount. Pass the provider
+`createMfeRuntime` receives, so request spans and workflow spans reach one backend. Each declared
+API's CORS policy must allow the `traceparent` request header first, or the browser blocks every
+request to it.
+[Trace requests to your API](../../apps/docs/content/docs/trace-requests-to-your-api.mdx) lists
+what each span records.
+
 ## One mount path
 
 ```ts

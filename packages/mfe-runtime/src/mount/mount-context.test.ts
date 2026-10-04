@@ -183,6 +183,18 @@ describe('createMountContext', () => {
       mountToken: context.mountToken,
     })
   })
+
+  it("reports its telemetry's development diagnostics to the runtime's diagnostics", () => {
+    const host = runtime()
+    const { context } = createMountContext({ runtime: host, definitionId: 'reports', kind: 'app' })
+
+    context.telemetry.workflow('orders.checkout').step('pay')
+
+    expect(memory?.diagnostics.map(diagnostic => diagnostic.error.message)).toEqual([
+      expect.stringContaining('failed to mark step "pay" of workflow "orders.checkout"'),
+    ])
+    expect(memory?.diagnostics[0]?.severity).toBe('warning')
+  })
 })
 
 describe('disposing a mount context', () => {

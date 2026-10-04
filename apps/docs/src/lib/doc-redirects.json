@@ -6,7 +6,7 @@
   "share-a-value-with-the-shell": "/docs/remember-a-value#choose-where-to-store-a-value",
   "log-an-event": "/docs/telemetry#record-events-measurements-and-caught-errors",
   "report-an-error": "/docs/telemetry#record-events-measurements-and-caught-errors",
-  "trace-an-operation": "/docs/telemetry#trace-work-and-end-the-span",
+  "trace-an-operation": "/docs/trace-a-workflow-across-clicks",
   "add-custom-styles": "/docs/use-the-design-system",
   "how-it-works/adapters-and-legacy-angular": "/docs/how-it-works/adapters",
   "shared-state": "/docs/remember-a-value#read-another-apps-value",

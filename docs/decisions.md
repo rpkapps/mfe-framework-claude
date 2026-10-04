@@ -59,7 +59,8 @@ and surfacing much later.
 
 ## 4. Browser async context does not propagate across `await`, and we do not pretend it does
 
-**Status:** honest limitation, documented in code and tests.
+**Status:** honest limitation; the active-span slot below was removed by §59, which has no ambient
+context at all.
 
 Trace parentage is a synchronous active-span slot, so a span created _after_ an
 `await` inside an active callback loses the ambient context and becomes a root
@@ -1982,7 +1983,8 @@ its prototype rather than by `instanceof`, so a Widget's contract error keeps it
 shell's copy reports it. The mount-token sequence lives on the page under a registered symbol, so
 two runtimes never both issue `reports#1` and one's teardown never clears the other's actions. So
 does the session `installShellAuth` installs, which a container's `#mfe/fetch` reads through its
-own copy and would otherwise find missing, and so does the active span context.
+own copy and would otherwise find missing, and so does the active span context (removed by §59,
+which keeps open workflow runs under `Symbol.for('@company/mfe.workflows')` instead).
 
 The adapters are no longer shared at all. An adapter renders the providers the author's code reads,
 TanStack Query's client and the router, and compares Angular's router classes and tokens; a shared
@@ -2082,7 +2084,8 @@ no longer starts in the system theme and flips.
 
 ## 58. A workflow is one trace: the author keeps the span, and the framework fetch carries it
 
-**Status:** decided; extends §4.
+**Status:** decided; extends §4. Its author-facing parts — `withSpan`, linked records and the
+client span on `#mfe/fetch` under an active span — are superseded by §59. The OTLP export through Faro stands.
 
 A workflow that spans several clicks and a request could not be one trace. A span was a parent only
 inside the synchronous `startActiveSpan` callback, so a later click or anything after an `await`
@@ -2107,3 +2110,101 @@ land in a trace of its own.
 **Cost:** `traceparent` always carries the sampled flag, so sampling is the collector's and the
 backend's to decide. The backend must allow the header in CORS. A step that forgets `withSpan`
 still starts a trace of its own, and nothing detects it.
+
+---
+
+## 59. A workflow is named, and a request joins it only through its headers
+
+**Status:** decided, at the project owner's direction; supersedes the author-facing parts of §58
+and the active-span mechanics of §4.
+
+§58 made a workflow one trace, but the API it took was hard to follow. An author had a tracer with
+`startSpan`, `startActiveSpan` and `withSpan`, a span with `setStatus` and `recordException`, and a
+rule to keep in mind: the active span is lost after an `await`, so each later step and each request
+had to be wrapped in `withSpan` again. A step that forgot it started a trace of its own, and nothing
+noticed.
+
+So `MfeTelemetry` has no tracer. `telemetry.workflow(name)` returns the workflow with that name,
+one object per name for the mount, in the manner of Datadog RUM's named operations: `start`,
+`step`, `succeed` and `fail`, and `headers()`. Only one run of a name is open on the page at a time,
+and `start()` while it is open joins it rather than restarting it, as below. A workflow is a root
+span with a child span per step, and a step lasts until the next step or the end. `fail(error)`
+marks the step and the workflow as errors, each with an `exception` event, and reports the error
+itself as an error record whose `spanContext` is the workflow's, so the backend links the two. A
+span keeps no error object. Nothing stamps `spanContext` implicitly, because there is no ambient
+span to stamp: only a record made through a workflow carries one. Steps and ends while the workflow is not open are ignored,
+with a development diagnostic, except that `fail` still reports its error without a trace: an error is
+never lost for want of a `start()`. An unmount that leaves nobody in an open run closes it as
+abandoned, labelled `mfe.span.end_reason: abandoned` rather than failed, and without a diagnostic: a
+user who leaves in the middle of a checkout did not make a mistake.
+
+Nothing is ambient, so the page-global active-span slot is gone, and `#mfe/fetch` no longer reads
+an active span. A request joins a workflow only when its author spreads `headers()` into it, which
+returns the W3C `traceparent` of the current step. Background requests, such as a query refetch,
+therefore never land in a workflow by accident, and the framework stays transport-agnostic: the
+header works with any HTTP client. The Faro adapter no longer pushes a
+span's exceptions as errors, because the failed workflow's error record already reports them, so a
+`SpanRecord` no longer carries them. With no author holding a span, the provider's `Span` keeps only
+what the framework calls, `setAttributes`, `setStatus`, `recordException` and `end`.
+
+Several runs of one name, such as one per file in an upload queue, are open at once through a key:
+`telemetry.workflow(name, key)` picks the run by the pair, one object per pair for the mount, and
+without a key there is one run per name. The key only selects the run. It is never recorded on a span or a
+record, and a diagnostic says only that one was given, because a key is often an order or file id.
+
+A workflow also has `telemetry`'s record methods, `event`, `debug`, `info`, `warn`, `error` and
+`measure`, with the same signatures. Each emits the record the same `telemetry` call would, through
+the same runtime path, filters and limits, with the `spanContext` of the current step, or the
+workflow before its first step. This is the explicit form of the linking §58 did through the active
+span. While the workflow is not open, or tracing is off, the record goes out unlinked and without a
+diagnostic: a log is never lost for want of a `start()`.
+
+A run is the page's, not the mount's. Every App and Widget that calls `workflow(name, key?)` reaches
+the same run; each mount keeps a `Workflow` object of its own, which starts its spans on the mount's
+tracer and emits its records through the mount's runtime, so every step and record says which App
+or Widget made it. A cart and a payment Widget that the shell places side by side therefore trace
+one checkout without passing anything to each other. Sharing along the mount tree, where a mount
+sees its own runs and its ancestors', was considered and not taken: it misses those side-by-side
+Widgets, which have no ancestor in common but the shell, and it needs rules for which of two runs of
+one name a mount means. Page-wide, there is one rule. `start()` begins the run, or joins the open
+one and adds its attributes, so it does not matter which mount acts first. While it is open, any
+mount may `step`, `succeed`, `fail`, read `headers()` or record through it, and doing so takes part
+in it: a step ends the current step whichever mount marked it, and `succeed` or `fail` ends the run
+for everyone, so the next `start()` opens a new trace. The run ends as abandoned only when every
+mount taking part has been disposed. A mount that leaves while others remain hands the spans it
+started for the run over to the run rather than finalizing them: they leave its tracer's open set,
+and ending them later needs nothing its disposal closed, because only starting spans and emitting
+records are refused after it. The open runs live on the page under a registered symbol, as plain
+data and plain functions, because a container may run on another copy of the runtime (§55); a span
+is reached only through the functions its own copy put there. Because one name is shared by every
+container, two unrelated containers that both say `checkout` would share a run by accident, so
+names are prefixed by their domain, such as `orders.checkout`, and in development a run with an
+unprefixed name whose participants come from different definitions is reported once. The prefix is
+the signal that sharing is meant; build hashes were not used, because separately built bundles
+sharing a run is the intended case, not the clash.
+
+**Cost:** a request whose author forgets `headers()` is not in the workflow's trace, and nothing
+detects it, as with `withSpan` before; it is still traced, as a trace of its own. A span on every
+request is more telemetry to ship, and sampling it is the collector's. Free-form spans
+are gone: work that is not a named workflow with steps is a measurement or an event. A keyed
+workflow is held for the mount's life like any other, so a mount that keys thousands of runs keeps
+thousands of small objects until it unmounts. A shared run is only as good as its name: an
+unprefixed name can be joined by a container that meant a run of its own, which only a development
+warning catches, and a prefixed name that two teams both chose is not caught at all. A mount that reads a run's headers once
+keeps the run from being abandoned until it unmounts.
+
+Every request through `#mfe/fetch` to a declared API is traced by default, because a request is
+the one piece of work every container does and its latency is what a user waits on; leaving it to
+the author meant most requests were never traced at all. The request gets a `CLIENT` span named for
+its method, with only the method, host, port, status and a resend count after a 401, never the path
+or query, and one span covers the retry. It sends `traceparent` naming that span, so the backend's
+span is its child. When the caller's headers carry a valid `traceparent`, as from `headers()`, the
+span joins that trace as the step's child and replaces the header with its own, so the trace reads
+step, request, backend; an invalid one is the caller's and goes out untouched, untraced. An
+undeclared origin gets no span and no header, like the token. The fetch is per container, not per
+mount, so the shell passes its provider to `installShellAuth({ telemetry })` and each container's
+transport builds a tracer attributed to the container, its definition id and kind, as the generated
+`#mfe/fetch` declares them; a mount's attribution would be a guess when several mounts share one
+container. Without a provider, requests go out as before, and a provider that throws leaves the
+request untraced, never failed. The backend must allow `traceparent` in CORS; the development API
+does.

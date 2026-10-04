@@ -1,9 +1,13 @@
-/** Shared fixtures for the telemetry tests: one mount bound to a recording provider. */
+/** Shared fixtures for the telemetry tests: mounts bound to a recording provider. */
 
 import type { Diagnostic, SpanRecord, TelemetryAttribution } from '@company/mfe-core'
 
-import { createRecordingTelemetryProvider } from '../../testing/recording-provider.ts'
-import { createMountTelemetry, type MountTelemetryOptions } from '../service.ts'
+import {
+  createRecordingTelemetryProvider,
+  type RecordingTelemetryProvider,
+} from '../../testing/recording-provider.ts'
+import type { TelemetryRuntimeOptions } from '../runtime.ts'
+import { createMountTelemetry } from '../service.ts'
 
 export const ATTRIBUTION: TelemetryAttribution = {
   definitionId: 'operations-console',
@@ -27,15 +31,42 @@ export function spanNamed(spans: readonly SpanRecord[], name: string): SpanRecor
 }
 
 export function setup(
-  options: MountTelemetryOptions = {},
+  options: TelemetryRuntimeOptions = {},
   attribution: TelemetryAttribution = ATTRIBUTION,
 ) {
   const provider = createRecordingTelemetryProvider()
+  return { provider, ...mountOn(provider, attribution, options) }
+}
+
+/** Another mount on the same page, sending to `provider`; its diagnostics are its own. */
+export function mountOn(
+  provider: RecordingTelemetryProvider,
+  attribution: TelemetryAttribution,
+  options: TelemetryRuntimeOptions = {},
+) {
   const diagnostics: Diagnostic[] = []
   const telemetry = createMountTelemetry(provider, attribution, {
     dev: true,
     onDiagnostic: diagnostic => diagnostics.push(diagnostic),
     ...options,
   })
-  return { provider, diagnostics, telemetry, tracer: telemetry.tracer }
+  return { diagnostics, telemetry }
+}
+
+/** A mount whose provider threw building its tracer, so its workflows start no spans. */
+export function mountUntraced(
+  provider: RecordingTelemetryProvider,
+  attribution: TelemetryAttribution = ATTRIBUTION,
+) {
+  provider.failTracerCreation(true)
+  try {
+    return mountOn(provider, attribution)
+  } finally {
+    provider.failTracerCreation(false)
+  }
+}
+
+/** Workflow runs are the page's, so a run a test leaves open would be joined by the next one. */
+export function resetPageWorkflows(): void {
+  delete (globalThis as Record<symbol, unknown>)[Symbol.for('@company/mfe.workflows')]
 }

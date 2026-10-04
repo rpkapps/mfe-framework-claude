@@ -1,25 +1,37 @@
 /**
- * The client span and W3C `traceparent` for one request through the framework's fetch, so the
- * backend's span joins the trace of the click that sent it. Only the method and the host are
- * recorded: a raw URL can carry ids and query values, which never belong in telemetry.
+ * The client span and W3C `traceparent` for each request through the framework's fetch to a
+ * declared API, so the backend's span is its child. Only the method and the host are recorded: a
+ * raw URL can carry ids and query values, which never belong in telemetry.
  */
 
-import { SpanKind, SpanStatusCode, type Span, type TelemetrySpanContext } from '@company/mfe-core'
+import {
+  SpanKind,
+  SpanStatusCode,
+  type TelemetryAttribution,
+  type TelemetryProvider,
+} from '@company/mfe-core'
 
-import { getActiveSpanContext } from './active-span.ts'
+import { MountTelemetryRuntime, type TelemetryRuntimeOptions } from './runtime.ts'
+import { MountTracer } from './tracer.ts'
+import { formatTraceparent, parseTraceparent } from './traceparent.ts'
 
 export interface RequestTrace {
-  /** Version 00 and the sampled flag: sampling is the shell's to decide downstream. */
+  /** Sent in place of the caller's own, so the backend's span is a child of this one. */
   readonly traceparent: string
   /** Counts a second attempt, as after a 401 and a refreshed token. */
   resent(): void
   end(outcome: { readonly status: number } | { readonly error: unknown }): void
+  /** The caller cancelled it, as a query does when its component unmounts: left, not failed. */
+  abandon(): void
 }
 
-function idsOf(span: Span): TelemetrySpanContext | undefined {
-  // Read structurally: the span may come from another copy of the runtime on the page (§55).
-  const { traceId, spanId } = span as Partial<TelemetrySpanContext>
-  return typeof traceId === 'string' && typeof spanId === 'string' ? { traceId, spanId } : undefined
+export interface RequestTracer {
+  /**
+   * Joins the trace a valid caller `traceparent` names, as from a workflow's `headers()`, and
+   * starts a trace otherwise. `undefined` sends the request as the caller wrote it: their header
+   * is not W3C, or the provider failed.
+   */
+  trace(method: string, url: URL, callerTraceparent: string | null): RequestTrace | undefined
 }
 
 function defaultPort(url: URL): number {
@@ -28,47 +40,54 @@ function defaultPort(url: URL): number {
 }
 
 /**
- * Reads the active span synchronously, so it is called before the request's first `await`;
- * outside any active span there is nothing to join and the request goes out untraced.
+ * A container has no mount, so its requests get a runtime of their own, attributed to the
+ * container and never disposed. The provider is contained as it is for a mount: one that throws
+ * leaves the request untraced, never failed, and is reported through `onDiagnostic`.
  */
-export function traceRequest(method: string, url: URL): RequestTrace | undefined {
-  const active = getActiveSpanContext()
-  if (active === undefined) return undefined
+export function createRequestTracer(
+  provider: TelemetryProvider,
+  attribution: TelemetryAttribution,
+  options: TelemetryRuntimeOptions = {},
+): RequestTracer {
+  const tracer = new MountTracer(new MountTelemetryRuntime(provider, attribution, options))
 
-  const span = active.tracer.startSpan(method, {
-    kind: SpanKind.CLIENT,
-    attributes: {
-      'http.request.method': method,
-      'server.address': url.hostname,
-      'server.port': defaultPort(url),
+  return Object.freeze({
+    trace(method: string, url: URL, callerTraceparent: string | null): RequestTrace | undefined {
+      const parent = callerTraceparent === null ? undefined : parseTraceparent(callerTraceparent)
+      if (callerTraceparent !== null && parent === undefined) return undefined
+
+      const span = tracer.startSpan(method, {
+        kind: SpanKind.CLIENT,
+        parent,
+        attributes: {
+          'http.request.method': method,
+          'server.address': url.hostname,
+          'server.port': defaultPort(url),
+        },
+      })
+      if (span === undefined) return undefined
+      let resends = 0
+
+      return {
+        traceparent: formatTraceparent(span),
+        resent(): void {
+          resends += 1
+          span.setAttributes({ 'http.request.resend_count': resends })
+        },
+        end(outcome): void {
+          if ('status' in outcome) {
+            span.setAttributes({ 'http.response.status_code': outcome.status })
+            // A client span counts 4xx as an error too: the request did not do what was asked.
+            if (outcome.status >= 400) span.setStatus(SpanStatusCode.ERROR)
+          } else {
+            span.recordException(outcome.error).setStatus(SpanStatusCode.ERROR)
+          }
+          span.end()
+        },
+        abandon(): void {
+          span.endAbandoned()
+        },
+      }
     },
   })
-  // A span that does not record still carries the request into the active span's trace.
-  const { traceId, spanId } = idsOf(span) ?? active
-  let resends = 0
-
-  return {
-    traceparent: `00-${traceId}-${spanId}-01`,
-    resent(): void {
-      if (!span.isRecording()) return
-      resends += 1
-      span.setAttribute('http.request.resend_count', resends)
-    },
-    end(outcome): void {
-      // The mount may have gone while the request was out, closing the span as cancelled; a late
-      // answer is not the author's change after `end()`, so it is not reported as one.
-      if (!span.isRecording()) return
-      if ('status' in outcome) {
-        span.setAttribute('http.response.status_code', outcome.status)
-        // A client span counts 4xx as an error too: the request did not do what was asked.
-        if (outcome.status >= 400) {
-          span.setStatus({ code: SpanStatusCode.ERROR, message: String(outcome.status) })
-        }
-      } else {
-        span.recordException(outcome.error)
-        span.setStatus({ code: SpanStatusCode.ERROR })
-      }
-      span.end()
-    },
-  }
 }

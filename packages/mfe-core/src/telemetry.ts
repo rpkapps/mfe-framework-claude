@@ -26,43 +26,70 @@ export type SpanKind = (typeof SpanKind)[keyof typeof SpanKind]
 
 export interface SpanStatus {
   readonly code: SpanStatusCode
-  readonly message?: string
 }
 
 export interface SpanOptions {
   readonly kind?: SpanKind
   readonly attributes?: TelemetryAttributes
-  /** Epoch milliseconds; defaults to the creation time. */
-  readonly startTime?: number
 }
 
+/** What the framework does with a span the provider started, and no more. */
 export interface Span {
-  setAttribute(key: string, value: string | number | boolean): Span
   setAttributes(attributes: TelemetryAttributes): Span
-  /** A diagnostic milestone inside a span, distinct from `telemetry.event()`. */
-  addEvent(name: string, attributes?: TelemetryAttributes): Span
   setStatus(status: SpanStatus): Span
-  recordException(error: unknown, attributes?: TelemetryAttributes): Span
+  recordException(error: unknown): Span
   /** Repeated calls are harmless. */
-  end(endTime?: number): void
-  isRecording(): boolean
+  end(): void
 }
 
+/**
+ * What a provider builds for one attribution, a mount or a container's `#mfe/fetch`; the framework
+ * starts every span on it, for a workflow and its steps or for a request.
+ */
 export interface Tracer {
   startSpan(name: string, options?: SpanOptions): Span
+}
+
+/**
+ * One named piece of user-facing work, such as a checkout, traced from its start to its end. It is
+ * one trace: each step is a child of the workflow, and a request joins it only through `headers()`.
+ * The run is the page's: every App and Widget that names it, with the same key, acts on the same
+ * run, and each takes part in it from its first call while it is open. Spans and records are
+ * attributed to the mount that made them. Its record methods emit what the same `MfeTelemetry`
+ * method would, linked to the current step, or the workflow before its first step, while open;
+ * otherwise, or when the run has no spans, unlinked.
+ */
+export interface Workflow {
+  /** Starts the run, or joins the open one and adds these attributes to it. */
+  start(attributes?: TelemetryAttributes): void
   /**
-   * Authors end the span and record a throw themselves, and a span created after an `await` inside
-   * the callback is a root rather than a child of it (§4).
+   * Marks the next step, ending the current one whichever mount marked it. A step lasts until the
+   * next step or the end. Ignored when not open.
    */
-  startActiveSpan<T>(name: string, callback: (span: Span) => T): T
-  startActiveSpan<T>(name: string, options: SpanOptions, callback: (span: Span) => T): T
+  step(name: string, attributes?: TelemetryAttributes): void
   /**
-   * Runs `fn` synchronously with `span` active, so spans started and `#mfe/fetch` requests sent
-   * inside it join the span's trace. This is how one trace continues across clicks or after an
-   * `await`: keep the span, and wrap the later work. A span from another mount, or one that does
-   * not record, leaves the active span as it was.
+   * `{ traceparent }` for the current step, or the workflow before its first step, while open; `{}`
+   * otherwise or when the run has no spans. Spread it into a request's headers.
    */
-  withSpan<T>(span: Span, fn: () => T): T
+  headers(): Record<string, string>
+  /** Ends it as succeeded for every mount in it. Ignored when not open. */
+  succeed(attributes?: TelemetryAttributes): void
+  /**
+   * Ends it as failed with this error, for every mount in it; the error is also reported. Ignored
+   * when not open, except that the error is still reported.
+   */
+  fail(error: unknown, attributes?: TelemetryAttributes): void
+  event(name: string, attributes?: TelemetryAttributes): void
+  debug(message: string, attributes?: TelemetryAttributes): void
+  info(message: string, attributes?: TelemetryAttributes): void
+  warn(message: string, attributes?: TelemetryAttributes): void
+  /** Reports an error without ending the workflow; `fail` ends it. */
+  error(error: unknown, attributes?: TelemetryAttributes): void
+  measure(
+    name: string,
+    value: number,
+    options: { unit: MeasurementUnit; attributes?: TelemetryAttributes },
+  ): void
 }
 
 /** The author-facing surface. */
@@ -79,7 +106,12 @@ export interface MfeTelemetry {
     value: number,
     options: { unit: MeasurementUnit; attributes?: TelemetryAttributes },
   ): void
-  readonly tracer: Tracer
+  /**
+   * The workflow with this name and key; the same object every call with the same pair, and the
+   * same run as every other mount on the page that uses the pair. A key, such as an upload's id,
+   * lets several runs of one name be open at once. It only picks the run and is never recorded.
+   */
+  workflow(name: string, key?: string): Workflow
 }
 
 /** W3C trace context ids, hex-encoded: 32 characters for the trace, 16 for the span. */
@@ -107,7 +139,7 @@ export interface TelemetryEventRecord {
   readonly attributes: TelemetryAttributes
   readonly attribution: TelemetryAttribution
   readonly timestamp: number
-  /** The mount's active span when the record was made, so a backend can link the two. */
+  /** The span the record belongs to, so a backend can link the two. */
   readonly spanContext?: TelemetrySpanContext
 }
 
@@ -119,7 +151,7 @@ export interface TelemetryLogRecord {
   readonly attributes: TelemetryAttributes
   readonly attribution: TelemetryAttribution
   readonly timestamp: number
-  /** The mount's active span when the record was made, so a backend can link the two. */
+  /** The span the record belongs to, so a backend can link the two. */
   readonly spanContext?: TelemetrySpanContext
 }
 
@@ -131,7 +163,7 @@ export interface TelemetryMeasurementRecord {
   readonly attributes: TelemetryAttributes
   readonly attribution: TelemetryAttribution
   readonly timestamp: number
-  /** The mount's active span when the record was made, so a backend can link the two. */
+  /** The span the record belongs to, so a backend can link the two. */
   readonly spanContext?: TelemetrySpanContext
 }
 
@@ -144,7 +176,7 @@ export interface TelemetryFrameworkRecord {
   readonly attributes: TelemetryAttributes
   readonly attribution: TelemetryAttribution
   readonly timestamp: number
-  /** The mount's active span when the record was made, so a backend can link the two. */
+  /** The span the record belongs to, so a backend can link the two. */
   readonly spanContext?: TelemetrySpanContext
 }
 
@@ -160,7 +192,6 @@ export interface SpanRecord {
   readonly endTime?: number
   readonly status: SpanStatus
   readonly events: readonly { name: string; attributes: TelemetryAttributes; timestamp: number }[]
-  readonly exceptions: readonly unknown[]
   readonly parent?: SpanRecord
   /** The span's own ids; absent only for a span started outside a mount's tracer. */
   readonly spanContext?: TelemetrySpanContext
@@ -171,8 +202,7 @@ export interface SpanRecord {
 /** The shell owns redaction, sampling, batching and delivery; this seam only normalizes records. */
 export interface TelemetryProvider {
   record(record: TelemetryRecord): void
-  /** Activation is the mount tracer's own, so a provider's tracer has no `withSpan`. */
-  createTracer(attribution: TelemetryAttribution): Omit<Tracer, 'withSpan'>
+  createTracer(attribution: TelemetryAttribution): Tracer
   /** Lets a provider drop a record before it is formatted. */
   isLevelEnabled?(level: TelemetryLevel): boolean
 }

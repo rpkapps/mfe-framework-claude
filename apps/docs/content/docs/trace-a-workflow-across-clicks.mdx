@@ -1,0 +1,183 @@
+---
+title: 'Trace a workflow across several clicks'
+description: 'Record a checkout as one trace: start it, mark each click as a step, send the order with its headers, and end it.'
+---
+
+Apps and Widgets. A workflow records one piece of user work, such as a checkout, as one trace.
+Each click becomes a step, and the order request joins the trace through `headers()`.
+For the basics of telemetry, see [Events, errors and traces](/docs/telemetry).
+
+## Steps
+
+<Steps>
+<Step>
+
+### 1. Get the workflow and start it
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="src/checkout.tsx"
+import { useTelemetry } from '@company/mfe-react'
+
+export function Checkout({ cart }: { cart: readonly CartItem[] }) {
+  const checkout = useTelemetry().workflow('orders.checkout')
+
+  function open() {
+    checkout.start({ items: cart.length })
+  }
+  // ...
+}
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/checkout.component.ts"
+import { Component, input } from '@angular/core'
+import { injectTelemetry } from '@company/mfe-angular'
+
+@Component({ selector: 'app-checkout', template: `...` })
+export class CheckoutComponent {
+  readonly cart = input.required<readonly CartItem[]>()
+  private readonly checkout = injectTelemetry().workflow('orders.checkout')
+
+  open(): void {
+    this.checkout.start({ items: this.cart().length })
+  }
+}
+```
+
+</Tab>
+</Tabs>
+
+`workflow('orders.checkout')` returns the same object on every call, so each handler reaches the same run.
+Call `start()` on the click that begins the work. Calling it again while the run is open joins that run rather than starting another.
+Another App or Widget that uses the same name reaches the same run. See [Share a workflow between widgets](/docs/share-a-workflow-between-widgets).
+
+</Step>
+<Step>
+
+### 2. Mark each click as a step
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="src/checkout.tsx"
+function chooseShipping(option: string) {
+  checkout.step('choose shipping', { option })
+}
+
+function choosePayment(method: string) {
+  checkout.step('choose payment', { method })
+}
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/checkout.component.ts"
+chooseShipping(option: string): void {
+  this.checkout.step('choose shipping', { option })
+}
+
+choosePayment(method: string): void {
+  this.checkout.step('choose payment', { method })
+}
+```
+
+</Tab>
+</Tabs>
+
+A step lasts until the next step or the end. Steps called before `start()` are ignored.
+
+</Step>
+<Step>
+
+### 3. Send the order with the workflow's headers, then end it
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="src/checkout.tsx"
+import { fetch } from '#mfe/fetch'
+
+async function placeOrder() {
+  checkout.step('place order')
+  try {
+    const body = JSON.stringify(cart)
+    const response = await fetch('orders', { method: 'POST', body, headers: checkout.headers() })
+    if (!response.ok) throw new Error(`Order failed: ${response.status}`)
+    checkout.succeed()
+  } catch (error) {
+    checkout.fail(error)
+  }
+}
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/checkout.component.ts"
+import { fetch } from '#mfe/fetch'
+
+async placeOrder(): Promise<void> {
+  this.checkout.step('place order')
+  try {
+    const body = JSON.stringify(this.cart())
+    const headers = this.checkout.headers()
+    const response = await fetch('orders', { method: 'POST', body, headers })
+    if (!response.ok) throw new Error(`Order failed: ${response.status}`)
+    this.checkout.succeed()
+  } catch (error) {
+    this.checkout.fail(error)
+  }
+}
+```
+
+</Tab>
+</Tabs>
+
+`headers()` returns the current step's `traceparent`, so the request's span is a child of `place order`.
+`fail` ends the workflow and reports the error. Do not call `telemetry.error` as well.
+
+<Details summary="What happens when the user leaves">
+
+| The user                       | The open run                                             |
+| ------------------------------ | -------------------------------------------------------- |
+| starts the checkout again      | carries on: `start()` joins it                           |
+| navigates away and unmounts it | ends as abandoned, with `mfe.span.end_reason: abandoned` |
+
+An unmount abandons the run only when no other App or Widget is taking part in it. Neither counts as a failure, and neither reports an error.
+
+</Details>
+
+</Step>
+</Steps>
+
+## Check it works
+
+In a test, your test environment's `telemetry.spansNamed('orders.checkout')` returns the workflow's span once it ends.
+`telemetry.spansNamed('choose shipping')` returns the step, whose `parent` is that span.
+In the shell, the order request carries a `traceparent` header in the network panel.
+
+## Errors
+
+<Callout type="error" title="config/invalid, a workflow that is not open">
+
+```text shared
+lab@1.0.0 failed to mark step "choose shipping" of workflow "orders.checkout": expected workflow
+"orders.checkout" to be started with start(), received workflow "orders.checkout", which was not
+open.
+```
+
+**Fix.** Call `start()` before the first step. The call was ignored. This message appears in development only.
+
+</Callout>
+
+## Related
+
+- [Telemetry API](/docs/reference/hooks-and-components#usetelemetry) — every workflow method.
+- [Trace a single action](/docs/trace-a-single-action) — a workflow with no steps.
+- [Log and measure inside a workflow](/docs/log-and-measure-inside-a-workflow) — records linked to a step.
+- [Find a trace in Grafana](/docs/find-a-trace-in-grafana) — read the result.

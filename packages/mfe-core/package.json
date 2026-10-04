@@ -1,7 +1,7 @@
 {
   "name": "@company/mfe-core",
   "version": "0.1.0",
-  "description": "Neutral MFE contracts: identity, lifecycle, structured errors, Widget contracts, telemetry and tracing types, storage envelopes. No React, router, single-spa or Module Federation dependency.",
+  "description": "Internal to the MFE framework: do not import it. Apps, Widgets and shells import every type from their adapter (@company/mfe-react or @company/mfe-angular). Neutral MFE contracts: identity, lifecycle, structured errors, Widget contracts, telemetry and tracing types, storage envelopes.",
   "type": "module",
   "sideEffects": false,
   "engines": {
@@ -13,6 +13,11 @@
       "mfe-source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./public": {
+      "mfe-source": "./src/public.ts",
+      "types": "./dist/public.d.ts",
+      "default": "./dist/public.js"
     },
     "./runtime-compatibility": {
       "mfe-source": "./src/runtime-compatibility.ts",

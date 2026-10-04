@@ -1,378 +1,176 @@
-import { describe, expect, it, vi } from 'vitest'
+/** The span machinery behind workflows: ids and parentage, containment, bounds and disposal. */
+
+import { describe, expect, it } from 'vitest'
 
 import {
   SpanKind,
   SpanStatusCode,
   TELEMETRY_LIMITS,
+  type Diagnostic,
   type Span,
   type TelemetryProvider,
-  type Tracer,
 } from '@company/mfe-core'
 
 import { createRecordingTelemetryProvider } from '../testing/recording-provider.ts'
-import { createMountTelemetry } from './service.ts'
-import { nonRecordingSpan } from './span-emitter.ts'
-import { at, ATTRIBUTION, setup, spanNamed } from './__tests__/harness.ts'
+import { MountTelemetryRuntime } from './runtime.ts'
+import { MountTracer, type MountSpan } from './tracer.ts'
+import { at, ATTRIBUTION } from './__tests__/harness.ts'
 
-describe('span creation', () => {
+function setup(provider: TelemetryProvider = createRecordingTelemetryProvider()) {
+  const diagnostics: Diagnostic[] = []
+  const runtime = new MountTelemetryRuntime(provider, ATTRIBUTION, {
+    dev: true,
+    onDiagnostic: diagnostic => diagnostics.push(diagnostic),
+  })
+  const tracer = new MountTracer(runtime)
+  return { diagnostics, runtime, tracer }
+}
+
+function recording() {
+  const provider = createRecordingTelemetryProvider()
+  return { provider, ...setup(provider) }
+}
+
+function started(span: MountSpan | undefined): MountSpan {
+  if (span === undefined) throw new Error('expected a recording span')
+  return span
+}
+
+describe('starting a span', () => {
   it('asks the provider for one tracer and records a span with host attribution', () => {
-    const { provider, tracer } = setup()
+    const { provider, tracer } = recording()
 
-    const span = tracer.startSpan('load-quotes', { attributes: { route: 'quote' } })
+    tracer.startSpan('checkout', { attributes: { items: 3 } })
 
     expect(provider.tracerCount).toBe(1)
     const record = at(provider.spans)
-    expect(record.name).toBe('load-quotes')
+    expect(record.name).toBe('checkout')
     expect(record.kind).toBe(SpanKind.INTERNAL)
     expect(record.attribution).toEqual(ATTRIBUTION)
-    expect(record.attributes['route']).toBe('quote')
+    expect(record.attributes['items']).toBe(3)
     expect(record.attributes['mfe.definition.id']).toBe('operations-console')
-    expect(typeof record.attributes['mfe.trace.id']).toBe('string')
-    expect(typeof record.attributes['mfe.span.id']).toBe('string')
     expect(record.attributes['mfe.span.parent_id']).toBeUndefined()
-    expect(span.isRecording()).toBe(true)
   })
 
-  it('gives every span its own id and a fresh trace id at the root', () => {
-    const { provider, tracer } = setup()
-    tracer.startSpan('one')
-    tracer.startSpan('two')
+  it('starts a fresh trace without a parent and joins the parent trace with one', () => {
+    const { provider, tracer } = recording()
 
-    const [first, second] = [at(provider.spans, 0), at(provider.spans, 1)]
-    expect(first.attributes['mfe.span.id']).not.toBe(second.attributes['mfe.span.id'])
-    expect(first.attributes['mfe.trace.id']).not.toBe(second.attributes['mfe.trace.id'])
+    const root = started(tracer.startSpan('checkout'))
+    const child = started(tracer.startSpan('place order', { parent: root }))
+    tracer.startSpan('another workflow')
+
+    expect(child.traceId).toBe(root.traceId)
+    expect(child.spanId).not.toBe(root.spanId)
+    expect(at(provider.spans, 1).parent).toBe(at(provider.spans, 0))
+    expect(at(provider.spans, 1).attributes['mfe.span.parent_id']).toBe(root.spanId)
+    expect(at(provider.spans, 2).attributes['mfe.trace.id']).not.toBe(root.traceId)
   })
 
-  it('honours kind, explicit start time and bounded names', () => {
-    const { provider, tracer } = setup()
+  it('uses W3C id shapes', () => {
+    const { tracer } = recording()
 
-    tracer.startSpan('s'.repeat(400), { kind: SpanKind.CLIENT, startTime: 1234 })
+    const span = started(tracer.startSpan('checkout'))
+
+    expect(span.traceId).toMatch(/^[0-9a-f]{32}$/)
+    expect(span.spanId).toMatch(/^[0-9a-f]{16}$/)
+  })
+
+  it('bounds the name and refuses reserved attribute keys', () => {
+    const { provider, diagnostics, tracer } = recording()
+
+    const span = started(tracer.startSpan('s'.repeat(400)))
+    span.setAttributes({ 'mfe.span.id': 'forged', route: 'quote' })
 
     const record = at(provider.spans)
     expect(record.name).toHaveLength(256)
-    expect(record.kind).toBe(SpanKind.CLIENT)
-    expect(record.startTime).toBe(1234)
-  })
-
-  it('tracks open spans and releases them on end', () => {
-    const { telemetry, tracer } = setup()
-
-    const span = tracer.startSpan('load-quotes')
-    expect(telemetry.openSpanCount).toBe(1)
-
-    span.end()
-    expect(telemetry.openSpanCount).toBe(0)
-    expect(span.isRecording()).toBe(false)
-  })
-})
-
-describe('span mutation', () => {
-  it('records attributes, events, status and exceptions', () => {
-    const { provider, tracer } = setup({ now: () => 500 })
-    const failure = new Error('quote service unavailable')
-
-    const span = tracer.startSpan('load-quotes')
-    span
-      .setAttribute('attempt', 2)
-      .setAttributes({ route: 'quote', cached: false })
-      .addEvent('cache.miss', { key: 'quotes' })
-      .setStatus({ code: SpanStatusCode.ERROR, message: 'upstream failed' })
-      .recordException(failure, { 'error.kind': 'upstream' })
-    span.end(900)
-
-    const record = at(provider.spans)
-    expect(record.attributes['attempt']).toBe(2)
+    expect(record.attributes['mfe.span.id']).toBe(span.spanId)
     expect(record.attributes['route']).toBe('quote')
-    expect(record.attributes['cached']).toBe(false)
-    expect(record.status).toEqual({ code: SpanStatusCode.ERROR, message: 'upstream failed' })
-    expect(record.exceptions).toEqual([failure])
-    expect(at(record.events).name).toBe('cache.miss')
-    expect(at(record.events).attributes['key']).toBe('quotes')
-    expect(at(record.events, 1).attributes['error.kind']).toBe('upstream')
-    expect(record.endTime).toBe(900)
-  })
-
-  it('returns the framework span from every chainable member', () => {
-    const { tracer } = setup()
-    const span = tracer.startSpan('load-quotes')
-
-    expect(span.setAttribute('a', 1)).toBe(span)
-    expect(span.setAttributes({ b: 2 })).toBe(span)
-    expect(span.addEvent('e')).toBe(span)
-    expect(span.setStatus({ code: SpanStatusCode.OK })).toBe(span)
-    expect(span.recordException(new Error('x'))).toBe(span)
-  })
-
-  it('refuses a reserved attribute key on a span', () => {
-    const { provider, telemetry, tracer } = setup()
-    const span = tracer.startSpan('load-quotes')
-    const originalSpanId = at(provider.spans).attributes['mfe.span.id']
-
-    span.setAttribute('mfe.span.id', 'forged')
-    span.setAttributes({ 'mfe.definition.id': 'impersonated', route: 'quote' })
-
-    const record = at(provider.spans)
-    expect(record.attributes['mfe.span.id']).toBe(originalSpanId)
-    expect(record.attributes['mfe.definition.id']).toBe('operations-console')
-    expect(record.attributes['route']).toBe('quote')
-    expect(telemetry.counters.reservedOverrideAttempts).toBe(2)
-  })
-
-  it('bounds span attribute values and drops a non-finite one', () => {
-    const { provider, tracer } = setup()
-    const span = tracer.startSpan('load-quotes')
-
-    span.setAttribute('long', 'x'.repeat(2000))
-    span.setAttribute('broken', Number.NaN)
-
-    const record = at(provider.spans)
-    expect(record.attributes['long']).toHaveLength(1024)
-    expect(record.attributes['broken']).toBeUndefined()
+    expect(diagnostics).toHaveLength(1)
+    expect(at(diagnostics).error.message).toContain('mfe.span.id')
   })
 })
 
 describe('ending a span', () => {
-  it('treats repeated end() calls as harmless and keeps the first end time', () => {
-    const { provider, tracer } = setup()
-    const span = tracer.startSpan('load-quotes')
+  it('treats repeated end() calls as harmless', () => {
+    const { provider, tracer } = recording()
+    const span = started(tracer.startSpan('checkout'))
 
-    span.end(100)
-    span.end(200)
     span.end()
+    span.end()
+    span.endAbandoned()
 
-    expect(at(provider.spans).endTime).toBe(100)
-    expect(span.isRecording()).toBe(false)
+    expect(provider.endedSpans()).toHaveLength(1)
+    expect(at(provider.spans).attributes['mfe.span.end_reason']).toBeUndefined()
   })
 
-  it('ignores every mutation after end, with a development diagnostic', () => {
-    const { provider, diagnostics, telemetry, tracer } = setup()
-    const span = tracer.startSpan('load-quotes')
-    span.setStatus({ code: SpanStatusCode.OK })
-    span.end(100)
+  it('labels an abandoned span without an error status', () => {
+    const { provider, tracer } = recording()
 
-    span.setAttribute('late', true)
-    span.setAttributes({ later: true })
-    span.addEvent('too-late')
-    span.setStatus({ code: SpanStatusCode.ERROR, message: 'rewritten' })
+    started(tracer.startSpan('checkout')).endAbandoned()
+
+    const record = at(provider.spans)
+    expect(record.endTime).toBeDefined()
+    expect(record.attributes['mfe.span.end_reason']).toBe('abandoned')
+    expect(record.status.code).toBe(SpanStatusCode.UNSET)
+  })
+
+  it('ignores every change after end', () => {
+    const { provider, tracer } = recording()
+    const span = started(tracer.startSpan('checkout'))
+    span.setStatus(SpanStatusCode.OK)
+    span.end()
+
+    span.setAttributes({ late: true })
+    span.setStatus(SpanStatusCode.ERROR)
     span.recordException(new Error('too late'))
 
     const record = at(provider.spans)
     expect(record.attributes['late']).toBeUndefined()
-    expect(record.attributes['later']).toBeUndefined()
     expect(record.events).toHaveLength(0)
-    expect(record.exceptions).toHaveLength(0)
     expect(record.status).toEqual({ code: SpanStatusCode.OK })
-    expect(telemetry.counters.mutationsAfterEnd).toBe(5)
-    expect(diagnostics.filter(d => d.error.message.includes('after it ended'))).toHaveLength(5)
-  })
-})
-
-describe('startActiveSpan', () => {
-  it('runs the callback exactly once and returns its value', () => {
-    const { tracer } = setup()
-    const callback = vi.fn((span: Span) => {
-      span.end()
-      return { ok: true }
-    })
-
-    const result = tracer.startActiveSpan('checkout', callback)
-
-    expect(callback).toHaveBeenCalledTimes(1)
-    expect(result).toEqual({ ok: true })
-  })
-
-  it('accepts options before the callback', () => {
-    const { provider, tracer } = setup()
-
-    tracer.startActiveSpan('checkout', { kind: SpanKind.CLIENT, attributes: { a: 1 } }, span => {
-      span.end()
-    })
-
-    const record = at(provider.spans)
-    expect(record.kind).toBe(SpanKind.CLIENT)
-    expect(record.attributes['a']).toBe(1)
-  })
-
-  it('does not end the span and does not record the exception when the callback throws', () => {
-    const { provider, telemetry, tracer } = setup()
-    const failure = new Error('checkout exploded')
-
-    expect(() =>
-      tracer.startActiveSpan('checkout', () => {
-        throw failure
-      }),
-    ).toThrow(failure)
-
-    const record = at(provider.spans)
-    expect(record.endTime).toBeUndefined()
-    expect(record.exceptions).toHaveLength(0)
-    expect(record.status.code).toBe(SpanStatusCode.UNSET)
-    expect(telemetry.openSpanCount).toBe(1)
-  })
-
-  it('preserves an asynchronous result', async () => {
-    const { provider, tracer } = setup()
-
-    const result = await tracer.startActiveSpan('checkout', async span => {
-      await Promise.resolve()
-      span.end()
-      return 'resolved'
-    })
-
-    expect(result).toBe('resolved')
-    expect(at(provider.spans).endTime).toBeDefined()
-  })
-
-  it('preserves an asynchronous rejection', async () => {
-    const { tracer } = setup()
-    const failure = new Error('rejected')
-
-    await expect(
-      tracer.startActiveSpan('checkout', async () => {
-        await Promise.resolve()
-        throw failure
-      }),
-    ).rejects.toBe(failure)
-  })
-
-  it('leaves the author in charge of the status', () => {
-    const { provider, tracer } = setup()
-
-    tracer.startActiveSpan('checkout', span => {
-      span.setStatus({ code: SpanStatusCode.OK })
-      span.end()
-    })
-
-    expect(at(provider.spans).status.code).toBe(SpanStatusCode.OK)
   })
 })
 
 describe('bounded open-span tracking', () => {
-  it('refuses to start a span past the per-mount budget and hands back a non-recording handle', () => {
-    const { provider, diagnostics, telemetry, tracer } = setup()
+  it('starts nothing past the per-mount budget, until a span ends or is abandoned', () => {
+    const { provider, diagnostics, tracer } = recording()
 
-    const spans: Span[] = []
+    const spans: (MountSpan | undefined)[] = []
     for (let index = 0; index < TELEMETRY_LIMITS.maxOpenSpansPerMount; index += 1) {
       spans.push(tracer.startSpan(`span-${index}`))
     }
-    expect(telemetry.openSpanCount).toBe(TELEMETRY_LIMITS.maxOpenSpansPerMount)
 
-    const overflow = tracer.startSpan('one-too-many')
-
-    expect(overflow.isRecording()).toBe(false)
+    expect(tracer.startSpan('one-too-many')).toBeUndefined()
     expect(provider.spansNamed('one-too-many')).toHaveLength(0)
-    expect(telemetry.counters.spansDroppedAtLimit).toBe(1)
     expect(diagnostics.some(d => d.error.message.includes('one-too-many'))).toBe(true)
 
-    at(spans).end()
-    tracer.startSpan('room-again')
-    expect(provider.spansNamed('room-again')).toHaveLength(1)
-  })
+    started(at(spans)).end()
+    expect(tracer.startSpan('room-again')).toBeDefined()
+    expect(tracer.startSpan('full-again')).toBeUndefined()
 
-  it('still runs a callback exactly once when the budget is exhausted', () => {
-    const { tracer } = setup()
-    for (let index = 0; index < TELEMETRY_LIMITS.maxOpenSpansPerMount; index += 1) {
-      tracer.startSpan(`span-${index}`)
-    }
-
-    const callback = vi.fn(() => 'ran')
-    expect(tracer.startActiveSpan('overflowing', callback)).toBe('ran')
-    expect(callback).toHaveBeenCalledTimes(1)
+    started(at(spans, 1)).endAbandoned()
+    expect(tracer.startSpan('room-after-abandoning')).toBeDefined()
   })
 })
 
-describe('disposal finalizes outstanding spans', () => {
-  it('closes leaked spans as cancelled without turning them into failures', () => {
-    const { provider, diagnostics, telemetry, tracer } = setup({ now: () => 4242 })
-    tracer.startSpan('leaked-one')
-    const second = tracer.startActiveSpan('leaked-two', span => {
-      span.setStatus({ code: SpanStatusCode.OK })
-      return span
-    })
-    expect(second.isRecording()).toBe(true)
+describe('disposal', () => {
+  it('starts nothing once the mount is disposed', () => {
+    const { provider, runtime, tracer } = recording()
+    runtime.markDisposed()
 
-    telemetry.dispose()
-
-    const one = spanNamed(provider.spans, 'leaked-one')
-    const two = spanNamed(provider.spans, 'leaked-two')
-    expect(one.endTime).toBe(4242)
-    expect(one.attributes['mfe.span.cancelled']).toBe(true)
-    expect(one.attributes['mfe.span.end_reason']).toBe('mount-disposed')
-    expect(one.status.code).toBe(SpanStatusCode.UNSET)
-    expect(one.status.code).not.toBe(SpanStatusCode.ERROR)
-    expect(two.status.code).toBe(SpanStatusCode.OK)
-    expect(two.attributes['mfe.span.cancelled']).toBe(true)
-
-    expect(telemetry.counters.spansFinalizedAtDisposal).toBe(2)
-    expect(telemetry.openSpanCount).toBe(0)
-    expect(second.isRecording()).toBe(false)
-    const leakDiagnostic = diagnostics.find(d => d.error.code === 'dispose/failure')
-    expect(leakDiagnostic?.error.message).toContain('leaked-one')
-    expect(leakDiagnostic?.context?.['openSpans']).toBe(2)
-  })
-
-  it('does not finalize a span the author already ended', () => {
-    const { provider, telemetry, tracer } = setup()
-    tracer.startSpan('done').end(10)
-
-    telemetry.dispose()
-
-    expect(at(provider.spans).endTime).toBe(10)
-    expect(at(provider.spans).attributes['mfe.span.cancelled']).toBeUndefined()
-    expect(telemetry.counters.spansFinalizedAtDisposal).toBe(0)
-  })
-
-  it('hands back non-recording spans after disposal but still runs callbacks once', () => {
-    const { provider, telemetry, tracer } = setup()
-    telemetry.dispose()
-
-    const span = tracer.startSpan('after-dispose')
-    const callback = vi.fn((active: Span) => {
-      active.setAttribute('a', 1)
-      active.end()
-      return 'still ran'
-    })
-    const result = tracer.startActiveSpan('after-dispose-active', callback)
-
-    expect(span.isRecording()).toBe(false)
-    expect(result).toBe('still ran')
-    expect(callback).toHaveBeenCalledTimes(1)
+    expect(tracer.startSpan('after-dispose')).toBeUndefined()
     expect(provider.spans).toHaveLength(0)
   })
 })
 
-describe('tracing switched off or broken', () => {
-  it('never asks the provider for a tracer when tracing is disabled', () => {
-    const { provider, tracer } = setup({ tracing: false })
-
-    const span = tracer.startSpan('load-quotes')
-    const result = tracer.startActiveSpan('checkout', active => {
-      active.setStatus({ code: SpanStatusCode.OK })
-      active.end()
-      return 'ran'
-    })
-
-    expect(provider.tracerCount).toBe(0)
-    expect(provider.spans).toHaveLength(0)
-    expect(span.isRecording()).toBe(false)
-    expect(result).toBe('ran')
-  })
-
-  it('contains a provider whose createTracer throws and keeps the mount alive', () => {
+describe('a broken provider', () => {
+  it('contains a provider whose createTracer throws', () => {
     const provider = createRecordingTelemetryProvider()
     provider.failTracerCreation(true)
-    const telemetry = createMountTelemetry(provider, ATTRIBUTION, { dev: true })
+    const { diagnostics, tracer } = setup(provider)
 
-    const result = telemetry.tracer.startActiveSpan('checkout', span => {
-      span.end()
-      return 'ran'
-    })
-
-    expect(result).toBe('ran')
-    expect(telemetry.counters.sinkFailures).toBe(1)
-    expect(telemetry.tracer.startSpan('anything').isRecording()).toBe(false)
-    telemetry.event('checkout.started')
-    expect(provider.events()).toHaveLength(1)
+    expect(tracer.startSpan('checkout')).toBeUndefined()
+    expect(diagnostics.map(diagnostic => diagnostic.error.operation)).toEqual(['create a tracer'])
   })
 
   it('contains a span implementation that throws on every member', () => {
@@ -380,72 +178,43 @@ describe('tracing switched off or broken', () => {
       throw new Error('vendor span exploded')
     }
     const hostileSpan: Span = {
-      setAttribute: explode,
       setAttributes: explode,
-      addEvent: explode,
       setStatus: explode,
       recordException: explode,
       end: explode,
-      isRecording: () => true,
     }
-    const hostileTracer: ReturnType<TelemetryProvider['createTracer']> = {
-      startSpan: () => hostileSpan,
-      startActiveSpan: (<T>(_name: string, callback: (span: Span) => T): T =>
-        callback(hostileSpan)) as Tracer['startActiveSpan'],
-    }
-    const provider: TelemetryProvider = {
+    const { diagnostics, tracer } = setup({
       record: () => {},
-      createTracer: () => hostileTracer,
-    }
-    const telemetry = createMountTelemetry(provider, ATTRIBUTION, { dev: true })
+      createTracer: () => ({ startSpan: () => hostileSpan }),
+    })
 
     expect(() => {
-      const span = telemetry.tracer.startSpan('load-quotes')
-      span.setAttribute('a', 1)
+      const span = started(tracer.startSpan('checkout'))
       span.setAttributes({ b: 2 })
-      span.addEvent('e')
-      span.setStatus({ code: SpanStatusCode.OK })
+      span.setStatus(SpanStatusCode.OK)
       span.recordException(new Error('x'))
       span.end()
     }).not.toThrow()
 
-    expect(telemetry.counters.sinkFailures).toBe(6)
-    expect(telemetry.openSpanCount).toBe(0)
+    expect(diagnostics.map(diagnostic => diagnostic.error.operation)).toEqual([
+      'set span attributes',
+      'set a span status',
+      'record a span exception',
+      'end a span',
+    ])
   })
 
-  it('hands back a non-recording span when the provider tracer throws on startSpan', () => {
-    const provider: TelemetryProvider = {
+  it('starts nothing when the provider tracer throws on startSpan', () => {
+    const { diagnostics, tracer } = setup({
       record: () => {},
       createTracer: () => ({
         startSpan: () => {
           throw new Error('cannot start')
         },
-        startActiveSpan: (<T>(_name: string, callback: (span: Span) => T): T =>
-          callback(nonRecordingSpan)) as Tracer['startActiveSpan'],
       }),
-    }
-    const telemetry = createMountTelemetry(provider, ATTRIBUTION, { dev: true })
-
-    const span = telemetry.tracer.startSpan('load-quotes')
-
-    expect(span.isRecording()).toBe(false)
-    expect(telemetry.counters.sinkFailures).toBe(1)
-    expect(telemetry.counters.spansStarted).toBe(0)
-  })
-})
-
-describe('the active context across copies of the runtime', () => {
-  it('is what another copy reads as active', async () => {
-    const { provider, tracer } = setup()
-    vi.resetModules()
-    const other = await import('./active-span.ts')
-
-    const seen = tracer.startActiveSpan('checkout', span => {
-      span.end()
-      return other.getActiveSpanContext()?.name
     })
 
-    expect(seen).toBe('checkout')
-    expect(at(provider.spans).name).toBe('checkout')
+    expect(tracer.startSpan('checkout')).toBeUndefined()
+    expect(diagnostics.map(diagnostic => diagnostic.error.operation)).toEqual(['start a span'])
   })
 })

@@ -15,5 +15,6 @@ Standards: `CONTRIBUTING.md` (code), `apps/docs/STYLE.md` (docs), `REVIEW.md` (r
 3. Changed published packages have a changeset.
 4. No TODO, stub, commented-out code or unused option.
 5. No dead code. Exports need a caller in the shell, docs site or another package, or an
-   `api-surface.json` entry (`pnpm api:check`). Never add to `pendingDecision`.
+   `api-surface.json` entry (`pnpm api:check`). Never add to `pendingDecision` or
+   `unexportedTypes`. Name every removed export in the changeset.
 6. The diff is reviewed against `REVIEW.md` in a fresh context before the PR opens.

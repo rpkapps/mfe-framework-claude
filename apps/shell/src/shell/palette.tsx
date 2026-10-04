@@ -17,9 +17,9 @@ import {
   useMfeRuntime,
   useTheme,
   useWidgets,
-  type MfeRuntime,
   type RegistryEntry,
 } from '@company/mfe-react'
+import type { ActionEntry } from '@company/mfe-react/host'
 import {
   Command,
   CommandDialog,
@@ -55,8 +55,6 @@ import { addTile, tileKey, type DashboardLayout } from './dashboard/layout-store
 import { useDashboardLayout } from './hooks.ts'
 import type { ShellTheme } from '@company/mfe-react'
 import { ShortcutKeys } from './shortcut-keys.tsx'
-
-type ActionEntry = ReturnType<MfeRuntime['actions']['getSnapshot']>[number]
 
 /** What a shell action's row reads at the moment it is drawn. */
 interface Live {

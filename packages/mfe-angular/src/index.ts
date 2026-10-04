@@ -45,67 +45,8 @@ export {
 } from './inject/navigation-block.ts'
 export { injectWidgetEmit, type WidgetEmit } from './inject/widget-emit.ts'
 
-/** From the core, so an author never resolves `@opentelemetry/*` or `@grafana/faro-*`. */
-export {
-  SpanKind,
-  SpanStatusCode,
-  type MeasurementUnit,
-  type MfeTelemetry,
-  type Span,
-  type SpanOptions,
-  type SpanStatus,
-  type TelemetryAttributes,
-  type Tracer,
-} from '@company/mfe-core'
-
-/* Neutral contracts an author or host legitimately needs */
-export {
-  allow,
-  deny,
-  type ActionEffect,
-  type ActionInputSchema,
-  type ActionPlacement,
-  type ActionRegistration,
-  type AgentContextEntry,
-  type AgentContextRegistration,
-  type AgentPrompt,
-  type AgentSuggestion,
-  type AgentSuggestionEntry,
-  type BreadcrumbItem,
-  type CapabilityDeclaration,
-  type CapabilityDescriptor,
-  type Decision,
-  type MfeError,
-  type MfeErrorCode,
-  type AnyStoredKey,
-  type MfeStorage,
-  type ReadonlyStoredKey,
-  storedKey,
-  type StorageError,
-  type StorageErrorCode,
-  type StoredKey,
-  type StoredKeyOptions,
-  type StoredStatus,
-  type StoredUpdate,
-  type ShellState,
-  type ShellTheme,
-  type ShellUser,
-  type StorageArea,
-  type OutputSchema,
-  type WidgetContract,
-  /* The registry shapes are part of the host surface, because a host renders the registry. */
-  type JsonSchemaObject,
-  type JsonSchemaValue,
-  /* An author reads these inside `injectNavigationBlock`, so they belong on the author surface. */
-  type BoundaryLocation,
-  type NavigationIntent,
-  type PublishedContract,
-  /* What a shell author needs to write or register an adapter of their own. */
-  type MfeAdapter,
-  type Registry,
-  type RegistryEntry,
-  type RejectedRegistryEntry,
-} from '@company/mfe-core'
+// The core's public API, whole: the types and values an App, a Widget or a shell names.
+export * from '@company/mfe-core/public'
 
 /* Placing definitions from an Angular shell or App; a shell composes the page from `/host`. */
 export { provideMfeRuntime } from './host/provide-runtime.ts'
@@ -143,20 +84,3 @@ export {
   type GetAccessToken,
   type ShellAuthOptions,
 } from '@company/mfe-runtime'
-
-/** The one walk over a Widget's published inputs and outputs, for a host composing the registry. */
-export {
-  coerceInputs,
-  defaultInputsFor,
-  describeOutputs,
-  describeInputs,
-  needsInputPrompt,
-  type BuildProvenance,
-  type WidgetOutput,
-  type WidgetInputField,
-  type WidgetInputKind,
-  type WidgetInputType,
-} from '@company/mfe-core'
-
-/** Re-exported from the core because a host depends on this package, not on the core. */
-export { HOST_SCOPE, type CapabilityName, type IconData, type IconNode } from '@company/mfe-core'
