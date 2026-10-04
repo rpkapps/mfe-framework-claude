@@ -388,7 +388,7 @@ describe('tracing switched off or broken', () => {
       end: explode,
       isRecording: () => true,
     }
-    const hostileTracer: Tracer = {
+    const hostileTracer: ReturnType<TelemetryProvider['createTracer']> = {
       startSpan: () => hostileSpan,
       startActiveSpan: (<T>(_name: string, callback: (span: Span) => T): T =>
         callback(hostileSpan)) as Tracer['startActiveSpan'],
@@ -438,7 +438,7 @@ describe('the active context across copies of the runtime', () => {
   it('is what another copy binds a continuation to', async () => {
     const { provider, tracer } = setup()
     vi.resetModules()
-    const other = await import('./tracer.ts')
+    const other = await import('./active-span.ts')
 
     const continuation = tracer.startActiveSpan('checkout', span => {
       span.end()

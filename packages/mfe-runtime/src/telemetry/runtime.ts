@@ -22,6 +22,7 @@ import {
 } from '@company/mfe-core'
 
 import { DEV } from '../dev.ts'
+import { getActiveSpanContextFor } from './active-span.ts'
 
 /**
  * The `mfe.*` namespace the host owns; span ids live here because an author who set them
@@ -315,15 +316,22 @@ export class MountTelemetryRuntime {
     if (delivered === true) this.counters.recorded += 1
   }
 
-  /** The fields every record shares. */
+  /**
+   * The fields every record shares. Only this mount's active span is stamped, for the same reason
+   * an interleaved mount's span is never a parent (§4).
+   */
   #envelope(
     attributes: TelemetryAttributes | undefined,
     operation: string,
-  ): Pick<TelemetryRecord, 'attributes' | 'attribution' | 'timestamp'> {
+  ): Pick<TelemetryRecord, 'attributes' | 'attribution' | 'timestamp' | 'spanContext'> {
+    const active = getActiveSpanContextFor(this.owner)
     return {
       attributes: this.mergeAttributes(attributes, operation),
       attribution: this.attribution,
       timestamp: this.now(),
+      ...(active === undefined
+        ? {}
+        : { spanContext: Object.freeze({ traceId: active.traceId, spanId: active.spanId }) }),
     }
   }
 

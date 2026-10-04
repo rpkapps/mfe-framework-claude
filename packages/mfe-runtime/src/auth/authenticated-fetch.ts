@@ -8,6 +8,7 @@ import { createMfeError } from '@company/mfe-core'
 
 import { DEV } from '../dev.ts'
 import type { DiagnosticsHub } from '../diagnostics.ts'
+import { traceRequest, type RequestTrace } from '../telemetry/request-span.ts'
 import { normalizeAllowedOrigins } from './origins.ts'
 import type { AccessTokenOptions, GetAccessToken } from './session.ts'
 
@@ -171,9 +172,22 @@ interface RequestPlan {
   /** The caller's cancellation, as `fetch` itself would resolve it. */
   readonly signal: AbortSignal | undefined
   readonly hasCallerAuthorization: boolean
+  /** The caller's own trace context, which the framework leaves alone. */
+  readonly hasCallerTraceparent: boolean
   readonly replay: ReplayDecision
-  /** Issues one attempt, applying `authorization` when it is not `null`. */
-  readonly send: (authorization: string | null) => Promise<Response>
+  /** Issues one attempt, applying each header that is not `null`. */
+  readonly send: (authorization: string | null, traceparent: string | null) => Promise<Response>
+}
+
+function withHeaders(
+  snapshot: Headers,
+  authorization: string | null,
+  traceparent: string | null,
+): Headers {
+  const headers = new Headers(snapshot)
+  if (authorization !== null) headers.set('Authorization', authorization)
+  if (traceparent !== null) headers.set('traceparent', traceparent)
+  return headers
 }
 
 /** Described once, so both attempts differ only in the `Authorization` header. */
@@ -196,10 +210,10 @@ function planRequest(
       method: request.method.toUpperCase(),
       signal: init?.signal ?? request.signal,
       hasCallerAuthorization: snapshot.has('authorization'),
+      hasCallerTraceparent: snapshot.has('traceparent'),
       replay,
-      send: authorization => {
-        const headers = new Headers(snapshot)
-        if (authorization !== null) headers.set('Authorization', authorization)
+      send: (authorization, traceparent) => {
+        const headers = withHeaders(snapshot, authorization, traceparent)
         let attempt: Request
         try {
           attempt = new Request(request, { ...init, headers })
@@ -219,12 +233,12 @@ function planRequest(
     method: (init?.method ?? 'GET').toUpperCase(),
     signal: init?.signal ?? undefined,
     hasCallerAuthorization: snapshot.has('authorization'),
+    hasCallerTraceparent: snapshot.has('traceparent'),
     replay: isStreamBody(init?.body)
       ? { replayable: false, reason: STREAM_BODY_REASON }
       : REPLAYABLE,
-    send: authorization => {
-      const headers = new Headers(snapshot)
-      if (authorization !== null) headers.set('Authorization', authorization)
+    send: (authorization, traceparent) => {
+      const headers = withHeaders(snapshot, authorization, traceparent)
       // The resolved absolute URL is what actually goes out, so that is what the wrapped
       // implementation receives.
       return innerFetch(url.href, { ...init, headers })
@@ -288,25 +302,22 @@ export function createAuthenticatedFetch(options: AuthenticatedFetchOptions): Fe
     )
   }
 
-  return async function authenticatedFetch(
-    input: RequestInfo | URL,
-    init?: RequestInit,
+  /** Sends to a declared API: with the session token, and one retry after a 401. */
+  async function sendToApi(
+    url: URL,
+    plan: RequestPlan,
+    trace: RequestTrace | undefined,
   ): Promise<Response> {
-    // Configuration failures happen here, before anything is sent.
-    const url = resolveRequestUrl(input, base, id)
-    const plan = planRequest(input, init, url, innerFetch)
-
-    if (!allowlist.has(url.origin)) {
-      warnUndeclaredOrigin(url.origin, plan.method)
-      return await plan.send(null)
-    }
+    const traceparent = trace?.traceparent ?? null
+    const send = (authorization: string | null): Promise<Response> =>
+      plan.send(authorization, traceparent)
 
     // An explicit Authorization header is the caller's own credential, which the framework
     // neither replaces nor refreshes on its behalf.
-    if (plan.hasCallerAuthorization) return await plan.send(null)
+    if (plan.hasCallerAuthorization) return await send(null)
 
     const token = await tokens.getAccessToken(tokenOptions(plan.signal))
-    const response = await plan.send(token === null ? null : `Bearer ${token}`)
+    const response = await send(token === null ? null : `Bearer ${token}`)
 
     // A 401 on a request that carried no framework token is not something a refresh can
     // fix: the session has already failed and the shell is re-authenticating.
@@ -322,7 +333,36 @@ export function createAuthenticatedFetch(options: AuthenticatedFetchOptions): Fe
     const refreshed = await tokens.getAccessToken(tokenOptions(plan.signal, token))
     // Exactly one retry, expressed structurally: there is no loop to bound.
     if (refreshed === null || refreshed === token) return response
-    return await plan.send(`Bearer ${refreshed}`)
+    trace?.resent()
+    return await send(`Bearer ${refreshed}`)
+  }
+
+  return async function authenticatedFetch(
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ): Promise<Response> {
+    // Configuration failures happen here, before anything is sent.
+    const url = resolveRequestUrl(input, base, id)
+    const plan = planRequest(input, init, url, innerFetch)
+
+    // An undeclared origin gets neither the token nor the trace context.
+    if (!allowlist.has(url.origin)) {
+      warnUndeclaredOrigin(url.origin, plan.method)
+      return await plan.send(null, null)
+    }
+
+    // Read before the first `await`, after which no span is active (§4).
+    const trace = plan.hasCallerTraceparent ? undefined : traceRequest(plan.method, url)
+    if (trace === undefined) return await sendToApi(url, plan, undefined)
+
+    try {
+      const response = await sendToApi(url, plan, trace)
+      trace.end({ status: response.status })
+      return response
+    } catch (error) {
+      trace.end({ error })
+      throw error
+    }
   }
 }
 

@@ -51,6 +51,8 @@ function asTracer(startSpan: (name: string, options?: SpanOptions) => Span): Tra
       if (typeof callback !== 'function') return undefined as unknown as T
       return callback(options === undefined ? startSpan(name) : startSpan(name, options))
     },
+    // These spans carry no context of their own; the mount's tracer owns activation.
+    withSpan: <T>(_span: Span, fn: () => T): T => fn(),
   })
 }
 
@@ -104,9 +106,15 @@ export function createSpanEmitter(
       exceptions: [],
     }
 
-    const parent = byId.get(String(attributes[RESERVED_ATTRIBUTE_KEYS.parentSpanId]))
+    const parentSpanId = attributes[RESERVED_ATTRIBUTE_KEYS.parentSpanId]
+    if (typeof parentSpanId === 'string') record.parentSpanId = parentSpanId
+    const parent = byId.get(String(parentSpanId))
     if (parent !== undefined) record.parent = parent
     const id = attributes[RESERVED_ATTRIBUTE_KEYS.spanId]
+    const traceId = attributes[RESERVED_ATTRIBUTE_KEYS.traceId]
+    if (typeof id === 'string' && typeof traceId === 'string') {
+      record.spanContext = Object.freeze({ traceId, spanId: id })
+    }
     if (typeof id === 'string') {
       if (byId.size >= TELEMETRY_LIMITS.maxOpenSpansPerMount) {
         const oldest = oldestKey(byId.keys())

@@ -17,7 +17,11 @@ export {
   type TelemetryCounters,
 } from './runtime.ts'
 
-export { bindTelemetryContext, getActiveSpanContext, type ActiveSpanContext } from './tracer.ts'
+export {
+  bindTelemetryContext,
+  getActiveSpanContext,
+  type ActiveSpanContext,
+} from './active-span.ts'
 
 export { telemetryDiagnosticsSink } from './diagnostics-sink.ts'
 

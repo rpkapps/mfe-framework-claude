@@ -10,7 +10,7 @@ import type { Span, SpanRecord, TelemetryAttribution } from '@company/mfe-core'
 
 import { createRecordingTelemetryProvider } from '../testing/recording-provider.ts'
 import { createMountTelemetry } from './service.ts'
-import { bindTelemetryContext, getActiveSpanContext } from './tracer.ts'
+import { bindTelemetryContext, getActiveSpanContext } from './active-span.ts'
 import { setup as createMount, spanNamed as findSpan } from './__tests__/harness.ts'
 
 function attribution(definitionId: string): TelemetryAttribution {

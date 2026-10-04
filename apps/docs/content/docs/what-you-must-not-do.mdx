@@ -487,9 +487,10 @@ token, and a `console.log` carries none of that.
 
 ## Start child spans before the first `await`
 
-Create child spans synchronously inside `startActiveSpan`. Start them with `startSpan` instead when
-you need one later, and tie them together with an attribute of your own. A span created after an
-`await` becomes a root with a fresh trace id. Nothing checks this rule.
+Create child spans synchronously inside `startActiveSpan`. When you need one later, after an
+`await` or on another click, keep the parent span and start the child inside
+`tracer.withSpan(parent, fn)`. A span created after an `await` without it becomes a root with a
+fresh trace id. Nothing checks this rule.
 
 ## Suppress a rule on one line, with a reason
 

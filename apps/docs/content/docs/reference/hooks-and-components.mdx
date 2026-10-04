@@ -125,7 +125,7 @@ Returns the mount's telemetry handle. It has `event`, `debug`, `info`, `warn`, `
 const telemetry = useTelemetry()
 ```
 
-`SpanKind` and `SpanStatusCode` are exported beside it, for the spans `tracer` starts.
+`SpanKind` and `SpanStatusCode` are exported beside it, for the spans `tracer` starts. `tracer` has `startSpan`, `startActiveSpan` and `withSpan`, which makes a span you kept active again for a later step.
 
 Recipe: [Log an event](/docs/telemetry#record-events-measurements-and-caught-errors).
 

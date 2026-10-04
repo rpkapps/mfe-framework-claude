@@ -56,6 +56,13 @@ export interface Tracer {
    */
   startActiveSpan<T>(name: string, callback: (span: Span) => T): T
   startActiveSpan<T>(name: string, options: SpanOptions, callback: (span: Span) => T): T
+  /**
+   * Runs `fn` synchronously with `span` active, so spans started and `#mfe/fetch` requests sent
+   * inside it join the span's trace. This is how one trace continues across clicks or after an
+   * `await`: keep the span, and wrap the later work. A span from another mount, or one that does
+   * not record, leaves the active span as it was.
+   */
+  withSpan<T>(span: Span, fn: () => T): T
 }
 
 /** The author-facing surface. */
@@ -73,6 +80,12 @@ export interface MfeTelemetry {
     options: { unit: MeasurementUnit; attributes?: TelemetryAttributes },
   ): void
   readonly tracer: Tracer
+}
+
+/** W3C trace context ids, hex-encoded: 32 characters for the trace, 16 for the span. */
+export interface TelemetrySpanContext {
+  readonly traceId: string
+  readonly spanId: string
 }
 
 /** Authors cannot override it: an attribute collision resolves in favour of attribution. */
@@ -94,6 +107,8 @@ export interface TelemetryEventRecord {
   readonly attributes: TelemetryAttributes
   readonly attribution: TelemetryAttribution
   readonly timestamp: number
+  /** The mount's active span when the record was made, so a backend can link the two. */
+  readonly spanContext?: TelemetrySpanContext
 }
 
 export interface TelemetryLogRecord {
@@ -104,6 +119,8 @@ export interface TelemetryLogRecord {
   readonly attributes: TelemetryAttributes
   readonly attribution: TelemetryAttribution
   readonly timestamp: number
+  /** The mount's active span when the record was made, so a backend can link the two. */
+  readonly spanContext?: TelemetrySpanContext
 }
 
 export interface TelemetryMeasurementRecord {
@@ -114,6 +131,8 @@ export interface TelemetryMeasurementRecord {
   readonly attributes: TelemetryAttributes
   readonly attribution: TelemetryAttribution
   readonly timestamp: number
+  /** The mount's active span when the record was made, so a backend can link the two. */
+  readonly spanContext?: TelemetrySpanContext
 }
 
 export interface TelemetryFrameworkRecord {
@@ -125,6 +144,8 @@ export interface TelemetryFrameworkRecord {
   readonly attributes: TelemetryAttributes
   readonly attribution: TelemetryAttribution
   readonly timestamp: number
+  /** The mount's active span when the record was made, so a backend can link the two. */
+  readonly spanContext?: TelemetrySpanContext
 }
 
 export type TelemetryRecord =
@@ -141,12 +162,17 @@ export interface SpanRecord {
   readonly events: readonly { name: string; attributes: TelemetryAttributes; timestamp: number }[]
   readonly exceptions: readonly unknown[]
   readonly parent?: SpanRecord
+  /** The span's own ids; absent only for a span started outside a mount's tracer. */
+  readonly spanContext?: TelemetrySpanContext
+  /** Set even when the parent record is not available, as for a parent in an ended batch. */
+  readonly parentSpanId?: string
 }
 
 /** The shell owns redaction, sampling, batching and delivery; this seam only normalizes records. */
 export interface TelemetryProvider {
   record(record: TelemetryRecord): void
-  createTracer(attribution: TelemetryAttribution): Tracer
+  /** Activation is the mount tracer's own, so a provider's tracer has no `withSpan`. */
+  createTracer(attribution: TelemetryAttribution): Omit<Tracer, 'withSpan'>
   /** Lets a provider drop a record before it is formatted. */
   isLevelEnabled?(level: TelemetryLevel): boolean
 }

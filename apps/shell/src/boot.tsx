@@ -9,6 +9,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { RouterProvider } from '@tanstack/react-router'
 import {
+  boundaryDefinitionId,
   createAuthenticatedFetch,
   createBrowserNavigationBridge,
   createFederationContainerLoader,
@@ -19,7 +20,6 @@ import {
   installShellAuth,
   MfeProvider,
   telemetryDiagnosticsSink,
-  type TelemetryProvider,
 } from '@company/mfe-react/host'
 import { reactAdapter } from '@company/mfe-react/registry'
 import { loadRemote, registerRemotes } from '@module-federation/runtime'
@@ -28,7 +28,7 @@ import { toast } from 'sonner'
 import { angularAdapter } from './angular/index.ts'
 import { shellSession } from './auth/gate.ts'
 import { installShellChat, LazyShellChat } from './chat/instance.ts'
-import { createFaroProvider } from './shell/faro.ts'
+import { createFaroTelemetry, type ShellTelemetry } from './shell/faro.ts'
 import { routerNavigation } from './shell/navigation.ts'
 import { ShellReady } from './shell/ready.tsx'
 import { createShellRouter } from './shell/router.tsx'
@@ -65,11 +65,13 @@ function overrideStorage(): Storage | undefined {
 }
 
 /** Deliberately not the recording provider: with no collector it would fill its bounded buffers for the life of the page. */
-function telemetryProvider(): TelemetryProvider {
+function shellTelemetry(): ShellTelemetry {
   const url = process.env['FARO_URL']
-  if (typeof url !== 'string' || url === '') return createNoopTelemetryProvider()
+  if (typeof url !== 'string' || url === '') {
+    return { provider: createNoopTelemetryProvider(), setUser: () => {}, setView: () => {} }
+  }
 
-  return createFaroProvider(url, (attribution, onSpanEnd) =>
+  return createFaroTelemetry(url, (attribution, onSpanEnd) =>
     createSpanEmitter(attribution, { onSpanEnd }),
   )
 }
@@ -78,8 +80,9 @@ const container = document.getElementById('root')
 if (!container) throw new Error('index.html must contain <div id="root">')
 
 const session = shellSession()
-const telemetry = telemetryProvider()
-const diagnostics = new DiagnosticsHub([telemetryDiagnosticsSink(telemetry)])
+const telemetry = shellTelemetry()
+telemetry.setUser(session.identity.user)
+const diagnostics = new DiagnosticsHub([telemetryDiagnosticsSink(telemetry.provider)])
 
 // With sign-in off there is no identity provider, so development tokens stand in.
 const tokens = session.mode === 'oidc' ? session.tokens : createDevSession()
@@ -114,7 +117,7 @@ const { runtime, activeOverrides } = createMfeRuntime({
     user: session.identity.user,
     groups: session.identity.groups,
   },
-  telemetryProvider: telemetry,
+  telemetryProvider: telemetry.provider,
   navigationBridge: createBrowserNavigationBridge(),
   diagnostics,
   ...(overrideSource === undefined ? {} : { overrideStorage: overrideSource }),
@@ -126,6 +129,11 @@ notices.overrides = activeOverrides
 // Built once, because TanStack re-initialises a router it has not seen and remounts everything
 // under the boundary with it.
 const router = createShellRouter()
+
+// The view is the App on screen, never the URL, so telemetry can be grouped by it.
+router.subscribe('onResolved', ({ toLocation }) => {
+  telemetry.setView(boundaryDefinitionId(toLocation.pathname) ?? 'dashboard')
+})
 
 // The chat, when the deployment names an agent backend; its code loads on first use. Its requests
 // go through the request boundary, so the backend receives the user's token and nothing else does.
