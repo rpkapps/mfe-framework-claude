@@ -3,6 +3,8 @@
 '@company/mfe-runtime': patch
 '@company/mfe-angular': patch
 '@company/mfe-nx': patch
+'@company/mfe-rspack': patch
+'@company/mfe-devtools': patch
 '@company/eslint-plugin-mfe': patch
 ---
 

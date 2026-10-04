@@ -20,7 +20,7 @@ import {
  * Mount roots, less the body-level overlay roots: those carry the same scope and mount token but
  * hold a portalled popover, so a box round one would be labelled with a definition it is not.
  */
-export const MOUNT_SELECTOR = `[${SCOPE_ATTRIBUTE}][${MOUNT_ATTRIBUTE}]:not([${OVERLAY_ROOT_ATTRIBUTE}])`
+export const MOUNT_SELECTOR: string = `[${SCOPE_ATTRIBUTE}][${MOUNT_ATTRIBUTE}]:not([${OVERLAY_ROOT_ATTRIBUTE}])`
 
 /** A scope root is `display: contents`; six levels is well past the wrappers a mount puts in front of its content. */
 const MAX_DEPTH = 6

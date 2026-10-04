@@ -28,7 +28,7 @@ export interface MfeRspackPluginSettings {
 }
 
 export class MfeRspackPlugin implements RspackPluginInstance {
-  readonly name = PLUGIN_NAME
+  readonly name: typeof PLUGIN_NAME = PLUGIN_NAME
   readonly #plan: ContainerPlan
   readonly #replan: () => ContainerPlan
   readonly #settings: MfeRspackPluginSettings

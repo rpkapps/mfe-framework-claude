@@ -4,7 +4,7 @@
  * The draft is kept apart from the boot facts because it is what *will* apply after a reload.
  */
 
-import { shallowEqual } from '@company/mfe-core'
+import { shallowEqual, type Listener, type Unsubscribe } from '@company/mfe-core'
 import {
   SnapshotSource,
   writeDevOverrides,
@@ -60,8 +60,8 @@ export function initDevtools(): DevtoolsState {
 }
 
 export const devtools = {
-  subscribe: source.subscribe,
-  getSnapshot: source.getSnapshot,
+  subscribe: (listener: Listener): Unsubscribe => source.subscribe(listener),
+  getSnapshot: (): DevtoolsState => source.getSnapshot(),
 
   /** Turns the panel on and shows `tab`. The one entry point a host needs. */
   open(tab?: DevtoolsTab): void {
