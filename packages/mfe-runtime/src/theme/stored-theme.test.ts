@@ -192,6 +192,50 @@ describe('the stored theme', () => {
     expect(localStorage.getItem(themeCacheKey(nextUser))).toBe('light')
   })
 
+  it('pauses transitions for the restyle a switch causes, then restores them', async () => {
+    // jsdom has no adopted style sheets; the browser's are a plain settable array.
+    Object.defineProperty(document, 'adoptedStyleSheets', {
+      value: [],
+      writable: true,
+      configurable: true,
+    })
+    const restyled: { dark: boolean; rules: string[] }[] = []
+    const computed = vi.spyOn(window, 'getComputedStyle').mockImplementation(() => {
+      restyled.push({
+        dark: document.documentElement.classList.contains('dark'),
+        rules: document.adoptedStyleSheets.flatMap(sheet =>
+          [...sheet.cssRules].map(rule => rule.cssText),
+        ),
+      })
+      return document.documentElement.style
+    })
+    try {
+      const storage = createMemoryUserStorage(themed('light'))
+      const { runtime } = boot(storage)
+      await runtime.storage.whenLoaded()
+      restyled.length = 0
+      vi.useFakeTimers()
+      storage.write(HOST_SCOPE, 'theme', { v: 1, d: 'dark' })
+      const paused = [expect.stringMatching(/transition: none !important/)]
+      expect(restyled).toEqual([{ dark: true, rules: paused }])
+      // A switch back before transitions resume keeps the one pause open rather than adding another.
+      storage.write(HOST_SCOPE, 'theme', { v: 1, d: 'light' })
+      expect(restyled).toEqual([
+        { dark: true, rules: paused },
+        { dark: false, rules: paused },
+      ])
+      vi.runAllTimers()
+      expect(document.adoptedStyleSheets).toEqual([])
+      // The same theme again changes nothing, so nothing is paused.
+      storage.write(HOST_SCOPE, 'theme', { v: 1, d: 'light' })
+      expect(restyled).toHaveLength(2)
+    } finally {
+      vi.useRealTimers()
+      computed.mockRestore()
+      delete (document as { adoptedStyleSheets?: unknown }).adoptedStyleSheets
+    }
+  })
+
   it('stops painting once the runtime is disposed', async () => {
     const storage = createMemoryUserStorage(themed('light'))
     const handle = boot(storage)

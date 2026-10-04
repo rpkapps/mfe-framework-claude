@@ -59,6 +59,39 @@ export function themeBootstrapScript(): string {
   return `;(${prepaint.toString()})(${cacheKey.toString()}, ${resolveTheme.toString()}, ${paint.toString()})`
 }
 
+/** Adopted for the one restyle a switch causes; constructed, so a strict style CSP allows it. */
+let instant: CSSStyleSheet | undefined
+let resume: ReturnType<typeof setTimeout> | undefined
+
+/**
+ * Switches with every transition paused, so the whole page changes in one frame rather than each
+ * control fading at its own speed, and the next frame is not spent animating colors.
+ */
+function repaint(theme: ShellTheme): void {
+  if (typeof document === 'undefined') return
+  const root = document.documentElement
+  if (root.classList.contains('dark') === (theme === 'dark') && root.style.colorScheme === theme)
+    return
+  if (!('adoptedStyleSheets' in document)) {
+    paint(theme)
+    return
+  }
+  if (instant === undefined) {
+    instant = new CSSStyleSheet()
+    instant.replaceSync('*, *::before, *::after { transition: none !important; }')
+  }
+  const sheet = instant
+  if (!document.adoptedStyleSheets.includes(sheet))
+    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet]
+  paint(theme)
+  // Reading a computed value restyles now, while transitions are paused, so none of them starts.
+  void getComputedStyle(root).colorScheme
+  clearTimeout(resume)
+  resume = setTimeout(() => {
+    document.adoptedStyleSheets = document.adoptedStyleSheets.filter(other => other !== sheet)
+  }, 1)
+}
+
 /** Which user's cache the pre-paint script reads when the server names nobody. */
 const LAST_THEME_KEY = 'mfe:theme:last'
 
@@ -106,7 +139,7 @@ export function attachStoredTheme(options: {
   const apply = (): void => {
     const value = resolveTheme(current)
     shellState.apply({ theme: value })
-    paint(value)
+    repaint(value)
   }
 
   const read = (): void => {

@@ -8,9 +8,11 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
   type ReactNode,
+  type RefObject,
 } from 'react'
 import { useBlocker, useNavigate } from '@tanstack/react-router'
 import {
@@ -251,6 +253,35 @@ function SignOutItem(): ReactNode {
   )
 }
 
+/**
+ * Switches once the menu has finished closing, when its content unmounts: restyling the whole page
+ * while the menu animates out stutters the animation, and the item's own label would flip mid-fade.
+ * `chosenRef` belongs to the menu, which clears it on reopening: content reopened before it finished
+ * closing never unmounts, and the request must not fire on some later close.
+ */
+function ThemeItem({ chosenRef }: { readonly chosenRef: RefObject<boolean> }): ReactNode {
+  const runtime = useMfeRuntime('the theme menu item')
+  const theme = useTheme()
+  useEffect(
+    () => () => {
+      if (!chosenRef.current) return
+      chosenRef.current = false
+      void runtime.actions.execute('@host:theme', { caller: 'ui' })
+    },
+    [runtime, chosenRef],
+  )
+  return (
+    <DropdownMenuItem
+      onClick={() => {
+        chosenRef.current = true
+      }}
+    >
+      {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
+      {theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+    </DropdownMenuItem>
+  )
+}
+
 /** The user's photo once it has loaded, or nothing, when the menu shows initials. */
 function useAvatar(): string | undefined {
   const session = shellSession()
@@ -270,10 +301,10 @@ function useAvatar(): string | undefined {
 
 function Header(): ReactNode {
   const runtime = useMfeRuntime('the shell header')
+  const themeChosenRef = useRef(false)
   const navigate = useNavigate()
   const apps = useApps()
   const active = useActiveApp()
-  const theme = useTheme()
   // Subscribed rather than read off the store: a bare `getUser()` is a snapshot nothing re-runs.
   const user = useUser()
   const avatar = useAvatar()
@@ -422,6 +453,9 @@ function Header(): ReactNode {
         </AppShellOverflow>
 
         <AppShellUserMenu
+          onOpenChange={open => {
+            if (open) themeChosenRef.current = false
+          }}
           user={{
             name: user?.name ?? 'Unknown',
             initials,
@@ -429,14 +463,7 @@ function Header(): ReactNode {
           }}
         >
           <DropdownMenuGroup>
-            <DropdownMenuItem
-              onClick={() => {
-                void runtime.actions.execute('@host:theme', { caller: 'ui' })
-              }}
-            >
-              {theme === 'dark' ? <SunIcon /> : <MoonIcon />}
-              {theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
-            </DropdownMenuItem>
+            <ThemeItem chosenRef={themeChosenRef} />
             <DropdownMenuItem
               onClick={() => {
                 shellUi.show('settings')

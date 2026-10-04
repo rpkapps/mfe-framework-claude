@@ -80,7 +80,8 @@ export interface CreateMfeRuntimeOptions {
    * The host-owned key that holds the theme preference. The runtime then owns the effective theme:
    * `shellState`, the document's `dark` class and `colorScheme`, `system` following
    * `prefers-color-scheme`, and a per-user cache that `themeBootstrapScript()` reads before first
-   * paint. Without it, the shell sets `shellState.theme` itself.
+   * paint. A switch pauses CSS transitions for its one restyle, so the page changes in a single
+   * frame. Without it, the shell sets `shellState.theme` itself.
    */
   readonly theme?: AnyStoredKey<ThemePreference>
   /** Raw registry entries, usually fetched by the shell at boot. */
