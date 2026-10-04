@@ -9,13 +9,14 @@
  * must name the docs page that documents it, and an example must call it, so nothing is exported
  * only to be described.
  *
- * Generated code ships too, but it exists only after `pnpm generate`, so the check never reads
- * it and gives the same answer either way. An export only generated code calls is listed under
+ * Generated code ships too, but it exists only after `pnpm generate`, so the check reads only
+ * committed files and gives the same answer either way. An export only generated code calls is listed under
  * "generatedCallers" with the generator that writes the call.
  *
  * It also fails when the docs fall behind the code: an authoring entry whose page no longer
  * mentions it, and a reference heading that names an API which no longer exists.
  */
+import { execFileSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
@@ -35,25 +36,20 @@ const EXAMPLE_ROOTS = ['examples']
 const SOURCE_EXTENSIONS = /\.(?:ts|tsx|mts|cts|js|mjs|jsx)$/
 const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/
 
-/** Source files under a directory. Tests count only where `withTests` says so, as in examples. */
-async function sourceFilesIn(directory, withTests, out = []) {
-  if (!existsSync(directory)) return out
-  for (const entry of await readdir(directory, { withFileTypes: true })) {
-    const path = join(directory, entry.name)
-    if (entry.isDirectory()) {
-      if (['node_modules', 'dist', 'generated'].includes(entry.name)) continue
-      if (!withTests && entry.name === '__tests__') continue
-      await sourceFilesIn(path, withTests, out)
-    } else if (SOURCE_EXTENSIONS.test(entry.name) && (withTests || !TEST_FILE.test(entry.name))) {
-      out.push(path)
-    }
-  }
-  return out
-}
-
-async function sourceFilesUnder(roots, withTests) {
-  const files = await Promise.all(roots.map(root => sourceFilesIn(join(repoRoot, root), withTests)))
-  return files.flat()
+/**
+ * The committed source files under the roots. Tests count only where `withTests` says so, as in
+ * examples. Reading what git tracks leaves out generated output wherever it is written.
+ */
+function sourceFilesUnder(roots, withTests) {
+  const listed = execFileSync('git', ['ls-files', '-z', '--', ...roots], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+  })
+  return listed
+    .split('\0')
+    .filter(path => SOURCE_EXTENSIONS.test(path))
+    .filter(path => withTests || (!TEST_FILE.test(path) && !path.includes('/__tests__/')))
+    .map(path => join(repoRoot, path))
 }
 
 /** Each package's public entry points that resolve to source, as `{ specifier, packageRoot, file }`. */
@@ -199,14 +195,11 @@ async function referenceHeadingNames() {
 const entries = await publicEntries()
 const { bySpecifier, homes } = readExports(entries)
 const callers = [
-  ...(await sourceFilesUnder(CALLER_ROOTS, false)),
+  ...sourceFilesUnder(CALLER_ROOTS, false),
   ...ROOT_CONFIG_FILES.map(file => join(repoRoot, file)).filter(existsSync),
 ]
 const used = await symbolsImportedBy(callers, bySpecifier)
-const usedByExamples = await symbolsImportedBy(
-  await sourceFilesUnder(EXAMPLE_ROOTS, true),
-  bySpecifier,
-)
+const usedByExamples = await symbolsImportedBy(sourceFilesUnder(EXAMPLE_ROOTS, true), bySpecifier)
 
 const surface = JSON.parse(await readFile(surfacePath, 'utf8'))
 const authoring = surface.authoring ?? {}
