@@ -30,7 +30,15 @@ describe('the recording provider', () => {
     telemetry.info('quote requested')
     telemetry.warn('slow quote')
     telemetry.measure('checkout.latency', 12, { unit: 'ms' })
-    telemetry.framework('mount', { message: 'mounted' })
+    provider.record({
+      kind: 'framework',
+      level: 'info',
+      operation: 'mount',
+      message: 'mounted',
+      attributes: {},
+      attribution: ATTRIBUTION,
+      timestamp: 1,
+    })
 
     expect(provider.records).toHaveLength(6)
     expect(provider.events()).toHaveLength(2)
@@ -126,7 +134,6 @@ describe('the recording provider', () => {
     const provider = createRecordingTelemetryProvider()
     createMountTelemetry(provider, ATTRIBUTION, { dev: true })
     createMountTelemetry(provider, ATTRIBUTION, { dev: true })
-    createMountTelemetry(provider, ATTRIBUTION, { dev: true, tracing: false })
 
     expect(provider.tracerCount).toBe(2)
   })
@@ -144,9 +151,6 @@ describe('the noop provider', () => {
       telemetry.error(new Error('ignored'))
       telemetry.measure('latency', 12, { unit: 'ms' })
     }).not.toThrow()
-
-    expect(telemetry.counters.droppedByLevelFilter).toBe(2)
-    expect(telemetry.counters.recorded).toBe(2)
   })
 
   it('hands out spans that never record', () => {
@@ -165,7 +169,7 @@ describe('the non-recording handle', () => {
     expect(nonRecordingSpan.recordException(new Error('x'))).toBe(nonRecordingSpan)
     expect(() => {
       nonRecordingSpan.end()
-      nonRecordingSpan.end(10)
+      nonRecordingSpan.end()
     }).not.toThrow()
   })
 

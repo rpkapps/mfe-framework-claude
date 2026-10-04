@@ -52,7 +52,8 @@ A record made through an open workflow also carries its trace id and span id.
 | your backend's span    | set by your backend         | the request           |
 
 A request without `headers()` is not in this trace. A backend span appears only when your API runs an OpenTelemetry SDK.
-Each span's `mfe.definition.id` names the App or Widget that made it, so a [workflow shared between Widgets](/docs/share-a-workflow-between-widgets) shows whose step is whose.
+A workflow or step span's `mfe.definition.id` names the App or Widget that made it, so a [workflow shared between Widgets](/docs/share-a-workflow-between-widgets) shows whose step is whose.
+A request span's `mfe.definition.id` names the container that sent it: its App, or its first Widget when it has no App.
 
 </Step>
 <Step>
@@ -68,11 +69,11 @@ The error from `fail()` is linked to the workflow's span. Records made through a
 ### 4. Find runs that did not finish
 
 ```text shared title="TraceQL in Grafana Explore, Tempo data source"
-{ span.mfe.span.end_reason = "abandoned" }
+{ span.mfe.span.end_reason = "abandoned" && kind != client }
 ```
 
-`abandoned` means every App and Widget taking part closed before the workflow ended, as when the user left mid-workflow.
-It has no error status.
+On a workflow or a step, `abandoned` means every App and Widget taking part closed before the workflow ended, as when the user left mid-workflow.
+It has no error status. A request its caller cancelled is labelled the same way, so `kind != client` leaves those out.
 
 </Step>
 </Steps>

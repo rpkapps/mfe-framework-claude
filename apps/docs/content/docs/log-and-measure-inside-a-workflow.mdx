@@ -66,7 +66,7 @@ Each record here is linked to the `get quotes` step. Before the first step, a re
 <Details summary="When the workflow is not open">
 
 A record made through a workflow that is not open is still sent. It is just not linked to a trace.
-The same holds when tracing is off. A log is never lost for want of a `start()`, and no diagnostic appears.
+The same holds when the telemetry provider failed. A log is never lost for want of a `start()`, and no diagnostic appears.
 The shell's level filter applies to `checkout.debug` as it does to `telemetry.debug`.
 Measurement units are `ms`, `bytes` and `count`.
 

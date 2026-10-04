@@ -6,7 +6,8 @@ import {
   createRecordingTelemetryProvider,
   type RecordingTelemetryProvider,
 } from '../../testing/recording-provider.ts'
-import { createMountTelemetry, type MountTelemetryOptions } from '../service.ts'
+import type { TelemetryRuntimeOptions } from '../runtime.ts'
+import { createMountTelemetry } from '../service.ts'
 
 export const ATTRIBUTION: TelemetryAttribution = {
   definitionId: 'operations-console',
@@ -30,7 +31,7 @@ export function spanNamed(spans: readonly SpanRecord[], name: string): SpanRecor
 }
 
 export function setup(
-  options: MountTelemetryOptions = {},
+  options: TelemetryRuntimeOptions = {},
   attribution: TelemetryAttribution = ATTRIBUTION,
 ) {
   const provider = createRecordingTelemetryProvider()
@@ -41,7 +42,7 @@ export function setup(
 export function mountOn(
   provider: RecordingTelemetryProvider,
   attribution: TelemetryAttribution,
-  options: MountTelemetryOptions = {},
+  options: TelemetryRuntimeOptions = {},
 ) {
   const diagnostics: Diagnostic[] = []
   const telemetry = createMountTelemetry(provider, attribution, {
@@ -50,6 +51,19 @@ export function mountOn(
     ...options,
   })
   return { diagnostics, telemetry }
+}
+
+/** A mount whose provider threw building its tracer, so its workflows start no spans. */
+export function mountUntraced(
+  provider: RecordingTelemetryProvider,
+  attribution: TelemetryAttribution = ATTRIBUTION,
+) {
+  provider.failTracerCreation(true)
+  try {
+    return mountOn(provider, attribution)
+  } finally {
+    provider.failTracerCreation(false)
+  }
 }
 
 /** Workflow runs are the page's, so a run a test leaves open would be joined by the next one. */

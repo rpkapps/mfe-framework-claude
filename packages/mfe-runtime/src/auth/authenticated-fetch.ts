@@ -362,11 +362,16 @@ export function createAuthenticatedFetch(options: AuthenticatedFetchOptions): Fe
       trace.end({ status: response.status })
       return response
     } catch (error) {
-      if (plan.signal?.aborted === true) trace.abandon()
+      // Cancelled by its caller is left, not failed; a timeout is still the backend's failure.
+      if (plan.signal?.aborted === true && !isTimeout(plan.signal.reason)) trace.abandon()
       else trace.end({ error })
       throw error
     }
   }
+}
+
+function isTimeout(reason: unknown): boolean {
+  return reason instanceof DOMException && reason.name === 'TimeoutError'
 }
 
 /** Both tiers on one session, so they share the same single-flight refresh. */

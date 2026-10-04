@@ -203,6 +203,15 @@ function unexportedTypesIn(target, exported, checker) {
       if (type.objectFlags & ts.ObjectFlags.Reference) {
         for (const argument of checker.getTypeArguments(type)) visitInferred(argument)
       }
+      // A function's type prints as its signature, so its parameters and result are read.
+      if (type.objectFlags & ts.ObjectFlags.Anonymous) {
+        for (const signature of type.getCallSignatures()) {
+          for (const parameter of signature.getParameters()) {
+            visitInferred(checker.getTypeOfSymbol(parameter))
+          }
+          visitInferred(signature.getReturnType())
+        }
+      }
     }
   }
   const inferredTypeOf = node =>
@@ -216,6 +225,7 @@ function unexportedTypesIn(target, exported, checker) {
       else visitInferred(checker.getTypeAtLocation(declaration))
       continue
     }
+    if (isInferred(declaration)) visitInferred(inferredTypeOf(declaration))
     ts.forEachChild(declaration, visit)
   }
   return missing

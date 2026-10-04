@@ -18,11 +18,7 @@ import {
 } from '@company/mfe-core'
 
 import { DEV } from '../dev.ts'
-import {
-  isReservedAttributeKey,
-  RESERVED_ATTRIBUTE_KEYS,
-  type MountTelemetryRuntime,
-} from './runtime.ts'
+import { RESERVED_ATTRIBUTE_KEYS, type MountTelemetryRuntime } from './runtime.ts'
 import { createNonRecordingTracer } from './span-emitter.ts'
 
 /** A provider that keeps nothing: the default before a shell wires a backend. */
@@ -55,7 +51,6 @@ export class MountSpan {
   readonly #tracer: MountTracer
   /** Dropped once the span ends, so a change after `end()` never reaches the provider. */
   #inner: Span | undefined
-  #ended = false
 
   constructor(
     runtime: MountTelemetryRuntime,
@@ -77,19 +72,11 @@ export class MountSpan {
   }
 
   /** Clamping and reserved-key rejection stay the runtime's, so spans match records. */
-  #applyAttributes(attributes: TelemetryAttributes, operation: string): this {
-    const authored: Record<string, string | number | boolean> = {}
-    for (const [key, value] of Object.entries(
-      this.#runtime.mergeAttributes(attributes, operation),
-    )) {
-      if (!isReservedAttributeKey(key)) authored[key] = value
-    }
-    if (Object.keys(authored).length === 0) return this
-    return this.#forward(operation, inner => inner.setAttributes(Object.freeze(authored)))
-  }
-
   setAttributes(attributes: TelemetryAttributes): this {
-    return this.#applyAttributes(attributes, 'set span attributes')
+    const operation = 'set span attributes'
+    const authored = this.#runtime.authoredAttributes(attributes, operation)
+    if (Object.keys(authored).length === 0) return this
+    return this.#forward(operation, inner => inner.setAttributes(authored))
   }
 
   setStatus(code: SpanStatusCode): this {
@@ -100,20 +87,17 @@ export class MountSpan {
     return this.#forward('record a span exception', inner => inner.recordException(error))
   }
 
-  /** Repeated calls are harmless: the first one wins and the rest do nothing. */
+  /** Repeated calls, of this or `endAbandoned()`, are harmless: the first one wins. */
   end(): void {
-    if (this.#ended) return
-    this.#tracer.releaseSpan(this)
-    this.#close('end a span', undefined)
+    this.#close('end a span')
   }
 
   /** The status is left as it was: the work was left, not failed. */
   endAbandoned(): void {
-    if (this.#ended) return
-    this.#tracer.releaseSpan(this)
-    const operation = 'end an abandoned span'
-    this.#label({ [RESERVED_ATTRIBUTE_KEYS.endReason]: 'abandoned' }, operation)
-    this.#close(operation, undefined)
+    this.#close(
+      'end an abandoned span',
+      Object.freeze({ [RESERVED_ATTRIBUTE_KEYS.endReason]: 'abandoned' }),
+    )
   }
 
   /**
@@ -127,16 +111,16 @@ export class MountSpan {
     this.#tracer.releaseSpan(this)
   }
 
-  /** Reserved keys go straight to the provider, because the author path drops them. */
-  #label(attributes: TelemetryAttributes, operation: string): void {
-    this.#forward(operation, inner => inner.setAttributes(Object.freeze(attributes)))
-  }
-
-  #close(operation: string, endTime: number | undefined): void {
+  /** `reserved` goes straight to the provider, because the author path drops its keys. */
+  #close(operation: string, reserved?: TelemetryAttributes): void {
+    if (reserved !== undefined) this.#forward(operation, inner => inner.setAttributes(reserved))
     const inner = this.#inner
-    this.#ended = true
+    if (inner === undefined) return
     this.#inner = undefined
-    if (inner !== undefined) this.#runtime.safeProviderCall(operation, () => inner.end(endTime))
+    this.#tracer.releaseSpan(this)
+    this.#runtime.safeProviderCall(operation, () => {
+      inner.end()
+    })
   }
 }
 
@@ -157,9 +141,8 @@ export class MountTracer {
   readonly #open = new Set<MountSpan>()
   #inner: Tracer | undefined
 
-  constructor(runtime: MountTelemetryRuntime, options: { readonly enabled: boolean }) {
+  constructor(runtime: MountTelemetryRuntime) {
     this.#runtime = runtime
-    if (!options.enabled) return
     // A provider that throws while building its tracer disables tracing for the mount
     // instead of taking the mount down with it.
     this.#inner = runtime.safeProviderCall('create a tracer', () =>
@@ -167,21 +150,16 @@ export class MountTracer {
     )
   }
 
-  get openSpanCount(): number {
-    return this.#open.size
-  }
-
   releaseSpan(span: MountSpan): void {
     this.#open.delete(span)
   }
 
-  /** `undefined` when tracing is off, the mount is gone, the budget is spent or the provider threw. */
+  /** `undefined` when the mount is gone, the budget is spent or the provider threw. */
   startSpan(name: string, options: MountSpanOptions = {}): MountSpan | undefined {
     const inner = this.#inner
     if (inner === undefined || this.#runtime.disposed) return undefined
 
     if (this.#open.size >= TELEMETRY_LIMITS.maxOpenSpansPerMount) {
-      this.#runtime.counters.spansDroppedAtLimit += 1
       if (DEV) {
         this.#runtime.diagnose({
           code: 'config/invalid',
@@ -218,7 +196,6 @@ export class MountTracer {
 
     const span = new MountSpan(this.#runtime, this, innerSpan, traceId, spanId)
     this.#open.add(span)
-    this.#runtime.counters.spansStarted += 1
     return span
   }
 

@@ -1,6 +1,6 @@
 /**
- * The mount-scoped telemetry runtime. A failure of the telemetry path is only ever counted,
- * never reported back through the path that failed, and every `diagnose` call site is
+ * The mount-scoped telemetry runtime. A failure of the telemetry path is contained, never
+ * reported back through the path that failed, and every `diagnose` call site is
  * wrapped in `if (DEV)` so a production build drops the prose rather than skipping it.
  */
 
@@ -8,6 +8,7 @@ import {
   boundAttributes,
   boundName,
   createMfeError,
+  EMPTY_ATTRIBUTES,
   normalizeError,
   withoutUndefined,
   type Diagnostic,
@@ -42,10 +43,6 @@ export const RESERVED_ATTRIBUTE_KEYS = {
 
 const RESERVED_KEYS: ReadonlySet<string> = new Set<string>(Object.values(RESERVED_ATTRIBUTE_KEYS))
 
-export function isReservedAttributeKey(key: string): boolean {
-  return RESERVED_KEYS.has(key)
-}
-
 /** The attribution fields, in the order they are bound onto every record. */
 const ATTRIBUTION_FIELDS = [
   'definitionId',
@@ -54,48 +51,6 @@ const ATTRIBUTION_FIELDS = [
   'buildHash',
   'mountToken',
 ] as const satisfies readonly (keyof TelemetryAttribution)[]
-
-/**
- * Local accounting of everything the telemetry path swallowed; each is a single integer, so the
- * counters can never grow memory.
- */
-export interface TelemetryCounters {
-  readonly recorded: number
-  readonly droppedAfterDispose: number
-  readonly droppedByLevelFilter: number
-  readonly invalidMeasurements: number
-  /** A framework report suppressed because the same error was already reported. */
-  readonly deduplicatedErrors: number
-  /** A repeat report of an error instance the mount had already recorded. */
-  readonly duplicateErrorReports: number
-  /** Attribute keys that tried to shadow host-bound attribution. */
-  readonly reservedOverrideAttempts: number
-  /** Throws contained from the provider, its tracer, its spans or a sink. */
-  readonly sinkFailures: number
-  readonly spansStarted: number
-  readonly spansDroppedAtLimit: number
-  readonly diagnosticsEmitted: number
-  readonly diagnosticsSuppressed: number
-}
-
-type MutableCounters = { -readonly [K in keyof TelemetryCounters]: number }
-
-function newCounters(): MutableCounters {
-  return {
-    recorded: 0,
-    droppedAfterDispose: 0,
-    droppedByLevelFilter: 0,
-    invalidMeasurements: 0,
-    deduplicatedErrors: 0,
-    duplicateErrorReports: 0,
-    reservedOverrideAttempts: 0,
-    sinkFailures: 0,
-    spansStarted: 0,
-    spansDroppedAtLimit: 0,
-    diagnosticsEmitted: 0,
-    diagnosticsSuppressed: 0,
-  }
-}
 
 export interface DiagnosticDetails {
   readonly code: MfeErrorCode
@@ -106,20 +61,12 @@ export interface DiagnosticDetails {
   readonly context?: Readonly<Record<string, string | number | boolean>>
 }
 
-export interface FrameworkRecordDetails {
-  /** Defaults to `info`. */
-  readonly level?: TelemetryLevel
-  readonly message: string
-  readonly error?: unknown
-  readonly attributes?: TelemetryAttributes
-}
-
 export interface TelemetryRuntimeOptions {
   /** The host wires this to its diagnostics hub. */
   readonly onDiagnostic?: DiagnosticsSink
   /** Defaults to "not a production build"; diagnostics are silent when false. */
   readonly dev?: boolean
-  /** Per-mount diagnostic budget; beyond it only the counters move. */
+  /** Per-mount diagnostic budget; beyond it diagnostics are dropped. */
   readonly maxDiagnostics?: number
   /** Injectable clock, for deterministic tests. */
   readonly now?: () => number
@@ -129,15 +76,13 @@ export interface TelemetryRuntimeOptions {
 export class MountTelemetryRuntime {
   readonly provider: TelemetryProvider
   readonly attribution: TelemetryAttribution
-  readonly counters: MutableCounters = newCounters()
 
   readonly #reserved: TelemetryAttributes
   readonly #onDiagnostic: DiagnosticsSink | undefined
   readonly #dev: boolean
   readonly #maxDiagnostics: number
   readonly #clock: () => number
-  /** Weak, so it cannot keep an error — or its closure over a tree — alive. */
-  readonly #reportedErrors = new WeakSet<object>()
+  #diagnosticsEmitted = 0
   #disposed = false
 
   constructor(
@@ -176,10 +121,6 @@ export class MountTelemetryRuntime {
     this.#disposed = true
   }
 
-  counterSnapshot(): TelemetryCounters {
-    return Object.freeze({ ...this.counters })
-  }
-
   /**
    * The diagnostics sink is a different sink, so reporting a provider failure there is not
    * recursive.
@@ -188,7 +129,6 @@ export class MountTelemetryRuntime {
     try {
       return call()
     } catch (failure) {
-      this.counters.sinkFailures += 1
       if (DEV) {
         this.diagnose({
           code: 'config/invalid',
@@ -205,11 +145,8 @@ export class MountTelemetryRuntime {
   /** Development-only diagnostic, bounded per mount and never self-reporting. */
   diagnose(details: DiagnosticDetails): void {
     if (!this.#dev) return
-    if (this.counters.diagnosticsEmitted >= this.#maxDiagnostics) {
-      this.counters.diagnosticsSuppressed += 1
-      return
-    }
-    this.counters.diagnosticsEmitted += 1
+    if (this.#diagnosticsEmitted >= this.#maxDiagnostics) return
+    this.#diagnosticsEmitted += 1
 
     const sink = this.#onDiagnostic
     if (sink === undefined) return
@@ -230,20 +167,22 @@ export class MountTelemetryRuntime {
     try {
       sink(diagnostic)
     } catch {
-      // Counted, never re-reported: a sink that reported its own failure would recurse
-      // forever.
-      this.counters.sinkFailures += 1
+      // Never re-reported: a sink that reported its own failure would recurse forever.
     }
   }
 
   /**
-   * Host-bound attribution wins, so a forged reserved key is dropped rather than passed
-   * through looking like attribution.
+   * The author's attributes, bounded and without the host-owned keys. A forged reserved key is
+   * dropped rather than passed through looking like attribution, and reported to this mount even
+   * when the attributes are for a span another mount started.
    */
-  mergeAttributes(author: TelemetryAttributes | undefined, operation: string): TelemetryAttributes {
+  authoredAttributes(
+    author: TelemetryAttributes | undefined,
+    operation: string,
+  ): TelemetryAttributes {
     const bounded = boundAttributes(author)
     const keys = Object.keys(bounded)
-    if (keys.length === 0) return this.#reserved
+    if (keys.length === 0) return EMPTY_ATTRIBUTES
 
     const collisions: string[] = []
     const authored: Record<string, string | number | boolean> = {}
@@ -254,7 +193,6 @@ export class MountTelemetryRuntime {
     }
 
     if (collisions.length > 0) {
-      this.counters.reservedOverrideAttempts += collisions.length
       if (DEV) {
         this.diagnose({
           code: 'contract/input-mismatch',
@@ -265,13 +203,20 @@ export class MountTelemetryRuntime {
         })
       }
     }
-    return Object.freeze({ ...authored, ...this.#reserved })
+    return Object.freeze(authored)
+  }
+
+  /** The author's attributes with the host-bound attribution, which always wins. */
+  mergeAttributes(author: TelemetryAttributes | undefined, operation: string): TelemetryAttributes {
+    const authored = this.authoredAttributes(author, operation)
+    return Object.keys(authored).length === 0
+      ? this.#reserved
+      : Object.freeze({ ...authored, ...this.#reserved })
   }
 
   /** True when the call must be refused because the mount is gone. */
   refused(operation: string): boolean {
     if (!this.#disposed) return false
-    this.counters.droppedAfterDispose += 1
     if (DEV) {
       this.diagnose({
         code: 'dispose/failure',
@@ -293,17 +238,14 @@ export class MountTelemetryRuntime {
     } catch {
       // A filter that throws must not lose the record, which the provider can still
       // drop itself.
-      this.counters.sinkFailures += 1
       return true
     }
   }
 
   #deliver(record: TelemetryRecord, operation: string): void {
-    const delivered = this.safeProviderCall(operation, () => {
+    this.safeProviderCall(operation, () => {
       this.provider.record(record)
-      return true
     })
-    if (delivered === true) this.counters.recorded += 1
   }
 
   /** The fields every record shares. */
@@ -347,7 +289,6 @@ export class MountTelemetryRuntime {
     const operation = `record a ${level} log`
     if (this.refused(operation)) return
     if (!this.#levelEnabled(level)) {
-      this.counters.droppedByLevelFilter += 1
       return
     }
     this.#deliver(
@@ -368,10 +309,6 @@ export class MountTelemetryRuntime {
     spanContext?: TelemetrySpanContext,
   ): void {
     const normalized = normalizeError(error)
-    if (typeof error === 'object' && error !== null) {
-      if (this.#reportedErrors.has(error)) this.counters.duplicateErrorReports += 1
-      else this.#reportedErrors.add(error)
-    }
     // "error.type" is a convenience, not attribution, so an author who supplies it wins.
     const merged = { 'error.type': normalized.name, ...(attributes ?? {}) }
     this.emitLog('error', normalized.message, merged, error, spanContext)
@@ -389,7 +326,6 @@ export class MountTelemetryRuntime {
     if (!Number.isFinite(value)) {
       // NaN and the infinities would poison a histogram downstream, so nothing is
       // recorded at all.
-      this.counters.invalidMeasurements += 1
       if (DEV) {
         this.diagnose({
           code: 'contract/input-mismatch',
@@ -411,42 +347,6 @@ export class MountTelemetryRuntime {
         ...this.#envelope(attributes, operation),
       },
       operation,
-    )
-  }
-
-  /**
-   * Deduplicated against errors the mount has already reported, so one failure never produces two
-   * records.
-   */
-  emitFramework(operation: string, details: FrameworkRecordDetails): void {
-    const label = `record a framework diagnostic for ${operation}`
-    if (this.refused(label)) return
-
-    const level = details.level ?? 'info'
-    if (!this.#levelEnabled(level)) {
-      this.counters.droppedByLevelFilter += 1
-      return
-    }
-
-    const error = details.error
-    if (typeof error === 'object' && error !== null) {
-      if (this.#reportedErrors.has(error)) {
-        this.counters.deduplicatedErrors += 1
-        return
-      }
-      this.#reportedErrors.add(error)
-    }
-
-    this.#deliver(
-      {
-        kind: 'framework',
-        level,
-        operation: boundName(operation),
-        message: boundName(details.message),
-        ...withoutUndefined({ error }),
-        ...this.#envelope(details.attributes, label),
-      },
-      label,
     )
   }
 }

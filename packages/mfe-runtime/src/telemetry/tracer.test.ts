@@ -16,17 +16,13 @@ import { MountTelemetryRuntime } from './runtime.ts'
 import { MountTracer, type MountSpan } from './tracer.ts'
 import { at, ATTRIBUTION } from './__tests__/harness.ts'
 
-function setup(
-  provider: TelemetryProvider = createRecordingTelemetryProvider(),
-  options: { readonly enabled?: boolean; readonly now?: () => number } = {},
-) {
+function setup(provider: TelemetryProvider = createRecordingTelemetryProvider()) {
   const diagnostics: Diagnostic[] = []
   const runtime = new MountTelemetryRuntime(provider, ATTRIBUTION, {
     dev: true,
     onDiagnostic: diagnostic => diagnostics.push(diagnostic),
-    ...(options.now === undefined ? {} : { now: options.now }),
   })
-  const tracer = new MountTracer(runtime, { enabled: options.enabled ?? true })
+  const tracer = new MountTracer(runtime)
   return { diagnostics, runtime, tracer }
 }
 
@@ -80,7 +76,7 @@ describe('starting a span', () => {
   })
 
   it('bounds the name and refuses reserved attribute keys', () => {
-    const { provider, runtime, tracer } = recording()
+    const { provider, diagnostics, tracer } = recording()
 
     const span = started(tracer.startSpan('s'.repeat(400)))
     span.setAttributes({ 'mfe.span.id': 'forged', route: 'quote' })
@@ -89,21 +85,22 @@ describe('starting a span', () => {
     expect(record.name).toHaveLength(256)
     expect(record.attributes['mfe.span.id']).toBe(span.spanId)
     expect(record.attributes['route']).toBe('quote')
-    expect(runtime.counters.reservedOverrideAttempts).toBe(1)
+    expect(diagnostics).toHaveLength(1)
+    expect(at(diagnostics).error.message).toContain('mfe.span.id')
   })
 })
 
 describe('ending a span', () => {
-  it('treats repeated end() calls as harmless and releases the span once', () => {
+  it('treats repeated end() calls as harmless', () => {
     const { provider, tracer } = recording()
     const span = started(tracer.startSpan('checkout'))
-    expect(tracer.openSpanCount).toBe(1)
 
     span.end()
     span.end()
+    span.endAbandoned()
 
-    expect(tracer.openSpanCount).toBe(0)
     expect(provider.endedSpans()).toHaveLength(1)
+    expect(at(provider.spans).attributes['mfe.span.end_reason']).toBeUndefined()
   })
 
   it('labels an abandoned span without an error status', () => {
@@ -115,7 +112,6 @@ describe('ending a span', () => {
     expect(record.endTime).toBeDefined()
     expect(record.attributes['mfe.span.end_reason']).toBe('abandoned')
     expect(record.status.code).toBe(SpanStatusCode.UNSET)
-    expect(tracer.openSpanCount).toBe(0)
   })
 
   it('ignores every change after end', () => {
@@ -136,8 +132,8 @@ describe('ending a span', () => {
 })
 
 describe('bounded open-span tracking', () => {
-  it('starts nothing past the per-mount budget, until a span ends', () => {
-    const { provider, diagnostics, runtime, tracer } = recording()
+  it('starts nothing past the per-mount budget, until a span ends or is abandoned', () => {
+    const { provider, diagnostics, tracer } = recording()
 
     const spans: (MountSpan | undefined)[] = []
     for (let index = 0; index < TELEMETRY_LIMITS.maxOpenSpansPerMount; index += 1) {
@@ -146,12 +142,14 @@ describe('bounded open-span tracking', () => {
 
     expect(tracer.startSpan('one-too-many')).toBeUndefined()
     expect(provider.spansNamed('one-too-many')).toHaveLength(0)
-    expect(runtime.counters.spansDroppedAtLimit).toBe(1)
     expect(diagnostics.some(d => d.error.message.includes('one-too-many'))).toBe(true)
 
     started(at(spans)).end()
-    tracer.startSpan('room-again')
-    expect(provider.spansNamed('room-again')).toHaveLength(1)
+    expect(tracer.startSpan('room-again')).toBeDefined()
+    expect(tracer.startSpan('full-again')).toBeUndefined()
+
+    started(at(spans, 1)).endAbandoned()
+    expect(tracer.startSpan('room-after-abandoning')).toBeDefined()
   })
 })
 
@@ -165,22 +163,14 @@ describe('disposal', () => {
   })
 })
 
-describe('tracing switched off or broken', () => {
-  it('never asks the provider for a tracer when tracing is disabled', () => {
-    const provider = createRecordingTelemetryProvider()
-    const { tracer } = setup(provider, { enabled: false })
-
-    expect(tracer.startSpan('checkout')).toBeUndefined()
-    expect(provider.tracerCount).toBe(0)
-  })
-
+describe('a broken provider', () => {
   it('contains a provider whose createTracer throws', () => {
     const provider = createRecordingTelemetryProvider()
     provider.failTracerCreation(true)
-    const { runtime, tracer } = setup(provider)
+    const { diagnostics, tracer } = setup(provider)
 
     expect(tracer.startSpan('checkout')).toBeUndefined()
-    expect(runtime.counters.sinkFailures).toBe(1)
+    expect(diagnostics.map(diagnostic => diagnostic.error.operation)).toEqual(['create a tracer'])
   })
 
   it('contains a span implementation that throws on every member', () => {
@@ -193,7 +183,7 @@ describe('tracing switched off or broken', () => {
       recordException: explode,
       end: explode,
     }
-    const { runtime, tracer } = setup({
+    const { diagnostics, tracer } = setup({
       record: () => {},
       createTracer: () => ({ startSpan: () => hostileSpan }),
     })
@@ -206,12 +196,16 @@ describe('tracing switched off or broken', () => {
       span.end()
     }).not.toThrow()
 
-    expect(runtime.counters.sinkFailures).toBe(4)
-    expect(tracer.openSpanCount).toBe(0)
+    expect(diagnostics.map(diagnostic => diagnostic.error.operation)).toEqual([
+      'set span attributes',
+      'set a span status',
+      'record a span exception',
+      'end a span',
+    ])
   })
 
   it('starts nothing when the provider tracer throws on startSpan', () => {
-    const { runtime, tracer } = setup({
+    const { diagnostics, tracer } = setup({
       record: () => {},
       createTracer: () => ({
         startSpan: () => {
@@ -221,7 +215,6 @@ describe('tracing switched off or broken', () => {
     })
 
     expect(tracer.startSpan('checkout')).toBeUndefined()
-    expect(runtime.counters.sinkFailures).toBe(1)
-    expect(runtime.counters.spansStarted).toBe(0)
+    expect(diagnostics.map(diagnostic => diagnostic.error.operation)).toEqual(['start a span'])
   })
 })

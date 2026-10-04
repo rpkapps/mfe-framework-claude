@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import {
   SpanKind,
   SpanStatusCode,
+  type Diagnostic,
   type Span,
   type SpanRecord,
   type TelemetryProvider,
@@ -20,6 +21,7 @@ import {
   installShellAuth,
   type ContainerAuthBinding,
 } from '../auth/container-transport.ts'
+import { DiagnosticsHub } from '../diagnostics.ts'
 import {
   createRecordingTelemetryProvider,
   type RecordingTelemetryProvider,
@@ -67,6 +69,7 @@ function api(
   options: {
     readonly telemetry?: TelemetryProvider | undefined
     readonly respond?: (attempt: number) => Response | Promise<Response>
+    readonly diagnostics?: DiagnosticsHub
   } = {},
 ) {
   const sent: Headers[] = []
@@ -80,6 +83,7 @@ function api(
     tokens: { getAccessToken: async () => `token-${String((token += 1))}` },
     fetch,
     ...(options.telemetry === undefined ? {} : { telemetry: options.telemetry }),
+    ...(options.diagnostics === undefined ? {} : { diagnostics: options.diagnostics }),
   })
   return { fetch: createContainerTransport(BINDING).fetch, sent }
 }
@@ -200,6 +204,21 @@ describe('a request to a declared API', () => {
     expect(request.attributes['mfe.span.end_reason']).toBe('abandoned')
     expect(request.endTime).toBeDefined()
   })
+
+  it('ends a request that timed out as an error, not as abandoned', async () => {
+    const controller = new AbortController()
+    const timeout = new DOMException('The operation timed out.', 'TimeoutError')
+    const { provider, fetch } = traced(() => {
+      controller.abort(timeout)
+      return Promise.reject(timeout)
+    })
+
+    await expect(fetch('orders', { signal: controller.signal })).rejects.toBe(timeout)
+
+    const request = spanNamed(provider.spans, 'GET')
+    expect(request.status.code).toBe(SpanStatusCode.ERROR)
+    expect(request.attributes['mfe.span.end_reason']).toBeUndefined()
+  })
 })
 
 describe('a request the framework leaves untraced', () => {
@@ -258,6 +277,18 @@ describe('a request the framework leaves untraced', () => {
 
     expect(response.status).toBe(200)
     expect(at(sent).get('traceparent')).toBe(CALLER)
+  })
+
+  it('reports a provider that cannot start a span to the shell diagnostics', async () => {
+    const reported: Diagnostic[] = []
+    const { fetch } = api({
+      telemetry: { record: broken, createTracer: () => ({ startSpan: broken }) },
+      diagnostics: new DiagnosticsHub([diagnostic => reported.push(diagnostic)]),
+    })
+
+    await fetch('orders')
+
+    expect(reported.map(diagnostic => diagnostic.error.operation)).toContain('start a span')
   })
 
   it("still succeeds when the provider's span throws on every call", async () => {

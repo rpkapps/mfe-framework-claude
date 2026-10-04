@@ -38,8 +38,8 @@ export interface Span {
   setAttributes(attributes: TelemetryAttributes): Span
   setStatus(status: SpanStatus): Span
   recordException(error: unknown): Span
-  /** Epoch milliseconds, defaulting to now; repeated calls are harmless. */
-  end(endTime?: number): void
+  /** Repeated calls are harmless. */
+  end(): void
 }
 
 /**

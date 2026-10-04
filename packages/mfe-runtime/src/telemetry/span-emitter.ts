@@ -107,9 +107,9 @@ export function createSpanEmitter(
         return span
       },
       // Repeated calls are harmless: the first one wins and the rest do nothing.
-      end: endTime => {
+      end: () => {
         if (record.endTime !== undefined) return
-        record.endTime = endTime ?? now()
+        record.endTime = now()
         open.delete(record)
         options.onSpanEnd?.(record)
       },

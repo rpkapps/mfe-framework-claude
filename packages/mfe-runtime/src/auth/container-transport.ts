@@ -88,10 +88,20 @@ export function createContainerTransport(binding: ContainerAuthBinding): AuthTra
       ...(shell.telemetry === undefined
         ? {}
         : {
-            tracer: createRequestTracer(shell.telemetry, {
-              definitionId: binding.id,
-              definitionKind: binding.kind,
-            }),
+            tracer: createRequestTracer(
+              shell.telemetry,
+              { definitionId: binding.id, definitionKind: binding.kind },
+              {
+                // A provider that threw, or too many requests at once, is reported where the
+                // page's other development diagnostics are.
+                onDiagnostic: ({ error, severity, context }) => {
+                  shell.diagnostics?.report(error, {
+                    severity,
+                    ...(context === undefined ? {} : { context }),
+                  })
+                },
+              },
+            ),
           }),
     })
     return resolved

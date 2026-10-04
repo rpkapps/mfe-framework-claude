@@ -69,7 +69,9 @@ the page under a registered symbol. Each container's generated `#mfe/fetch` read
 
 With `telemetry`, every `#mfe/fetch` request to a declared API gets a client span and sends a W3C
 `traceparent` naming it. The span is attributed to the container, not a mount. Pass the provider
-`createMfeRuntime` receives, so request spans and workflow spans reach one backend.
+`createMfeRuntime` receives, so request spans and workflow spans reach one backend. Each declared
+API's CORS policy must allow the `traceparent` request header first, or the browser blocks every
+request to it.
 [Trace requests to your API](../../apps/docs/content/docs/trace-requests-to-your-api.mdx) lists
 what each span records.
 

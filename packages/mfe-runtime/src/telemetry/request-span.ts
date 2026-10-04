@@ -11,7 +11,7 @@ import {
   type TelemetryProvider,
 } from '@company/mfe-core'
 
-import { MountTelemetryRuntime } from './runtime.ts'
+import { MountTelemetryRuntime, type TelemetryRuntimeOptions } from './runtime.ts'
 import { MountTracer } from './tracer.ts'
 import { formatTraceparent, parseTraceparent } from './traceparent.ts'
 
@@ -42,15 +42,14 @@ function defaultPort(url: URL): number {
 /**
  * A container has no mount, so its requests get a runtime of their own, attributed to the
  * container and never disposed. The provider is contained as it is for a mount: one that throws
- * leaves the request untraced, never failed.
+ * leaves the request untraced, never failed, and is reported through `onDiagnostic`.
  */
 export function createRequestTracer(
   provider: TelemetryProvider,
   attribution: TelemetryAttribution,
+  options: TelemetryRuntimeOptions = {},
 ): RequestTracer {
-  const tracer = new MountTracer(new MountTelemetryRuntime(provider, attribution), {
-    enabled: true,
-  })
+  const tracer = new MountTracer(new MountTelemetryRuntime(provider, attribution, options))
 
   return Object.freeze({
     trace(method: string, url: URL, callerTraceparent: string | null): RequestTrace | undefined {

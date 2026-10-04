@@ -1,6 +1,6 @@
 /**
- * The mount-bound telemetry service handed to authors. The host keeps its own controls on
- * the same object as non-enumerable properties, so anything that walks it still sees only
+ * The mount-bound telemetry service handed to authors. The host keeps its `dispose()` on
+ * the same object as a non-enumerable property, so anything that walks it still sees only
  * the author surface, and every member is frozen so it can be closed over safely.
  */
 
@@ -13,32 +13,15 @@ import type {
   Workflow,
 } from '@company/mfe-core'
 
-import {
-  MountTelemetryRuntime,
-  type FrameworkRecordDetails,
-  type TelemetryCounters,
-  type TelemetryRuntimeOptions,
-} from './runtime.ts'
+import { MountTelemetryRuntime, type TelemetryRuntimeOptions } from './runtime.ts'
 import { MountTracer } from './tracer.ts'
 import { createWorkflow, type MountWorkflow } from './workflow.ts'
 
-export interface MountTelemetryOptions extends TelemetryRuntimeOptions {
-  /** False switches tracing off, so workflows start no spans and send no headers; defaults to true. */
-  readonly tracing?: boolean
-}
-
 /**
  * What the host holds; authors receive the same object typed as `MfeTelemetry`, without the
- * members below.
+ * member below.
  */
 export interface MountTelemetryHandle extends MfeTelemetry {
-  readonly attribution: TelemetryAttribution
-  readonly disposed: boolean
-  /** A frozen snapshot of the local drop, failure and diagnostic counters. */
-  readonly counters: TelemetryCounters
-  readonly openSpanCount: number
-  /** Framework lifecycle diagnostics, deduplicated against reported errors. */
-  framework(operation: string, details: FrameworkRecordDetails): void
   /**
    * Leaves the open workflow runs, ending as abandoned each one no other mount is in, and closes
    * the mount to new records; repeated calls are harmless.
@@ -49,10 +32,10 @@ export interface MountTelemetryHandle extends MfeTelemetry {
 export function createMountTelemetry(
   provider: TelemetryProvider,
   attribution: TelemetryAttribution,
-  options: MountTelemetryOptions = {},
+  options: TelemetryRuntimeOptions = {},
 ): MountTelemetryHandle {
   const runtime = new MountTelemetryRuntime(provider, attribution, options)
-  const tracer = new MountTracer(runtime, { enabled: options.tracing ?? true })
+  const tracer = new MountTracer(runtime)
   // One per name and key, held for the mount's life; the run behind each is the page's.
   const workflows = new Map<string, Map<string | undefined, MountWorkflow>>()
 
@@ -105,19 +88,7 @@ export function createMountTelemetry(
     runtime.markDisposed()
   }
 
-  Object.defineProperties(handle, {
-    attribution: { value: runtime.attribution, enumerable: false },
-    disposed: { get: (): boolean => runtime.disposed, enumerable: false },
-    counters: { get: (): TelemetryCounters => runtime.counterSnapshot(), enumerable: false },
-    openSpanCount: { get: (): number => tracer.openSpanCount, enumerable: false },
-    framework: {
-      value: (operation: string, details: FrameworkRecordDetails): void => {
-        runtime.emitFramework(operation, details)
-      },
-      enumerable: false,
-    },
-    dispose: { value: dispose, enumerable: false },
-  })
+  Object.defineProperty(handle, 'dispose', { value: dispose, enumerable: false })
 
   return Object.freeze(handle)
 }

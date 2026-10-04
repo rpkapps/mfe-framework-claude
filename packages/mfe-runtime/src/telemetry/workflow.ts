@@ -19,7 +19,7 @@ import {
 } from '@company/mfe-core'
 
 import { DEV } from '../dev.ts'
-import { isReservedAttributeKey, type MountTelemetryRuntime } from './runtime.ts'
+import type { MountTelemetryRuntime } from './runtime.ts'
 import type { MountSpan, MountTracer } from './tracer.ts'
 import { formatTraceparent } from './traceparent.ts'
 
@@ -42,6 +42,10 @@ interface SharedSpan {
   readonly spanId: string
   /** Whose tracer started it, so that mount's disposal hands over only its own spans. */
   readonly owner: Participant
+  /**
+   * Given what the calling mount's runtime has already stripped of reserved keys, so a collision
+   * is reported to the mount that made it even when the span is another mount's.
+   */
   setAttributes(attributes: TelemetryAttributes): void
   end(): void
   succeed(): void
@@ -52,7 +56,7 @@ interface SharedSpan {
 }
 
 interface SharedRun {
-  /** Absent when the mount that opened it had tracing off or its provider failed. */
+  /** Absent when the provider of the mount that opened it failed. */
   readonly root: SharedSpan | undefined
   /** Whoever marks the next step ends this one, whichever mount started it. */
   step: SharedSpan | undefined
@@ -93,7 +97,7 @@ export interface MountWorkflow {
 
 /**
  * Open is the page's: a run exists from the first `start()` to its end, whether or not it has
- * spans, which are missing when tracing is off or the provider failed, so `fail()` still reports
+ * spans, which are missing when the provider failed, so `fail()` still reports
  * its error then. The key only picks the run: it may be an order id, so it is held as a map key
  * and a diagnostic says one was given but never what it was.
  */
@@ -145,18 +149,6 @@ export function createWorkflow(
         span.detach()
       },
     })
-  }
-
-  /**
-   * Clamped, and stripped of the reserved keys, by this mount's runtime, so a collision is
-   * reported to the mount that made it even when the span is another mount's.
-   */
-  function authored(attributes: TelemetryAttributes, operation: string): TelemetryAttributes {
-    const own: Record<string, string | number | boolean> = {}
-    for (const [field, value] of Object.entries(runtime.mergeAttributes(attributes, operation))) {
-      if (!isReservedAttributeKey(field)) own[field] = value
-    }
-    return Object.freeze(own)
   }
 
   /** Acting on a run takes part in it; a mount that is gone never comes back into one. */
@@ -225,7 +217,8 @@ export function createWorkflow(
       // Joining rather than restarting, so it does not matter which mount starts first.
       if (open !== undefined) {
         join(open)
-        if (attributes !== undefined) open.root?.setAttributes(authored(attributes, operation))
+        if (attributes !== undefined)
+          open.root?.setAttributes(runtime.authoredAttributes(attributes, operation))
         return
       }
       const root = tracer.startSpan(name, { attributes })
@@ -271,7 +264,8 @@ export function createWorkflow(
       if (run === undefined) return
       close(run)
       run.step?.end()
-      if (attributes !== undefined) run.root?.setAttributes(authored(attributes, operation))
+      if (attributes !== undefined)
+        run.root?.setAttributes(runtime.authoredAttributes(attributes, operation))
       run.root?.succeed()
     },
 
@@ -285,7 +279,8 @@ export function createWorkflow(
       }
       close(run)
       run.step?.fail(error)
-      if (attributes !== undefined) run.root?.setAttributes(authored(attributes, operation))
+      if (attributes !== undefined)
+        run.root?.setAttributes(runtime.authoredAttributes(attributes, operation))
       run.root?.fail(error)
       runtime.emitError(error, attributes, contextOf(run.root))
     },

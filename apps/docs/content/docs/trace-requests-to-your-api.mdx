@@ -52,9 +52,10 @@ Background requests, such as a query refetch, therefore never land in a workflow
 | `http.response.status_code` | the response status             |
 | `http.request.resend_count` | `1` when a 401 was retried once |
 
-The span never records the path or the query. A status of 400 or above marks the span as an error, and so does a network failure.
+The span never records the path or the query. A status of 400 or above marks the span as an error, and so does a network failure or a timeout.
 When the request's own `signal` cancels it, the span ends as abandoned instead, with `mfe.span.end_reason: abandoned` and no error status.
 A TanStack Query request cancelled on unmount ends this way.
+The span's `mfe.definition.id` names the container that sent the request: its App, or its first Widget when it has no App.
 
 A request to an undeclared origin gets no span and no `traceparent`, as it gets no token. A `traceparent` you add to it yourself goes out as written.
 To a declared API, a valid `traceparent` you add, such as from `headers()`, becomes the parent of the request's span.

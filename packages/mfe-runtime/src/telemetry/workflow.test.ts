@@ -9,8 +9,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { SpanStatusCode, type SpanRecord, type TelemetryAttribution } from '@company/mfe-core'
 
 import { createAuthenticatedFetch, type FetchLike } from '../auth/authenticated-fetch.ts'
+import { createRecordingTelemetryProvider } from '../testing/recording-provider.ts'
 import { createRequestTracer } from './request-span.ts'
-import { at, mountOn, resetPageWorkflows, setup, spanNamed } from './__tests__/harness.ts'
+import {
+  at,
+  ATTRIBUTION,
+  mountOn,
+  mountUntraced,
+  resetPageWorkflows,
+  setup,
+  spanNamed,
+} from './__tests__/harness.ts'
 
 beforeEach(resetPageWorkflows)
 
@@ -163,7 +172,6 @@ describe('a workflow', () => {
       expect(span.endTime).toBeDefined()
     }
     expect(checkout.headers()).toEqual({})
-    expect(telemetry.counters.droppedAfterDispose).toBe(1)
     expect(diagnostics.filter(d => d.error.code === 'dispose/failure')).toHaveLength(1)
   })
 
@@ -214,9 +222,10 @@ describe('workflow headers', () => {
   })
 })
 
-describe('a workflow with tracing off', () => {
+describe('a workflow whose provider failed to build a tracer', () => {
   it('records no spans and sends no headers, but still reports a failure', () => {
-    const { provider, telemetry } = setup({ tracing: false })
+    const provider = createRecordingTelemetryProvider()
+    const { telemetry } = mountUntraced(provider)
     const checkout = telemetry.workflow('checkout')
     const failure = new Error('Order failed: 503')
 
@@ -325,8 +334,9 @@ describe('records made through a workflow', () => {
     expect(diagnostics).toHaveLength(0)
   })
 
-  it('are emitted unlinked with tracing off', () => {
-    const { provider, telemetry } = setup({ tracing: false })
+  it('are emitted unlinked when the provider failed to build a tracer', () => {
+    const provider = createRecordingTelemetryProvider()
+    const { telemetry } = mountUntraced(provider)
     const checkout = telemetry.workflow('checkout')
 
     checkout.start()
@@ -349,11 +359,10 @@ describe('records made through a workflow', () => {
 
     expect(provider.logs('debug')).toHaveLength(0)
     expect(provider.logs('info')).toHaveLength(1)
-    expect(telemetry.counters.droppedByLevelFilter).toBe(1)
   })
 
   it('are refused after the mount is disposed, like any record', () => {
-    const { provider, telemetry } = setup()
+    const { provider, diagnostics, telemetry } = setup()
     const checkout = telemetry.workflow('checkout')
     checkout.start()
 
@@ -364,7 +373,7 @@ describe('records made through a workflow', () => {
     checkout.error(new Error('late'))
 
     expect(provider.records).toHaveLength(0)
-    expect(telemetry.counters.droppedAfterDispose).toBe(4)
+    expect(diagnostics.filter(d => d.error.code === 'dispose/failure')).toHaveLength(4)
   })
 })
 
@@ -530,11 +539,6 @@ describe('a workflow shared across the page', () => {
     for (const span of [root, review]) {
       expect(span.attributes['mfe.span.end_reason']).toBeUndefined()
     }
-    expect(cart.telemetry.openSpanCount).toBe(0)
-    expect(cart.telemetry.counters).toMatchObject({
-      droppedAfterDispose: 0,
-      sinkFailures: 0,
-    })
     expect(cart.diagnostics).toHaveLength(0)
   })
 
@@ -631,9 +635,9 @@ describe('a workflow shared across the page', () => {
     expect(at(sent).get('traceparent')).toBe(traceparentOf(request))
   })
 
-  it('is joined by a mount with tracing off, which marks steps without spans', () => {
+  it('is joined by a mount without a tracer, which marks steps without spans', () => {
     const cart = setup()
-    const quiet = mountOn(cart.provider, PAYMENT, { tracing: false })
+    const quiet = mountUntraced(cart.provider, PAYMENT)
     cart.telemetry.workflow('orders.checkout').start()
     cart.telemetry.workflow('orders.checkout').step('review cart')
 
@@ -648,15 +652,16 @@ describe('a workflow shared across the page', () => {
     expect(root.endTime).toBeUndefined()
   })
 
-  it('sends no headers when the mount that opened it had tracing off', () => {
-    const quiet = setup({ tracing: false })
-    const payment = mountOn(quiet.provider, PAYMENT)
+  it('sends no headers when the mount that opened it had no tracer', () => {
+    const provider = createRecordingTelemetryProvider()
+    const quiet = mountUntraced(provider)
+    const payment = mountOn(provider, PAYMENT)
     quiet.telemetry.workflow('orders.checkout').start()
 
     payment.telemetry.workflow('orders.checkout').step('pay')
 
     expect(payment.telemetry.workflow('orders.checkout').headers()).toEqual({})
-    expect(quiet.provider.spans).toHaveLength(0)
+    expect(provider.spans).toHaveLength(0)
   })
 })
 
@@ -692,7 +697,7 @@ describe('an unprefixed workflow name shared by several definitions', () => {
   it('is not diagnosed for a prefixed name or one definition', () => {
     const { provider, cart } = page()
     const reviews = mountOn(provider, definition('reviews'))
-    const secondCart = mountOn(provider, cart.telemetry.attribution)
+    const secondCart = mountOn(provider, ATTRIBUTION)
 
     cart.telemetry.workflow('orders.checkout').start()
     reviews.telemetry.workflow('orders.checkout').start()
