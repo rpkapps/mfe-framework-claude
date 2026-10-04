@@ -250,6 +250,33 @@ describe('a request through the framework fetch', () => {
     })
   })
 
+  it('leaves the client span alone when the mount went away while the request was out', async () => {
+    const { provider, telemetry, tracer, diagnostics } = setup()
+    let answer: (response: Response) => void = () => {}
+    const { fetch } = api(
+      () =>
+        new Promise<Response>(resolve => {
+          answer = resolve
+        }),
+    )
+
+    const pending = tracer.startActiveSpan('checkout', span => {
+      const request = fetch('orders')
+      span.end()
+      return request
+    })
+    await Promise.resolve()
+    telemetry.dispose()
+    answer(ok())
+    await pending
+
+    expect(spanNamed(provider.spans, 'GET').attributes).toMatchObject({
+      'mfe.span.cancelled': true,
+    })
+    expect(telemetry.counters.mutationsAfterEnd).toBe(0)
+    expect(diagnostics.filter(d => d.error.message.includes('after it ended'))).toHaveLength(0)
+  })
+
   it('goes out untraced when no span is active', async () => {
     const { provider } = setup()
     const { fetch, sent } = api()

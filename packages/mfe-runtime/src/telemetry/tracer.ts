@@ -29,7 +29,7 @@ import {
   runWithSpanContext,
   type ActiveSpanContext,
 } from './active-span.ts'
-import { createNonRecordingTracer, nonRecordingSpan } from './span-emitter.ts'
+import { createNonRecordingTracer, nonRecordingSpan, type ProviderTracer } from './span-emitter.ts'
 
 /** How a span that outlived its mount is labelled; never an error status. */
 const CANCELLATION_REASON = 'mount-disposed'
@@ -39,7 +39,7 @@ export function createNoopTelemetryProvider(): TelemetryProvider {
   const tracer = createNonRecordingTracer()
   return Object.freeze({
     record: (): void => {},
-    createTracer: (): Tracer => tracer,
+    createTracer: (): ProviderTracer => tracer,
     // Every level disabled, so leveled records are dropped before being built.
     isLevelEnabled: (): boolean => false,
   })
@@ -199,7 +199,7 @@ export class MountTracer implements Tracer {
   readonly #runtime: MountTelemetryRuntime
   /** Bounded tracking, so spans nobody ended cannot grow memory without limit. */
   readonly #open = new Set<MountSpan>()
-  #inner: Omit<Tracer, 'withSpan'> | undefined
+  #inner: ProviderTracer | undefined
 
   constructor(runtime: MountTelemetryRuntime, options: { readonly enabled: boolean }) {
     this.#runtime = runtime

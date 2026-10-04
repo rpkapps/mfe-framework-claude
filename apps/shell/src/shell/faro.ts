@@ -8,9 +8,10 @@ import type {
   TelemetryProvider,
   TelemetryRecord,
   TelemetrySpanContext,
-  Tracer,
 } from '@company/mfe-react/host'
 import { initializeFaro, LogLevel, type Faro } from '@grafana/faro-web-sdk'
+
+type ProviderTracer = ReturnType<TelemetryProvider['createTracer']>
 
 /** Faro's context is string-valued, so scalars are rendered, never dropped. */
 function toContext(
@@ -135,7 +136,7 @@ export interface FaroProviderOptions {
   readonly createTracer: (
     attribution: TelemetryAttribution,
     onSpanEnd: (span: SpanRecord) => void,
-  ) => Tracer
+  ) => ProviderTracer
 }
 
 export function createFaroTelemetryProvider({
@@ -187,7 +188,7 @@ export function createFaroTelemetryProvider({
       }
     },
 
-    createTracer(attribution: TelemetryAttribution): Tracer {
+    createTracer(attribution: TelemetryAttribution): ProviderTracer {
       return createTracer(attribution, span => {
         // A span started outside a mount's tracer has no ids, so it cannot join a trace.
         const { spanContext } = span

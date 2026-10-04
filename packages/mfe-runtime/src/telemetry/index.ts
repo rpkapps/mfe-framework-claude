@@ -17,19 +17,8 @@ export {
   type TelemetryCounters,
 } from './runtime.ts'
 
-export {
-  bindTelemetryContext,
-  getActiveSpanContext,
-  type ActiveSpanContext,
-} from './active-span.ts'
-
 export { telemetryDiagnosticsSink } from './diagnostics-sink.ts'
 
 export { createNoopTelemetryProvider } from './tracer.ts'
 
-export {
-  createNonRecordingTracer,
-  createSpanEmitter,
-  nonRecordingSpan,
-  type SpanEmitterOptions,
-} from './span-emitter.ts'
+export { createSpanEmitter, nonRecordingSpan, type SpanEmitterOptions } from './span-emitter.ts'

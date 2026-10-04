@@ -1,6 +1,5 @@
 /** Asserts the translation against a fake Faro api: no network, no SDK initialization. */
 
-import { createNonRecordingTracer } from '@company/mfe-react/host'
 import type { SpanRecord, TelemetryAttribution } from '@company/mfe-react/host'
 import type { Faro } from '@grafana/faro-web-sdk'
 import { describe, expect, it, vi } from 'vitest'
@@ -46,7 +45,8 @@ function harness() {
     faro,
     createTracer: (_attribution, onSpanEnd) => {
       sink = onSpanEnd
-      return createNonRecordingTracer()
+      // The adapter only forwards the tracer; these tests drive the span sink directly.
+      return { startSpan: vi.fn(), startActiveSpan: vi.fn() }
     },
   })
 

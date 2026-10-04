@@ -50,10 +50,14 @@ export function traceRequest(method: string, url: URL): RequestTrace | undefined
   return {
     traceparent: `00-${traceId}-${spanId}-01`,
     resent(): void {
+      if (!span.isRecording()) return
       resends += 1
       span.setAttribute('http.request.resend_count', resends)
     },
     end(outcome): void {
+      // The mount may have gone while the request was out, closing the span as cancelled; a late
+      // answer is not the author's change after `end()`, so it is not reported as one.
+      if (!span.isRecording()) return
       if ('status' in outcome) {
         span.setAttribute('http.response.status_code', outcome.status)
         // A client span counts 4xx as an error too: the request did not do what was asked.

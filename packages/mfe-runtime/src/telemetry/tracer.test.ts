@@ -435,17 +435,17 @@ describe('tracing switched off or broken', () => {
 })
 
 describe('the active context across copies of the runtime', () => {
-  it('is what another copy binds a continuation to', async () => {
+  it('is what another copy reads as active', async () => {
     const { provider, tracer } = setup()
     vi.resetModules()
     const other = await import('./active-span.ts')
 
-    const continuation = tracer.startActiveSpan('checkout', span => {
+    const seen = tracer.startActiveSpan('checkout', span => {
       span.end()
-      return other.bindTelemetryContext(() => other.getActiveSpanContext()?.name)
+      return other.getActiveSpanContext()?.name
     })
 
-    expect(continuation()).toBe('checkout')
+    expect(seen).toBe('checkout')
     expect(at(provider.spans).name).toBe('checkout')
   })
 })

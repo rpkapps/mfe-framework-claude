@@ -48,15 +48,3 @@ export function runWithSpanContext<T>(context: ActiveSpanContext | undefined, fn
     page[ACTIVE_SPAN] = previous
   }
 }
-
-/**
- * Captures the active context now and restores it for every later invocation, which is the
- * supported way to keep a continuation correlated: a span started after an `await` has no
- * ambient context and becomes a root (§4).
- */
-export function bindTelemetryContext<A extends readonly unknown[], R>(
-  fn: (...args: A) => R,
-): (...args: A) => R {
-  const captured = page[ACTIVE_SPAN]
-  return (...args: A): R => runWithSpanContext(captured, () => fn(...args))
-}
