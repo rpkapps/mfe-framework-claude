@@ -28,6 +28,7 @@
     "trace-a-single-action",
     "trace-a-mutation-with-tanstack-query",
     "run-several-workflows-at-once",
+    "share-a-workflow-between-widgets",
     "log-and-measure-inside-a-workflow",
     "trace-requests-to-your-api",
     "find-a-trace-in-grafana",

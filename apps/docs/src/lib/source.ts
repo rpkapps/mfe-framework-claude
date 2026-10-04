@@ -53,6 +53,7 @@ const NAV_LABELS: Record<string, string> = {
   '/docs/trace-a-single-action': 'Single actions',
   '/docs/trace-a-mutation-with-tanstack-query': 'Traced mutations',
   '/docs/run-several-workflows-at-once': 'Parallel workflows',
+  '/docs/share-a-workflow-between-widgets': 'Shared workflows',
   '/docs/log-and-measure-inside-a-workflow': 'Workflow logs',
   '/docs/trace-requests-to-your-api': 'Request tracing',
   '/docs/find-a-trace-in-grafana': 'Traces in Grafana',

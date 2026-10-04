@@ -2123,16 +2123,17 @@ rule to keep in mind: the active span is lost after an `await`, so each later st
 had to be wrapped in `withSpan` again. A step that forgot it started a trace of its own, and nothing
 noticed.
 
-So `MfeTelemetry` has no tracer. `telemetry.workflow(name)` returns the mount's workflow with that
-name, one object per name, in the manner of Datadog RUM's named operations: `start`, `step`,
-`succeed` and `fail`, and `headers()`. Only one run of a name is open at a time; starting it again
-abandons the open run, labelled `mfe.span.end_reason: abandoned` rather than failed. A workflow is a
-root span with a child span per step, and a step lasts until the next step or the end. `fail(error)`
+So `MfeTelemetry` has no tracer. `telemetry.workflow(name)` returns the workflow with that name,
+one object per name for the mount, in the manner of Datadog RUM's named operations: `start`,
+`step`, `succeed` and `fail`, and `headers()`. Only one run of a name is open on the page at a time,
+and `start()` while it is open joins it rather than restarting it, as below. A workflow is a root
+span with a child span per step, and a step lasts until the next step or the end. `fail(error)`
 records the error on the step and the workflow and reports it as an error record whose
 `spanContext` is the workflow's, so the backend links the two; nothing else stamps `spanContext`,
 because there is no ambient span to stamp. Calls while the workflow is not open are ignored, with a
 development diagnostic, except that `fail` still reports its error without a trace: an error is
-never lost for want of a `start()`. An unmount closes an open workflow as cancelled without a diagnostic: a
+never lost for want of a `start()`. An unmount that leaves nobody in an open run closes it as
+abandoned, labelled `mfe.span.end_reason: abandoned` rather than failed, and without a diagnostic: a
 user who leaves in the middle of a checkout did not make a mistake.
 
 Nothing is ambient, so the page-global active-span slot is gone, and `#mfe/fetch` no longer reads
@@ -2143,8 +2144,8 @@ header works with any HTTP client. The Faro adapter no longer pushes a
 span's exceptions as errors, because the failed workflow's error record already reports them.
 
 Several runs of one name, such as one per file in an upload queue, are open at once through a key:
-`telemetry.workflow(name, key)` picks the run by the pair, one object per pair, and without a key
-there is one run per name. The key only selects the run. It is never recorded on a span or a
+`telemetry.workflow(name, key)` picks the run by the pair, one object per pair for the mount, and
+without a key there is one run per name. The key only selects the run. It is never recorded on a span or a
 record, and a diagnostic says only that one was given, because a key is often an order or file id.
 
 A workflow also has `telemetry`'s record methods, `event`, `debug`, `info`, `warn`, `error` and
@@ -2154,12 +2155,37 @@ workflow before its first step. This is the explicit form of the linking §58 di
 span. While the workflow is not open, or tracing is off, the record goes out unlinked and without a
 diagnostic: a log is never lost for want of a `start()`.
 
+A run is the page's, not the mount's. Every App and Widget that calls `workflow(name, key?)` reaches
+the same run; each mount keeps a `Workflow` object of its own, which starts its spans on the mount's
+tracer and emits its records through the mount's runtime, so every step and record says which App
+or Widget made it. A cart and a payment Widget that the shell places side by side therefore trace
+one checkout without passing anything to each other. Sharing along the mount tree, where a mount
+sees its own runs and its ancestors', was considered and not taken: it misses those side-by-side
+Widgets, which have no ancestor in common but the shell, and it needs rules for which of two runs of
+one name a mount means. Page-wide, there is one rule. `start()` begins the run, or joins the open
+one and adds its attributes, so it does not matter which mount acts first. While it is open, any
+mount may `step`, `succeed`, `fail`, read `headers()` or record through it, and doing so takes part
+in it: a step ends the current step whichever mount marked it, and `succeed` or `fail` ends the run
+for everyone, so the next `start()` opens a new trace. The run ends as abandoned only when every
+mount taking part has been disposed. A mount that leaves while others remain hands the spans it
+started for the run over to the run rather than finalizing them: they leave its tracer's open set,
+and ending them later needs nothing its disposal closed, because only starting spans and emitting
+records are refused after it. The open runs live on the page under a registered symbol, as plain
+data and plain functions, because a container may run on another copy of the runtime (§55); a span
+is reached only through the functions its own copy put there. Because one name is shared by every
+container, two unrelated containers that both say `checkout` would share a run by accident, so
+names are prefixed by their domain, such as `orders.checkout`, and in development a run whose
+participants come from different builds, by their build hashes, is reported once.
+
 **Cost:** a request whose author forgets `headers()` is not in the workflow's trace, and nothing
 detects it, as with `withSpan` before; it is still traced, as a trace of its own. A span on every
 request is more telemetry to ship, and sampling it is the collector's. Free-form spans
 are gone: work that is not a named workflow with steps is a measurement or an event. A keyed
 workflow is held for the mount's life like any other, so a mount that keys thousands of runs keeps
-thousands of small objects until it unmounts.
+thousands of small objects until it unmounts. A shared run is only as good as its name: an
+unprefixed name can be joined by a container that meant a run of its own, which only a development
+warning catches, and only when both builds carry a hash. A mount that reads a run's headers once
+keeps the run from being abandoned until it unmounts.
 
 Every request through `#mfe/fetch` to a declared API is traced by default, because a request is
 the one piece of work every container does and its latency is what a user waits on; leaving it to

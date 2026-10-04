@@ -125,7 +125,7 @@ Returns the mount's telemetry handle. It has `event`, `debug`, `info`, `warn`, `
 const telemetry = useTelemetry()
 ```
 
-`workflow(name)` returns the mount's `Workflow` with that name, the same object every call. It has `start`, `step`, `headers`, `succeed` and `fail`; `headers()` returns the `traceparent` a request needs to join the workflow's trace.
+`workflow(name)` returns the `Workflow` with that name, the same object every call. Its run is the page's: every App and Widget that uses the name acts on the same run, and `start()` joins it while it is open. It has `start`, `step`, `headers`, `succeed` and `fail`; `headers()` returns the `traceparent` a request needs to join the workflow's trace.
 
 Recipes: [Log an event](/docs/telemetry#record-events-measurements-and-caught-errors), [Trace a workflow](/docs/telemetry#trace-a-workflow-across-clicks).
 

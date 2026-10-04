@@ -79,7 +79,8 @@ The framework owns `mfe.*` attributes and drops any values you supply there.
 ### 3. Trace a workflow across clicks and a request
 
 A workflow is one piece of user-facing work, such as a checkout, recorded as one trace.
-`telemetry.workflow(name)` returns the mount's workflow with that name, the same object every call.
+`telemetry.workflow(name)` returns the workflow with that name, the same object every call.
+Its run belongs to the page, so every App and Widget that uses the name records into the same trace; see [Share a workflow between widgets](/docs/share-a-workflow-between-widgets).
 
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">
@@ -160,8 +161,8 @@ export class CheckoutComponent {
 
 `start` begins a new trace. Each `step` is a child of the workflow and lasts until the next step or the end.
 `succeed` and `fail` end the workflow. `fail` also reports the error, linked to the trace, so you do not call `telemetry.error` as well.
-Steps and `succeed` are ignored while the workflow is not open; `fail` still reports its error, without a trace. Starting it again while it is open abandons the open run first.
-If the mount ends while a workflow is open, its spans are closed as cancelled, not failed.
+Steps and `succeed` are ignored while the workflow is not open; `fail` still reports its error, without a trace. Starting it again while it is open joins the open run rather than restarting it.
+If every App and Widget taking part ends while the workflow is open, it is closed as abandoned, not failed.
 
 Every request through `#mfe/fetch` to a declared API is traced: it gets a client span with its method, host, port and status, never its path, and sends a W3C `traceparent` naming that span.
 A request joins the workflow only when you spread `headers()` into it, which returns the `traceparent` of the current step, or `{}` when nothing is open or tracing is off. The request's span is then a child of the step.
@@ -214,7 +215,7 @@ The shell's level filter applies as it does to `telemetry.info`. Use `fail`, not
 
 ### 5. Run several at once with a key
 
-Only one run of a workflow is open at a time. To trace several uploads at once, pass each one's id as a key.
+Only one run of a workflow name is open on the page at a time. To trace several uploads at once, pass each one's id as a key.
 `telemetry.workflow(name, key)` returns the same object for the same name and key, and a run of its own for each key.
 
 <Tabs items={['React', 'Angular']}>
@@ -278,7 +279,7 @@ export class UploadRowComponent {
 </Tab>
 </Tabs>
 
-The key only picks the run. It is never recorded, so an order or file id is safe to use. Without a key, a name has one run at a time.
+The key only picks the run. It is never recorded, so an order or file id is safe to use. Without a key, a name has one run on the page at a time.
 
 </Step>
 </Steps>
@@ -354,6 +355,7 @@ See [Runtime snapshots](/docs/reference/hooks-and-components#runtime-snapshots) 
 - [Trace a single action](/docs/trace-a-single-action) — a Save or Export button.
 - [Trace a mutation with TanStack Query](/docs/trace-a-mutation-with-tanstack-query) — mutations, query functions and loaders.
 - [Run several of the same workflow at once](/docs/run-several-workflows-at-once) — keyed runs.
+- [Share a workflow between widgets](/docs/share-a-workflow-between-widgets) — one run across Apps and Widgets.
 - [Log and measure inside a workflow](/docs/log-and-measure-inside-a-workflow) — records linked to a step.
 - [Trace requests to your API](/docs/trace-requests-to-your-api) — automatic request spans and other clients.
 - [Find a trace in Grafana](/docs/find-a-trace-in-grafana) — read the result.

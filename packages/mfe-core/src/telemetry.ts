@@ -56,22 +56,31 @@ export interface Tracer {
 /**
  * One named piece of user-facing work, such as a checkout, traced from its start to its end. It is
  * one trace: each step is a child of the workflow, and a request joins it only through `headers()`.
- * Its record methods emit what the same `MfeTelemetry` method would, linked to the current step, or
- * the workflow before its first step, while open; otherwise, or with tracing off, unlinked.
+ * The run is the page's: every App and Widget that names it, with the same key, acts on the same
+ * run, and each takes part in it from its first call while it is open. Spans and records are
+ * attributed to the mount that made them. Its record methods emit what the same `MfeTelemetry`
+ * method would, linked to the current step, or the workflow before its first step, while open;
+ * otherwise, or when the run has no spans, unlinked.
  */
 export interface Workflow {
-  /** Starts it; starting again while open abandons the open run first. */
+  /** Starts the run, or joins the open one and adds these attributes to it. */
   start(attributes?: TelemetryAttributes): void
-  /** Marks the next step. A step lasts until the next step or the end. Ignored when not open. */
+  /**
+   * Marks the next step, ending the current one whichever mount marked it. A step lasts until the
+   * next step or the end. Ignored when not open.
+   */
   step(name: string, attributes?: TelemetryAttributes): void
   /**
    * `{ traceparent }` for the current step, or the workflow before its first step, while open; `{}`
-   * otherwise or when tracing is off. Spread it into a request's headers.
+   * otherwise or when the run has no spans. Spread it into a request's headers.
    */
   headers(): Record<string, string>
-  /** Ends it as succeeded. Ignored when not open. */
+  /** Ends it as succeeded for every mount in it. Ignored when not open. */
   succeed(attributes?: TelemetryAttributes): void
-  /** Ends it as failed with this error, which is also reported. Ignored when not open. */
+  /**
+   * Ends it as failed with this error, for every mount in it; the error is also reported. Ignored
+   * when not open, except that the error is still reported.
+   */
   fail(error: unknown, attributes?: TelemetryAttributes): void
   event(name: string, attributes?: TelemetryAttributes): void
   debug(message: string, attributes?: TelemetryAttributes): void
@@ -101,9 +110,9 @@ export interface MfeTelemetry {
     options: { unit: MeasurementUnit; attributes?: TelemetryAttributes },
   ): void
   /**
-   * The mount's workflow with this name and key; the same object every call with the same pair. A
-   * key, such as an upload's id, lets several runs of one name be open at once. It only picks the
-   * run and is never recorded.
+   * The workflow with this name and key; the same object every call with the same pair, and the
+   * same run as every other mount on the page that uses the pair. A key, such as an upload's id,
+   * lets several runs of one name be open at once. It only picks the run and is never recorded.
    */
   workflow(name: string, key?: string): Workflow
 }

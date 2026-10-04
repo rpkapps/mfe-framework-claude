@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it } from 'vitest'
 
 import { SpanKind, SpanStatusCode, type TelemetryRecord } from '@company/mfe-core'
 
@@ -6,7 +6,9 @@ import { createRecordingTelemetryProvider } from '../testing/recording-provider.
 import { createMountTelemetry } from './service.ts'
 import { createNonRecordingTracer, nonRecordingSpan } from './span-emitter.ts'
 import { createNoopTelemetryProvider } from './tracer.ts'
-import { at, ATTRIBUTION } from './__tests__/harness.ts'
+import { at, ATTRIBUTION, resetPageWorkflows } from './__tests__/harness.ts'
+
+beforeEach(resetPageWorkflows)
 
 function eventRecord(name: string): TelemetryRecord {
   return {

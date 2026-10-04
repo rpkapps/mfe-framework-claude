@@ -20,7 +20,7 @@ import {
   type TelemetryRuntimeOptions,
 } from './runtime.ts'
 import { MountTracer } from './tracer.ts'
-import { createWorkflow } from './workflow.ts'
+import { createWorkflow, type MountWorkflow } from './workflow.ts'
 
 export interface MountTelemetryOptions extends TelemetryRuntimeOptions {
   /** False switches tracing off, so workflows start no spans and send no headers; defaults to true. */
@@ -40,8 +40,8 @@ export interface MountTelemetryHandle extends MfeTelemetry {
   /** Framework lifecycle diagnostics, deduplicated against reported errors. */
   framework(operation: string, details: FrameworkRecordDetails): void
   /**
-   * Finalizes the spans of open workflows as cancelled and closes the mount to new records;
-   * repeated calls are harmless.
+   * Leaves the open workflow runs, ending as abandoned each one no other mount is in, and closes
+   * the mount to new records; repeated calls are harmless.
    */
   dispose(): void
 }
@@ -53,8 +53,8 @@ export function createMountTelemetry(
 ): MountTelemetryHandle {
   const runtime = new MountTelemetryRuntime(provider, attribution, options)
   const tracer = new MountTracer(runtime, { enabled: options.tracing ?? true })
-  // One per name and key, because only one run of a pair may be open; held for the mount's life.
-  const workflows = new Map<string, Map<string | undefined, Workflow>>()
+  // One per name and key, held for the mount's life; the run behind each is the page's.
+  const workflows = new Map<string, Map<string | undefined, MountWorkflow>>()
 
   const surface: MfeTelemetry = {
     event(name: string, attributes?: TelemetryAttributes): void {
@@ -87,10 +87,10 @@ export function createMountTelemetry(
       }
       let workflow = byKey.get(key)
       if (workflow === undefined) {
-        workflow = createWorkflow(name, key !== undefined, runtime, tracer)
+        workflow = createWorkflow(name, key, runtime, tracer)
         byKey.set(key, workflow)
       }
-      return workflow
+      return workflow.workflow
     },
   }
 
@@ -98,8 +98,12 @@ export function createMountTelemetry(
 
   function dispose(): void {
     if (runtime.disposed) return
-    // Teardown finalization runs before the gate closes: it is the one thing allowed to
-    // touch the provider after disposal was requested.
+    // Leaving first: a run another mount is still in keeps the spans this one started for it, and
+    // a run nobody is left in ends as abandoned before finalization could cancel its spans.
+    for (const byKey of workflows.values()) for (const workflow of byKey.values()) workflow.leave()
+    // Teardown finalization runs before the gate closes: besides a span handed over to a run
+    // above, which the run ends later, it is the one thing allowed to touch the provider after
+    // disposal was requested.
     tracer.finalizeOpenSpans()
     runtime.markDisposed()
   }

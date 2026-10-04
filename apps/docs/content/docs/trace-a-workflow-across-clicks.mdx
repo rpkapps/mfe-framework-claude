@@ -52,7 +52,8 @@ export class CheckoutComponent {
 </Tabs>
 
 `workflow('checkout')` returns the same object on every call, so each handler reaches the same run.
-Call `start()` on the click that begins the work.
+Call `start()` on the click that begins the work. Calling it again while the run is open joins that run rather than starting another.
+Another App or Widget that uses the same name reaches the same run; see [Share a workflow between widgets](/docs/share-a-workflow-between-widgets).
 
 </Step>
 <Step>
@@ -145,12 +146,12 @@ async placeOrder(): Promise<void> {
 
 ## What happens when the user leaves
 
-| The user                       | The open run ends as                                  |
-| ------------------------------ | ----------------------------------------------------- |
-| starts the checkout again      | abandoned, with `mfe.span.end_reason: abandoned`      |
-| navigates away and unmounts it | cancelled, with `mfe.span.end_reason: mount-disposed` |
+| The user                       | The open run                                             |
+| ------------------------------ | -------------------------------------------------------- |
+| starts the checkout again      | carries on: `start()` joins it                           |
+| navigates away and unmounts it | ends as abandoned, with `mfe.span.end_reason: abandoned` |
 
-Neither counts as a failure. Neither reports an error.
+An unmount abandons the run only when no other App or Widget is taking part in it. Neither counts as a failure, and neither reports an error.
 
 ## Check it works
 

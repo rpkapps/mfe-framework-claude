@@ -1,0 +1,174 @@
+---
+title: 'Share a workflow between widgets'
+description: 'Trace one checkout across a cart Widget and a payment Widget: both name the same workflow, either can act on it, and the trace shows steps from both.'
+---
+
+Apps and Widgets. A workflow's run belongs to the page, not to one App or Widget.
+Every App and Widget that calls `workflow('orders.checkout')` reaches the same run, so a cart Widget and a payment Widget the shell places side by side record one checkout as one trace.
+For the basics of workflows, see [Trace a workflow across several clicks](/docs/trace-a-workflow-across-clicks).
+
+## Steps
+
+<Steps>
+<Step>
+
+### 1. Name the workflow in the cart Widget and start it
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="src/cart.tsx"
+import { useTelemetry } from '@company/mfe-react'
+
+export function Cart({ items }: { items: readonly CartItem[] }) {
+  const checkout = useTelemetry().workflow('orders.checkout')
+
+  function review() {
+    checkout.start({ items: items.length })
+    checkout.step('review cart')
+  }
+
+  return <button onClick={review}>Check out</button>
+}
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/cart.component.ts"
+import { Component, input } from '@angular/core'
+import { injectTelemetry } from '@company/mfe-angular'
+
+@Component({
+  selector: 'app-cart',
+  template: `<button (click)="review()">Check out</button>`,
+})
+export class CartComponent {
+  readonly items = input.required<readonly CartItem[]>()
+  private readonly checkout = injectTelemetry().workflow('orders.checkout')
+
+  review(): void {
+    this.checkout.start({ items: this.items().length })
+    this.checkout.step('review cart')
+  }
+}
+```
+
+</Tab>
+</Tabs>
+
+</Step>
+<Step>
+
+### 2. Name the same workflow in the payment Widget and act on it
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="src/payment.tsx"
+import { fetch } from '#mfe/fetch'
+import { useTelemetry } from '@company/mfe-react'
+
+export function Payment({ method }: { method: string }) {
+  const checkout = useTelemetry().workflow('orders.checkout')
+
+  async function pay() {
+    checkout.start({ method })
+    checkout.step('pay')
+    try {
+      const body = JSON.stringify({ method })
+      const response = await fetch('payments', {
+        method: 'POST',
+        body,
+        headers: checkout.headers(),
+      })
+      if (!response.ok) throw new Error(`Payment failed: ${response.status}`)
+      checkout.succeed()
+    } catch (error) {
+      checkout.fail(error)
+    }
+  }
+
+  return <button onClick={() => void pay()}>Pay</button>
+}
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/payment.component.ts"
+import { Component, input } from '@angular/core'
+import { fetch } from '#mfe/fetch'
+import { injectTelemetry } from '@company/mfe-angular'
+
+@Component({
+  selector: 'app-payment',
+  template: `<button (click)="pay()">Pay</button>`,
+})
+export class PaymentComponent {
+  readonly method = input.required<string>()
+  private readonly checkout = injectTelemetry().workflow('orders.checkout')
+
+  async pay(): Promise<void> {
+    this.checkout.start({ method: this.method() })
+    this.checkout.step('pay')
+    try {
+      const body = JSON.stringify({ method: this.method() })
+      const headers = this.checkout.headers()
+      const response = await fetch('payments', { method: 'POST', body, headers })
+      if (!response.ok) throw new Error(`Payment failed: ${response.status}`)
+      this.checkout.succeed()
+    } catch (error) {
+      this.checkout.fail(error)
+    }
+  }
+}
+```
+
+</Tab>
+</Tabs>
+
+`start()` begins the run when none is open, and joins the open one otherwise, adding its attributes to the workflow.
+So both Widgets call it, and it does not matter which the user reaches first.
+`pay` ends the cart's `review cart` step, and `succeed()` ends the run for both Widgets.
+
+</Step>
+</Steps>
+
+## How the run is shared
+
+- **Anyone acts on it.** While the run is open, `step`, `headers`, `succeed`, `fail` and the record methods work from any App or Widget that names it, whether or not that one called `start()`.
+- **Steps hand over.** A step lasts until the next step, whichever App or Widget marks it, or until the end.
+- **Anyone ends it.** `succeed()` or `fail()` from any of them ends the run for all. The next `start()` opens a new run, in a new trace.
+- **It is abandoned only when everyone has closed.** An App or Widget takes part from its first call while the run is open. When one closes, the run carries on for the others. When the last one closes, the run ends with `mfe.span.end_reason: abandoned`, not as a failure.
+- **Keys are shared too.** `workflow('orders.upload', file.id)` is the same run on the page for the same key.
+
+Each span and record says which App or Widget made it. The `review cart` step is the cart Widget's, and the `pay` step, its request and an error from `fail()` are the payment Widget's.
+
+## Prefix the name
+
+Every App and Widget on the page shares one set of names. Two containers that both call their own work `checkout` would share a run by accident.
+Prefix the name with its domain, such as `orders.checkout`, and use the same name only where you mean to share the run.
+
+In development, when Apps or Widgets from separately built containers take part in one run, the first of them to join shows a warning once for that run:
+
+```text shared
+payment@1.4.0 failed to join workflow "checkout": expected workflow "checkout" to be used by one
+deployed bundle, or shared on purpose, received a run shared by separately built cart and payment.
+Prefix the name with its domain, such as "orders.checkout", unless the run is meant to be shared.
+The run is still shared.
+```
+
+The run is still shared. If you meant to share it, keep the name. Otherwise rename one of the workflows.
+
+## Check it works
+
+In Grafana, open the `orders.checkout` trace. The `review cart` and `pay` steps sit under the one workflow span, and the payment request sits under `pay`.
+Each span's `mfe.definition.id` attribute names the Widget that made it. See [Find a trace in Grafana](/docs/find-a-trace-in-grafana).
+
+## Related
+
+- [Events, errors and traces](/docs/telemetry#trace-a-workflow-across-clicks) — the workflow API in full.
+- [Trace a workflow across several clicks](/docs/trace-a-workflow-across-clicks) — steps in one App or Widget.
+- [Run several of the same workflow at once](/docs/run-several-workflows-at-once) — keyed runs.
+- [Render a Widget](/docs/render-a-widget) — place Widgets side by side.

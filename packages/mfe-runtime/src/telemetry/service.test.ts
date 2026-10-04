@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
   SpanStatusCode,
@@ -11,7 +11,9 @@ import { createRecordingTelemetryProvider } from '../testing/recording-provider.
 import { createMountTelemetry } from './service.ts'
 import { createNonRecordingTracer } from './span-emitter.ts'
 import { createNoopTelemetryProvider } from './tracer.ts'
-import { at, ATTRIBUTION, setup } from './__tests__/harness.ts'
+import { at, ATTRIBUTION, resetPageWorkflows, setup } from './__tests__/harness.ts'
+
+beforeEach(resetPageWorkflows)
 
 describe('the seven public members', () => {
   it('exposes exactly event, debug, info, warn, error, measure and workflow', () => {

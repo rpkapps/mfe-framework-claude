@@ -106,7 +106,7 @@ You do not need a `step()`.
 - **Do not also call `telemetry.error`.** The error would be reported twice.
 - **Rethrow only if a caller handles it.** A rethrown error reaches whatever awaits the handler.
 
-If the mount ends while the request runs, the workflow ends as cancelled. A later `fail()` reports nothing. In development it shows a `dispose/failure` diagnostic.
+If the mount ends while the request runs, the workflow ends as abandoned, unless another App or Widget is taking part in it. A later `fail()` reports nothing. In development it shows a `dispose/failure` diagnostic.
 
 </Step>
 </Steps>
@@ -115,7 +115,8 @@ If the mount ends while the request runs, the workflow ends as cancelled. A late
 
 In a test, your test environment's `telemetry.spansNamed('export report')` returns one span per click once it ends.
 A failed export's span has an error status, and `telemetry.logs('error')` holds the error.
-Clicking again while an export runs abandons the first run. Disable the button while it runs if that matters.
+Clicking again while an export runs joins the open run, so the first export to finish ends it, and the other's `succeed()` is ignored with a development diagnostic.
+Disable the button while it runs, or [key the workflow](/docs/run-several-workflows-at-once) to trace each export on its own.
 
 ## Related
 

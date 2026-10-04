@@ -138,6 +138,17 @@ export class MountSpan {
     this.#close(operation, undefined)
   }
 
+  /**
+   * Hands the span to the page's run of its workflow, which another mount is still in: the mount's
+   * disposal then leaves it open, and it stops counting against the mount's budget. Ending it
+   * after the mount is gone needs nothing disposal closes, because only starting a span and
+   * emitting a record are refused then; the span still reaches the provider under the runtime's
+   * containment, and the provider's span has no notion of the mount at all.
+   */
+  detach(): void {
+    this.#tracer.releaseSpan(this)
+  }
+
   /** The status is left as it was: a mount going away did not fail the work. */
   finalizeCancelled(endTime: number): void {
     if (this.#ended) return

@@ -49,6 +49,7 @@ The workflow's span is the root of its trace. A failed workflow, ended with `fai
 | your backend's span    | set by your backend     | the request           |
 
 A request without `headers()` is not in this trace. A backend span appears only when your API runs an OpenTelemetry SDK.
+Each span's `mfe.definition.id` names the App or Widget that made it, so a [workflow shared between Widgets](/docs/share-a-workflow-between-widgets) shows whose step is whose.
 
 </Step>
 <Step>
@@ -65,11 +66,10 @@ The error from `fail()` is linked to the workflow's span. Records made through a
 
 ```text shared title="TraceQL in Grafana Explore, Tempo data source"
 { span.mfe.span.end_reason = "abandoned" }
-{ span.mfe.span.end_reason = "mount-disposed" }
 ```
 
-`abandoned` means the workflow was started again while it was open. `mount-disposed` means the user left the App mid-workflow.
-Neither has an error status. A cancelled span also has `mfe.span.cancelled` set to `true`.
+`abandoned` means every App and Widget taking part closed before the workflow ended, as when the user left mid-workflow.
+It has no error status.
 
 </Step>
 </Steps>

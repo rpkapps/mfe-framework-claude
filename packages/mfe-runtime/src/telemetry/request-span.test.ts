@@ -4,7 +4,7 @@
  * whose `headers()` the caller spread into it.
  */
 
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 
 import {
   SpanKind,
@@ -24,7 +24,9 @@ import {
   createRecordingTelemetryProvider,
   type RecordingTelemetryProvider,
 } from '../testing/recording-provider.ts'
-import { at, setup, spanNamed } from './__tests__/harness.ts'
+import { at, resetPageWorkflows, setup, spanNamed } from './__tests__/harness.ts'
+
+beforeEach(resetPageWorkflows)
 
 const API = 'https://api.example.test'
 const CALLER = '00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01'

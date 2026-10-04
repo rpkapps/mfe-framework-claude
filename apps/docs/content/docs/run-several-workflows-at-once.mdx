@@ -3,7 +3,7 @@ title: 'Run several of the same workflow at once'
 description: 'Give each run of a workflow a key, such as a file id, so several uploads are traced at the same time.'
 ---
 
-Apps and Widgets. A workflow name has one open run at a time, so a second `start()` abandons the first.
+Apps and Widgets. A workflow name has one open run on the page at a time, so a second `start()` joins the first rather than starting another.
 To trace several uploads at once, pass a key: `telemetry.workflow('upload', file.id)`. Each key gets a run of its own.
 For the basics of telemetry, see [Events, errors and traces](/docs/telemetry).
 
@@ -87,7 +87,7 @@ export class UploadQueueComponent {
 ## What the key does
 
 - **The key only picks the run.** It is never recorded on a span, a log or a diagnostic. An order or file id is safe to use.
-- **The same key twice is the same run.** Starting it again abandons the open run with that key, as without a key.
+- **The same key twice is the same run.** Starting it again joins the open run with that key, as without a key. So does another App or Widget that uses the same name and key.
 - **Each keyed workflow lives until the mount ends.** A mount that keys thousands of runs keeps thousands of small objects.
 
 To tell runs apart in your backend, add an attribute you may record, such as `bytes` above.
@@ -96,7 +96,7 @@ Attributes are strings, numbers and booleans. Keep bodies, credentials and raw U
 ## Check it works
 
 In a test, upload two files at once. Your test environment's `telemetry.spansNamed('upload')` then returns two spans, each in its own trace.
-Neither span has an `mfe.span.end_reason` of `abandoned`.
+Each span has its own trace id, and neither has an `mfe.span.end_reason` of `abandoned`.
 
 ## Related
 
