@@ -152,6 +152,9 @@ Keep the workflow's span, and run each later step inside `tracer.withSpan(span, 
 `withSpan` makes the span active while `fn` runs, so spans, records and `#mfe/fetch` requests started inside it join the trace.
 It works on a later click and after an `await`, where `startActiveSpan` cannot reach.
 
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
 ```tsx title="src/checkout.tsx (React)"
 import { useRef } from 'react'
 import { fetch } from '#mfe/fetch'
@@ -194,6 +197,57 @@ export function Checkout() {
   // ...render the three buttons
 }
 ```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="src/checkout.component.ts (Angular)"
+import { Component } from '@angular/core'
+import { fetch } from '#mfe/fetch'
+import { SpanStatusCode, injectTelemetry, type Span } from '@company/mfe-angular'
+
+@Component({
+  selector: 'app-checkout',
+  template: `...the three buttons`,
+})
+export class CheckoutComponent {
+  private readonly tracer = injectTelemetry().tracer
+  private workflow: Span | undefined
+
+  // Click 1: start the workflow.
+  start(): void {
+    this.workflow = this.tracer.startSpan('checkout')
+  }
+
+  // Click 2: a step inside it.
+  chooseShipping(option: string): void {
+    const span = this.workflow
+    if (span === undefined) return
+    this.tracer.withSpan(span, () =>
+      this.tracer.startSpan('checkout.shipping', { attributes: { option } }).end(),
+    )
+  }
+
+  // Click 3: the request, in the same trace as the clicks.
+  async placeOrder(): Promise<void> {
+    const span = this.workflow
+    if (span === undefined) return
+    try {
+      const response = await this.tracer.withSpan(span, () => fetch('orders', { method: 'POST' }))
+      span.setStatus({ code: response.ok ? SpanStatusCode.OK : SpanStatusCode.ERROR })
+    } catch (error) {
+      span.recordException(error)
+      span.setStatus({ code: SpanStatusCode.ERROR })
+    } finally {
+      span.end()
+      this.workflow = undefined
+    }
+  }
+}
+```
+
+</Tab>
+</Tabs>
 
 Call `fetch` itself inside `withSpan`. A TanStack Query `mutationFn` runs after an internal `await`, so wrap the `fetch` in it rather than the `mutate` call.
 `withSpan` adopts only spans your own mount started. Another mount's span leaves the work in a trace of its own.
