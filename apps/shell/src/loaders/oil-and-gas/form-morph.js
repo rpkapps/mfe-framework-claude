@@ -46,6 +46,27 @@ kit.define('form-morph', (c, w, h, t, S, dt, og) => {
       }
       return g
     }
+    // The logo bounce draws (bounce.js), in its 340-unit box: the disc and the outline of its
+    // mark, whose arm the disc cuts off at its edge. Each quadratic corner is split in two.
+    const logo = circ(0.79, 48)
+    const q = (a, b, e) => [a, [(a[0] + 2 * b[0] + e[0]) / 4, (a[1] + 2 * b[1] + e[1]) / 4], e]
+    const mk = [
+      [86, 240],
+      ...q([103, 146], [108, 116], [135, 116]),
+      [174, 116],
+      [164, 169],
+      [173, 169],
+      [184, 116],
+      [325, 116],
+      [329, 129],
+      ...q([263, 129], [250, 129], [247, 144]),
+      ...q([233, 217], [229, 239], [203, 239]),
+      [166, 239],
+      [177, 184],
+      [167, 184],
+      [156, 239],
+    ].map(([x, y]) => [((x - 170) / 170) * 0.82, ((y - 170) / 170) * 0.82])
+    mk.forEach((a, i) => logo.push([a, mk[(i + 1) % mk.length]]))
     const drop = []
     for (let i = 0; i < N; i++) {
       const th = Math.random() * TAU,
@@ -110,17 +131,15 @@ kit.define('form-morph', (c, w, h, t, S, dt, og) => {
       ])
     }
     const srt = p => p.sort((a, b) => Math.atan2(a[1], a[0]) - Math.atan2(b[1], b[0]))
-    S.sh = [drop, segS(der), segS(bar), segS(val)].map(srt)
+    S.sh = [segS(logo), drop, segS(der), segS(bar), segS(val)].map(srt)
   }
-  // Each form holds a moment and then morphs into the next; the loop starts just before the
-  // first morph, so one is under way while the page is still loading.
+  // Each form holds a moment and then morphs into the next; the loop starts on the logo.
   const P = 1.8,
-    at = t + P * 0.2,
-    k = Math.floor(at / P) % 4,
-    u = (at % P) / P,
+    k = Math.floor(t / P) % 5,
+    u = (t % P) / P,
     m = u < 0.25 ? 0 : (u - 0.25) / 0.75
   const Aa = S.sh[k],
-    Bb = S.sh[(k + 1) % 4]
+    Bb = S.sh[(k + 1) % 5]
   og.glow(c, cx, cy, s * 0.5, A, 0.1 + 0.12 * Math.sin(m * Math.PI))
   c.globalCompositeOperation = 'lighter'
   for (let i = 0; i < N; i++) {
