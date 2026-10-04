@@ -20,8 +20,9 @@ For the basics of telemetry, see [Events, errors and traces](/docs/telemetry).
 | `http.request.resend_count` | `1` when a 401 was retried once |
 
 The span never records the path or the query. A status of 400 or above marks the span as an error.
-A request to an undeclared origin gets no span and no `traceparent`, as it gets no token.
-A `traceparent` you spread in yourself still goes out as written.
+A request to an undeclared origin gets no span and no `traceparent`, as it gets no token. A `traceparent` you add to it yourself goes out as written.
+To a declared API, a `traceparent` you add, such as from `headers()`, becomes the parent of the request's span, which sends its own in its place.
+One that is not a valid W3C `traceparent` goes out as written, and the request is not traced.
 
 ## Steps
 
