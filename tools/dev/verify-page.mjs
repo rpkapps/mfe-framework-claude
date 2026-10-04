@@ -22,6 +22,7 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
+import { verifyDashboardTileMenu } from '../browser/verify-dashboard-tile-menu.mjs'
 import { verifyStorageDevtools } from '../browser/verify-storage-devtools.mjs'
 import { verifyStorageScale } from '../browser/verify-storage-scale.mjs'
 import { verifyUserStoragePreferences } from '../browser/verify-user-storage-preferences.mjs'
@@ -870,6 +871,7 @@ async function main() {
   }
 
   if (values.url === undefined) {
+    await verifyDashboardTileMenu(browser)
     await verifyStorageDevtools(browser)
     await verifyStorageScale(browser)
     await verifyUserStoragePreferences(browser)
