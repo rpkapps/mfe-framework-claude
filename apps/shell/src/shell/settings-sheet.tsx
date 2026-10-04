@@ -3,7 +3,7 @@
  * list at the bottom links to the settings pages the registry says each one published.
  */
 
-import { useState, type ReactNode } from 'react'
+import { useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
 import {
   useApps,
@@ -245,6 +245,8 @@ function ThemeSettings(): ReactNode {
   const { value, status } = stored
   const theme = useTheme()
   const [saveFailed, setSaveFailed] = useState(false)
+  // Saves queue and the last one wins, so only a failure of the latest choice is the user's to see.
+  const latest = useRef(0)
 
   if (status === 'loading')
     return <p role="status">Loading your saved preference… Current appearance: {theme}.</p>
@@ -266,7 +268,6 @@ function ThemeSettings(): ReactNode {
         <ItemDescription className="whitespace-normal">
           Saved to your user settings and shared across applications.
         </ItemDescription>
-        {status === 'saving' ? <p role="status">Saving preference…</p> : null}
         {saveFailed ? <p role="alert">Your theme was not saved. Please try again.</p> : null}
       </ItemContent>
       <ItemActions>
@@ -276,14 +277,15 @@ function ThemeSettings(): ReactNode {
           variant="outline"
           size="sm"
           spacing={0}
-          disabled={status === 'saving'}
           onValueChange={values => {
             // Pressing the chosen theme again empties the group; one preference always applies.
             const next: unknown = values[0]
             if (next !== 'light' && next !== 'dark' && next !== 'system') return
             setSaveFailed(false)
+            // Shown and applied at once, and the toggles stay enabled, so nothing waits or moves.
+            const request = ++latest.current
             stored.set(next).catch(() => {
-              setSaveFailed(true)
+              if (request === latest.current) setSaveFailed(true)
             })
           }}
         >

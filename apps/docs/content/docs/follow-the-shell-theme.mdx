@@ -108,7 +108,7 @@ A second root or a document-level `dark` class can put part of the page in the w
 
 Mount your App or Widget in the separately running shell and change the theme through the
 host's theme control. Your subtree repaints
-without a reload and without a prop crossing the boundary. React theme consumers re-render, and Angular theme signals update. In a test, `createMfeTestEnvironment` sets the theme and changes it.
+without a reload and without a prop crossing the boundary. The whole page changes in one frame: CSS transitions are paused for the switch, so your `transition-colors` controls do not fade. React theme consumers re-render, and Angular theme signals update. In a test, `createMfeTestEnvironment` sets the theme and changes it.
 
 ## Errors
 
