@@ -8,25 +8,12 @@ tanstackIntent:
 
 # Definition of done
 
-A change is finished only when all of these hold. The PR template repeats them as boxes: tick each
-one, or say why it does not apply.
+Standards: `CONTRIBUTING.md` (code), `apps/docs/STYLE.md` (docs), `REVIEW.md` (review).
 
-1. **Checks pass.** Run `pnpm check`, and `pnpm docs:check` when docs changed. If a step cannot run
-   where you are (a cloud session without the Tecton checkout, say), run the steps that can and name
-   the ones you skipped.
-2. **Docs match the code.** A change to public API or visible behaviour updates its canonical page,
-   as `apps/docs/STYLE.md` assigns them: the task guide, the `reference/` page, the package README.
-   Follow STYLE.md's templates and sentence rules, and show React and Angular where both exist.
-3. **A changeset** describes every change to a published package (`.changeset/README.md`).
-4. **Nothing half-done.** No TODO or FIXME, no stub, no commented-out code, no option, branch or
-   parameter that nothing uses. Finish it in this change or leave it out.
-5. **No dead code.** Delete what your change made unused. A public export needs a caller that
-   ships: the shell, the docs site's code or another package. Examples, tests, docs and lint
-   messages do not count. Authoring API that only containers call goes in `api-surface.json` with
-   its docs page and an example that calls it. `pnpm api:check` enforces this. Never add to its
-   `pendingDecision` list to make it pass.
-6. **Reviewed.** Before you open the PR, review the whole diff against `REVIEW.md` in a fresh
-   context, such as a subagent or `/code-review`, and fix what it finds. CI reviews every PR again.
-
-Standards live in `CONTRIBUTING.md` (code), `apps/docs/STYLE.md` (docs) and `REVIEW.md` (review).
-Read them before changing code or docs.
+1. `pnpm check` passes. Name any step you couldn't run.
+2. Changed public API or behaviour is documented on its canonical page, per STYLE.md.
+3. Changed published packages have a changeset.
+4. No TODO, stub, commented-out code or unused option.
+5. No dead code. Exports need a caller in the shell, docs site or another package, or an
+   `api-surface.json` entry (`pnpm api:check`). Never add to `pendingDecision`.
+6. The diff is reviewed against `REVIEW.md` in a fresh context before the PR opens.

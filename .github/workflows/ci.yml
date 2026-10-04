@@ -104,20 +104,27 @@ jobs:
       pull-requests: write
       id-token: write
     steps:
-      - name: Require the review key
+      # Until the repository has the key, the review is skipped with a warning rather than failing
+      # every PR. Add it under Settings, Secrets and variables, Actions to turn the review on.
+      - name: Check for the review key
+        id: key
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
           if [ -z "$ANTHROPIC_API_KEY" ]; then
-            echo "::error::The review needs an ANTHROPIC_API_KEY repository secret. Add it under Settings, Secrets and variables, Actions."
-            exit 1
+            echo "::warning::Review skipped: the repository has no ANTHROPIC_API_KEY secret."
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: actions/checkout@v5
+        if: steps.key.outputs.present == 'true'
         with:
           fetch-depth: 0
 
       - uses: anthropics/claude-code-action@v1
+        if: steps.key.outputs.present == 'true'
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: |
@@ -138,6 +145,7 @@ jobs:
             --allowedTools "Read,Grep,Glob,Write,Bash(git diff:*),Bash(git log:*),Bash(gh pr view:*),Bash(gh pr diff:*),Bash(gh pr comment:*),mcp__github_inline_comment__create_inline_comment"
 
       - name: Fail on blocking findings
+        if: steps.key.outputs.present == 'true'
         run: |
           if [ -s review-blocking.txt ]; then
             echo "::error::The review found blocking problems. They are posted on the PR."
