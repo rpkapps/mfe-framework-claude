@@ -155,7 +155,9 @@ function readExports(entries) {
  * `@company/<package>#<Type>` for the package that declares them. A consumer who implements or
  * annotates against the export, as a shell does with `TelemetryProvider`, has to be able to import
  * every type in it. Bodies and initializers are implementation, so only what a consumer sees is
- * read, and a class's private members are skipped.
+ * read, and a class's private members are skipped. Where the source leaves a type to inference,
+ * such as a component field set to a signal, the inferred type is read instead, as the emitted
+ * declaration would spell it.
  */
 function unexportedTypesIn(target, exported, checker) {
   const missing = new Set()
@@ -169,8 +171,13 @@ function unexportedTypesIn(target, exported, checker) {
       : ts.isExpressionWithTypeArguments(node)
         ? node.expression
         : undefined
-    let symbol = name && checker.getSymbolAtLocation(name)
-    if (symbol && symbol.flags & ts.SymbolFlags.Alias) symbol = checker.getAliasedSymbol(symbol)
+    if (name) note(checker.getSymbolAtLocation(name))
+    if (isInferred(node)) visitInferred(inferredTypeOf(node))
+    ts.forEachChild(node, visit)
+  }
+  const note = found => {
+    const symbol =
+      found && found.flags & ts.SymbolFlags.Alias ? checker.getAliasedSymbol(found) : found
     const declared =
       symbol?.declarations?.[0] && ownPackageOf(symbol.declarations[0].getSourceFile().fileName)
     if (
@@ -181,17 +188,48 @@ function unexportedTypesIn(target, exported, checker) {
     ) {
       missing.add(`${declared}#${symbol.name}`)
     }
-    ts.forEachChild(node, visit)
   }
+  // The named types an inferred type is built from, and their type arguments: what a declaration
+  // file would print. Anonymous object types are not opened, as their members print inline.
+  const seen = new Set()
+  const visitInferred = type => {
+    if (!type || seen.has(type)) return
+    seen.add(type)
+    note(type.aliasSymbol)
+    for (const argument of type.aliasTypeArguments ?? []) visitInferred(argument)
+    if (type.isUnionOrIntersection()) for (const part of type.types) visitInferred(part)
+    if (type.flags & ts.TypeFlags.Object) {
+      if (!(type.objectFlags & ts.ObjectFlags.Anonymous)) note(type.symbol)
+      if (type.objectFlags & ts.ObjectFlags.Reference) {
+        for (const argument of checker.getTypeArguments(type)) visitInferred(argument)
+      }
+    }
+  }
+  const inferredTypeOf = node =>
+    ts.isFunctionLike(node)
+      ? checker.getSignatureFromDeclaration(node)?.getReturnType()
+      : checker.getTypeAtLocation(node)
   for (const declaration of target.declarations ?? []) {
     if (declaration.getSourceFile().isDeclarationFile) continue
     if (ts.isVariableDeclaration(declaration)) {
       if (declaration.type) visit(declaration.type)
+      else visitInferred(checker.getTypeAtLocation(declaration))
       continue
     }
     ts.forEachChild(declaration, visit)
   }
   return missing
+}
+
+/** A member or function whose type the source leaves to inference. */
+function isInferred(node) {
+  if (node.type) return false
+  return (
+    ts.isPropertyDeclaration(node) ||
+    ts.isGetAccessorDeclaration(node) ||
+    ts.isMethodDeclaration(node) ||
+    ts.isFunctionDeclaration(node)
+  )
 }
 
 function packageOf(specifier) {
