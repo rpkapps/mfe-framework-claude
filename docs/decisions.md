@@ -2070,3 +2070,9 @@ time stops an owner from changing a shape its readers still expect. Per-field me
 writes is gone too: a key is replaced as a whole, so two writers of one object key lose one write.
 Keys that change independently should be separate keys. The `user` load is one request for the
 whole table, which suits preferences and selections and not large documents.
+
+The theme preference is a `user` key the runtime caches per tenant, account and user for first
+paint. A static shell has no server to name the user in `<html data-user-id>`, so the pre-paint
+script falls back to the cache of whoever last signed in on this browser, and the runtime corrects
+it once it knows the user. Only light or dark carries over between users of one browser; a reload
+no longer starts in the system theme and flips.

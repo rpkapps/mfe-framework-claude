@@ -74,12 +74,25 @@ it('applies the runtime cache of the user the server names before boot', async (
   expect(document.documentElement.style.colorScheme).toBe('dark')
 })
 
-it('uses the system instead of another identity cache before sign-in', async () => {
+it('starts in the last signed-in user’s theme when the server names nobody', async () => {
   lightSystem()
   await cacheThroughRuntime('dark')
+  document.documentElement.classList.remove('dark')
+  bootstrap()
+  expect(document.documentElement.classList.contains('dark')).toBe(true)
+  expect(document.documentElement.style.colorScheme).toBe('dark')
+})
+
+it('uses the system, not the last user’s theme, for a different user the server names', async () => {
+  lightSystem()
+  await cacheThroughRuntime('dark')
+  Object.assign(document.documentElement.dataset, { userId: user.id })
   bootstrap()
   expect(document.documentElement.style.colorScheme).toBe('light')
-  Object.assign(document.documentElement.dataset, { userId: user.id })
+})
+
+it('uses the system before anyone has signed in on this browser', () => {
+  lightSystem()
   bootstrap()
   expect(document.documentElement.style.colorScheme).toBe('light')
 })

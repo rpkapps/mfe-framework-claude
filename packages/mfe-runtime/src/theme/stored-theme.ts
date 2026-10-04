@@ -34,13 +34,17 @@ function paint(theme: ShellTheme): void {
 
 function prepaint(key: typeof cacheKey, resolve: typeof resolveTheme, apply: typeof paint): void {
   try {
-    // A server may provide the authenticated identity. Without it, use system until sign-in.
+    // A server may name the authenticated identity. A static shell cannot, so it starts in the
+    // preference of whoever last signed in on this browser, and the runtime corrects it once it
+    // knows the user. Only light or dark carries over, never anything else of theirs.
     const { userId, tenantId, accountId } = document.documentElement.dataset
-    apply(
-      resolve(
-        userId ? localStorage.getItem(key(tenantId ?? null, accountId ?? null, userId)) : null,
-      ),
-    )
+    const last = localStorage.getItem('mfe:theme:last')
+    const cached = userId
+      ? key(tenantId ?? null, accountId ?? null, userId)
+      : last !== null && last.startsWith('mfe:theme:%5B')
+        ? last
+        : null
+    apply(resolve(cached === null ? null : localStorage.getItem(cached)))
   } catch {
     // Storage blocked: the class in <html> already stands.
   }
@@ -48,11 +52,15 @@ function prepaint(key: typeof cacheKey, resolve: typeof resolveTheme, apply: typ
 
 /**
  * The inline `<script>` body a host puts before its first paint, so a reload starts in the cached
- * preference of the user the server names in `<html data-user-id data-tenant-id data-account-id>`.
+ * preference of the user the server names in `<html data-user-id data-tenant-id data-account-id>`,
+ * or, when it names nobody, of the user who last signed in on this browser.
  */
 export function themeBootstrapScript(): string {
   return `;(${prepaint.toString()})(${cacheKey.toString()}, ${resolveTheme.toString()}, ${paint.toString()})`
 }
+
+/** Which user's cache the pre-paint script reads when the server names nobody. */
+const LAST_THEME_KEY = 'mfe:theme:last'
 
 /** Not exported from the package; the tests seed the cache with it. */
 export function themeCacheKey(user: ShellUser): string {
@@ -119,7 +127,9 @@ export function attachStoredTheme(options: {
     const identity = shellState.getUser()
     if (status !== 'ready' || identity === null) return
     try {
-      globalThis.localStorage?.setItem(themeCacheKey(identity), selected)
+      const cached = themeCacheKey(identity)
+      globalThis.localStorage?.setItem(cached, selected)
+      globalThis.localStorage?.setItem(LAST_THEME_KEY, cached)
     } catch {
       /* Storage can be blocked. */
     }
