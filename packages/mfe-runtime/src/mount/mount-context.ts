@@ -106,12 +106,22 @@ export function createMountContext(options: CreateMountContextOptions): MountCon
   const mountToken = createMountToken(definitionId)
   const disposal = new AbortController()
 
-  const telemetry = createMountTelemetry(runtime.telemetryProvider, {
-    definitionId,
-    definitionKind: kind,
-    ...withoutUndefined({ definitionVersion: options.definitionVersion }),
-    mountToken,
-  })
+  const telemetry = createMountTelemetry(
+    runtime.telemetryProvider,
+    {
+      definitionId,
+      definitionKind: kind,
+      ...withoutUndefined({ definitionVersion: options.definitionVersion }),
+      mountToken,
+    },
+    {
+      // A workflow misused, or a provider that threw, is reported where the page's other
+      // development diagnostics are.
+      onDiagnostic: ({ error, severity, context }) => {
+        runtime.diagnostics.report(error, { severity, ...withoutUndefined({ context }) })
+      },
+    },
+  )
 
   // Both roots are created here, so the token stamped on them is always this context's own.
   const ownerDocument = options.document ?? document
