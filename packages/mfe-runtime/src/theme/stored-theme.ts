@@ -59,13 +59,9 @@ export function themeBootstrapScript(): string {
   return `;(${prepaint.toString()})(${cacheKey.toString()}, ${resolveTheme.toString()}, ${paint.toString()})`
 }
 
-/** Adopted for the one restyle a switch causes; constructed, so a strict style CSP allows it. */
-let instant: CSSStyleSheet | undefined
-let resume: ReturnType<typeof setTimeout> | undefined
-
 /**
  * Switches with every transition paused, so the whole page changes in one frame rather than each
- * control fading at its own speed, and the next frame is not spent animating colors.
+ * control fading at its own speed. A constructed sheet, so a strict style CSP allows it.
  */
 function repaint(theme: ShellTheme): void {
   if (typeof document === 'undefined') return
@@ -76,19 +72,14 @@ function repaint(theme: ShellTheme): void {
     paint(theme)
     return
   }
-  if (instant === undefined) {
-    instant = new CSSStyleSheet()
-    instant.replaceSync('*, *::before, *::after { transition: none !important; }')
-  }
-  const sheet = instant
-  if (!document.adoptedStyleSheets.includes(sheet))
-    document.adoptedStyleSheets = [...document.adoptedStyleSheets, sheet]
+  const pause = new CSSStyleSheet()
+  pause.replaceSync('*, *::before, *::after { transition: none !important; }')
+  document.adoptedStyleSheets = [...document.adoptedStyleSheets, pause]
   paint(theme)
   // Reading a computed value restyles now, while transitions are paused, so none of them starts.
   void getComputedStyle(root).colorScheme
-  clearTimeout(resume)
-  resume = setTimeout(() => {
-    document.adoptedStyleSheets = document.adoptedStyleSheets.filter(other => other !== sheet)
+  setTimeout(() => {
+    document.adoptedStyleSheets = document.adoptedStyleSheets.filter(sheet => sheet !== pause)
   }, 1)
 }
 
@@ -106,13 +97,11 @@ function preference(value: unknown): ThemePreference | undefined {
 
 /** Safe before anything mounts; unknown identities never read a previous user's preference. */
 function readCachedTheme(user: ShellUser | null | undefined): ThemePreference {
+  if (user == null) return 'system'
   try {
-    return (
-      (user == null
-        ? undefined
-        : preference(globalThis.localStorage?.getItem(themeCacheKey(user)))) ?? 'system'
-    )
+    return preference(localStorage.getItem(themeCacheKey(user))) ?? 'system'
   } catch {
+    // No storage, or blocked.
     return 'system'
   }
 }
@@ -161,8 +150,8 @@ export function attachStoredTheme(options: {
     if (status !== 'ready' || identity === null) return
     try {
       const cached = themeCacheKey(identity)
-      globalThis.localStorage?.setItem(cached, selected)
-      globalThis.localStorage?.setItem(LAST_THEME_KEY, cached)
+      localStorage.setItem(cached, selected)
+      localStorage.setItem(LAST_THEME_KEY, cached)
     } catch {
       /* Storage can be blocked. */
     }

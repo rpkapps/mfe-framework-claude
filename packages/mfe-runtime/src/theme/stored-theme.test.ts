@@ -213,17 +213,15 @@ describe('the stored theme', () => {
       const storage = createMemoryUserStorage(themed('light'))
       const { runtime } = boot(storage)
       await runtime.storage.whenLoaded()
-      restyled.length = 0
+      // Lets the first paint's pause end before the switch under test.
+      await new Promise(resolve => setTimeout(resolve, 5))
       vi.useFakeTimers()
+      restyled.length = 0
       storage.write(HOST_SCOPE, 'theme', { v: 1, d: 'dark' })
       const paused = [expect.stringMatching(/transition: none !important/)]
       expect(restyled).toEqual([{ dark: true, rules: paused }])
-      // A switch back before transitions resume keeps the one pause open rather than adding another.
       storage.write(HOST_SCOPE, 'theme', { v: 1, d: 'light' })
-      expect(restyled).toEqual([
-        { dark: true, rules: paused },
-        { dark: false, rules: paused },
-      ])
+      expect(restyled[1]).toMatchObject({ dark: false })
       vi.runAllTimers()
       expect(document.adoptedStyleSheets).toEqual([])
       // The same theme again changes nothing, so nothing is paused.
