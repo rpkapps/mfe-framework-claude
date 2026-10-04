@@ -5,6 +5,8 @@ import { fetch } from '#mfe/fetch'
 import { Alert, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
 import { Button } from '@tecton/react/components/button'
 import { Skeleton } from '@tecton/react/components/skeleton'
+import { Spinner } from '@tecton/react/components/spinner'
+import { useBusyDelay } from '@tecton/react/tecton/use-busy-delay'
 import type { ReactNode } from 'react'
 
 import { Fields, LabPage, LabSection } from '../lab-page.tsx'
@@ -26,6 +28,7 @@ function Config(): ReactNode {
       return (await response.json()) as unknown
     },
   })
+  const busy = useBusyDelay(probe.isFetching)
 
   return (
     <LabPage
@@ -58,12 +61,14 @@ function Config(): ReactNode {
         </p>
         <div className="flex flex-wrap items-center gap-2">
           <Button
-            disabled={probe.isFetching}
+            disabled={probe.isFetching || busy}
+            focusableWhenDisabled
             onClick={() => {
               void probe.refetch()
             }}
           >
-            {probe.isFetching ? 'Sending…' : 'Send a probe request'}
+            {busy && <Spinner data-icon="inline-start" />}
+            {busy ? 'Sending…' : 'Send a probe request'}
           </Button>
           <span className="font-mono text-xs text-muted-foreground">
             GET {String(config.apiBaseUrl)}lab/probe
@@ -74,7 +79,7 @@ function Config(): ReactNode {
          * The result keeps the same room whichever way it lands, because a panel that grows when an
          * answer arrives moves the button the reader just pressed.
          */}
-        {probe.isFetching ? (
+        {busy ? (
           <div className="flex flex-col gap-2" role="status" aria-label="Waiting for the response">
             <Skeleton className="h-8 w-full" />
             <Skeleton className="h-8 w-full" />

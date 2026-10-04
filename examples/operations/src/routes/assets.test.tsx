@@ -152,6 +152,43 @@ describe('the assets route', () => {
     })
     expect(mfeRequests()).toHaveLength(2)
   })
+
+  it('shows Refreshing… only once a refresh has run past the busy delay', async () => {
+    configured()
+    let calls = 0
+    let respond = (): void => undefined
+    // The first request answers at once; the refresh waits until the test lets it go.
+    setMfeFetch(() => {
+      calls += 1
+      if (calls === 1) return json(ASSETS)
+      return new Promise<Response>(resolve => {
+        respond = () => {
+          resolve(json(ASSETS))
+        }
+      })
+    })
+
+    const rendered = renderApp(operations, { initialEntries: ['/assets'] })
+    mounted = rendered.dispose
+    await waitFor(() => {
+      expect(screen.getByText('Pump 4')).toBeInTheDocument()
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Refresh' }))
+    // Locked from the first click, before the delayed busy state has shown.
+    expect(screen.getByRole('button', { name: 'Refresh' })).toHaveAttribute('aria-disabled', 'true')
+
+    const refreshing = await screen.findByRole('button', { name: /Refreshing…/ })
+    expect(refreshing).toHaveAttribute('aria-disabled', 'true')
+
+    respond()
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Refresh' })).not.toHaveAttribute(
+        'aria-disabled',
+        'true',
+      )
+    })
+  })
 })
 
 describe('the generated-alias fixtures', () => {
