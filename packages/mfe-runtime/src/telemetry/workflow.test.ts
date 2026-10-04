@@ -112,7 +112,7 @@ describe('a workflow', () => {
     expect(provider.logs('error')).toHaveLength(0)
   })
 
-  it('ignores steps and ends while it is not open, with a development diagnostic', () => {
+  it('ignores steps and ends while it is not open, but still reports a failure', () => {
     const { provider, diagnostics, telemetry } = setup()
     const checkout = telemetry.workflow('checkout')
 
@@ -120,10 +120,13 @@ describe('a workflow', () => {
     checkout.succeed()
     checkout.start()
     checkout.succeed()
-    checkout.fail(new Error('twice'))
+    const late = new Error('twice')
+    checkout.fail(late)
 
     expect(provider.spans).toHaveLength(1)
-    expect(provider.logs('error')).toHaveLength(0)
+    expect(provider.logs('error')).toHaveLength(1)
+    expect(at(provider.logs('error')).error).toBe(late)
+    expect(at(provider.logs('error'))).not.toHaveProperty('spanContext')
     expect(checkout.headers()).toEqual({})
     expect(diagnostics.filter(d => d.error.message.includes('which was not open'))).toHaveLength(3)
   })

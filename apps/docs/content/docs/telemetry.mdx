@@ -160,7 +160,7 @@ export class CheckoutComponent {
 
 `start` begins a new trace. Each `step` is a child of the workflow and lasts until the next step or the end.
 `succeed` and `fail` end the workflow. `fail` also reports the error, linked to the trace, so you do not call `telemetry.error` as well.
-Steps and ends are ignored while the workflow is not open. Starting it again while it is open abandons the open run first.
+Steps and `succeed` are ignored while the workflow is not open; `fail` still reports its error, without a trace. Starting it again while it is open abandons the open run first.
 If the mount ends while a workflow is open, its spans are closed as cancelled, not failed.
 
 A request joins the workflow only when you spread `headers()` into it. It returns a W3C `traceparent` for the current step, or `{}` when nothing is open or tracing is off.

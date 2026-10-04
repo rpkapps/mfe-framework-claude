@@ -92,7 +92,11 @@ export function createWorkflow(
     },
 
     fail(error: unknown, attributes?: TelemetryAttributes): void {
-      if (!accepts(`end ${label} as failed`)) return
+      // An error is never lost for want of a start(): it is still reported, just not on a trace.
+      if (!accepts(`end ${label} as failed`)) {
+        if (!runtime.disposed) runtime.emitError(error, attributes)
+        return
+      }
       step?.recordException(error).setStatus(SpanStatusCode.ERROR).end()
       if (attributes !== undefined) root?.setAttributes(attributes)
       root?.recordException(error).setStatus(SpanStatusCode.ERROR).end()

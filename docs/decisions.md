@@ -2131,7 +2131,8 @@ root span with a child span per step, and a step lasts until the next step or th
 records the error on the step and the workflow and reports it as an error record whose
 `spanContext` is the workflow's, so the backend links the two; nothing else stamps `spanContext`,
 because there is no ambient span to stamp. Calls while the workflow is not open are ignored, with a
-development diagnostic. An unmount closes an open workflow as cancelled without a diagnostic: a
+development diagnostic, except that `fail` still reports its error without a trace: an error is
+never lost for want of a `start()`. An unmount closes an open workflow as cancelled without a diagnostic: a
 user who leaves in the middle of a checkout did not make a mistake.
 
 Nothing is ambient, so the page-global active-span slot is gone, and so is the automatic client
