@@ -195,7 +195,7 @@ export function isStoredKey(value: unknown): value is AnyStoredKey<unknown> {
 }
 
 // ---------------------------------------------------------------------------------------------
-// The browser record format, shared by the runtime's browser store and devtools.
+// The browser record format the runtime's browser store writes.
 
 /** The persisted record; the field names are short because they are written into every key. */
 export interface StorageEnvelope {
@@ -222,14 +222,14 @@ export function physicalStorageKey(
   return `${storagePrefix(definitionId, instanceId)}${name}`
 }
 
-export function storagePrefix(definitionId: string, instanceId?: string): string {
+function storagePrefix(definitionId: string, instanceId?: string): string {
   return instanceId === undefined
     ? `${definitionId}:`
     : `${instanceStoragePrefix(definitionId)}${instanceId.length}:${instanceId}:`
 }
 
 /** Length prefixes make arbitrary instance IDs unambiguous without escaping or dependencies. */
-export function instanceStoragePrefix(definitionId: string): string {
+function instanceStoragePrefix(definitionId: string): string {
   return `:${definitionId.length}:${definitionId}:`
 }
 
@@ -263,7 +263,11 @@ export interface StoredRow extends StoredValue {
 export type UserStorageState = Readonly<Record<string, Readonly<Record<string, StoredRow>>>>
 
 export interface UserStorageHandle {
-  /** Replaces the whole state; takes the same shape `load()` returns. */
+  /**
+   * Replaces the whole state; takes the same shape `load()` returns. A key missing from it is
+   * removed, so never pass a state read before a save this adapter has already resolved (drop a
+   * poll that was in flight while a save completed).
+   */
   replace(state: UserStorageState): void
 }
 

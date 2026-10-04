@@ -67,8 +67,6 @@ export interface BoundStorageKey<T> {
   /** Pure cache read: never touches the browser store. */
   getSnapshot(): StorageSnapshot<T>
   subscribe(listener: Listener): Unsubscribe
-  /** Throws the structured error when the current snapshot is an error snapshot. */
-  read(): T
   set(next: T | StorageUpdater<T>): void
   remove(): void
   /** Drops this consumer's declaration; the key is torn down when the last one goes. */

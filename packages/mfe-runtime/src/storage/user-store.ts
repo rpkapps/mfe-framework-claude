@@ -33,8 +33,6 @@ interface Slot {
   row: StoredRow | undefined
   /** The highest revision this tab has held, kept after a removal so the removed row stays gone. */
   seen: number
-  /** Confirmed by a save since the last full state, which may have been read before it landed. */
-  savedSinceReplace?: boolean
   /** In flight. */
   sending?: { readonly value: StoredValue | null }
   /** Waiting behind the one in flight; only the latest is kept. */
@@ -246,7 +244,6 @@ export class UserStorageStore {
     const changed: string[] = []
     for (const [id, row] of incoming) {
       const slot = this.#slot(id)
-      slot.savedSinceReplace = false
       // Only the row held at that revision may be re-read, e.g. rewritten at a newer version.
       const rewritten = slot.row?.revision === row.revision && slot.row.v !== row.v
       if (row.revision <= slot.seen && !rewritten) continue
@@ -254,15 +251,11 @@ export class UserStorageStore {
       slot.seen = Math.max(slot.seen, row.revision)
       changed.push(id)
     }
-    // Absent from a full state means removed, unless this tab is saving it or has just saved it:
-    // a state read before that save landed would otherwise remove it again.
+    // Absent from a full state means removed, unless this tab is saving it. A state cannot say
+    // when it was read, so the adapter never delivers one read before a save it already resolved.
     for (const [id, slot] of this.#slots) {
       if (incoming.has(id) || slot.row === undefined) continue
       if (slot.sending !== undefined || slot.queued !== undefined) continue
-      if (slot.savedSinceReplace === true) {
-        slot.savedSinceReplace = false
-        continue
-      }
       slot.row = undefined
       changed.push(id)
     }
@@ -417,7 +410,6 @@ export class UserStorageStore {
           slot.row = row
           slot.seen = Math.max(slot.seen, row.revision)
         }
-        slot.savedSinceReplace = true
       })
       .then(
         () => {

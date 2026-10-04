@@ -569,7 +569,8 @@ name — where a shell using `"shell"` could not be told from a definition.
 `useStoredState` resolves by position, the definition inside a mount and `@host`
 outside, as `useCommand` does (§26). The theme is the
 one exemption, its key never ours to choose: legacy Angular applications read
-`localStorage["theme"]` as a bare string, so `preferences.ts` writes that raw.
+`localStorage["theme"]` as a bare string, so `preferences.ts` writes that raw. (Superseded by §57:
+the runtime owns the theme in `stored-theme.ts`, with a per-user pre-paint cache.)
 
 **Consequence:** the allowlist is not empty, so what an entry has to prove is what
 changed; one that cannot justify itself that way is another missing primitive,

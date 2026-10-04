@@ -10,6 +10,6 @@ The host page has its own scope, `HOST_SCOPE` (`'@host'`): it stores state, regi
 - **Storage:** `MfeStorageStore.bindHost`, and `useStoredState` or `useMfeStorage()` outside a mount.
 - **Commands/breadcrumbs/selectors:** `CommandRegistry.registerHost`, `useCommand`/`useBreadcrumbs` outside a mount, `useRegistryEntries`, `useApps`, `useWidgets`, `useCapabilityPages(name?)`, `useActiveDefinition(pathname)`.
 - **Diagnostics:** `createMfeRuntime({ diagnostics })` adopts a hub the host built; `telemetryDiagnosticsSink(provider)` and `DiagnosticsHub` (re-exported from `@company/mfe-runtime`).
-- `createMfeRuntime` now builds the store itself; the `storage` option is gone, and `useTheme`/`useUser`/`useGroups` no longer require a mount.
+- `createMfeRuntime` now builds the browser store itself (its `storage` option takes only `{ user }`, see storage-api), and `useTheme`/`useUser`/`useGroups` no longer require a mount.
 
 **Migration:** a host record's key is `@host:<name>`; state under a shell's own key is untouched, so clear it or declare `migrate()` (legacy `localStorage["theme"]` reads are unaffected, §24).

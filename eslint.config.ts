@@ -69,7 +69,7 @@ const config: Linter.Config[] = [
       // The documentation site is not an MFE, but it is first-party React in this workspace and
       // the framework preset is the one that holds first-party code to the repository's rules.
       'apps/docs/src/**/*.{ts,tsx}',
-      // The host adapter is a supporting package, not MFE author code.
+      // The example storage backend's typed demo data, not MFE author code.
       'examples/user-storage/src/**/*.ts',
     ],
     // `rules-of-hooks` reads any call to something named `use` as a hook call, so a bundler

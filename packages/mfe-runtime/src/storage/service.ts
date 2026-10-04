@@ -67,6 +67,24 @@ export class StorageService {
   readonly #failedWrites = new Map<string, () => void>()
   /** Bindings per browser key; its write error goes with the last one. */
   readonly #writeBindings = new Map<string, number>()
+  /**
+   * Snapshots are shared by every binding of a key, so a component re-reading through a new
+   * binding (or a second component on the key) sees the same object and does not render again.
+   */
+  readonly #browserViews = new Map<
+    string,
+    {
+      inner: StorageSnapshot<unknown>
+      writeError: StorageError | undefined
+      snapshot: StoredSnapshot<unknown>
+    }
+  >()
+  readonly #userViews = new WeakMap<
+    AnyStoredKey<unknown>,
+    Map<string, { state: UserRowState; snapshot: StoredSnapshot<unknown> }>
+  >()
+  readonly #decoded = new WeakMap<AnyStoredKey<unknown>, WeakMap<StoredValue, Decoded>>()
+  readonly #readErrors = new WeakMap<Error, StorageError>()
 
   constructor(options: StorageServiceOptions) {
     this.browser = options.browser
@@ -170,6 +188,7 @@ export class StorageService {
     this.#writeListeners.clear()
     this.#failedWrites.clear()
     this.#writeBindings.clear()
+    this.#browserViews.clear()
   }
 
   // -------------------------------------------------------------------------------------------
@@ -203,7 +222,11 @@ export class StorageService {
       }
     }
 
-    const decodedFor = new WeakMap<StoredValue, Decoded>()
+    let decodedFor = this.#decoded.get(key)
+    if (decodedFor === undefined) {
+      decodedFor = new WeakMap()
+      this.#decoded.set(key, decodedFor)
+    }
     const decode = (raw: StoredValue): Decoded => {
       let decoded = decodedFor.get(raw)
       if (decoded === undefined) {
@@ -212,12 +235,17 @@ export class StorageService {
       }
       return decoded
     }
-    let lastState: UserRowState | undefined
-    let lastSnapshot: StoredSnapshot<T> | undefined
+    let views = this.#userViews.get(key)
+    if (views === undefined) {
+      views = new Map()
+      this.#userViews.set(key, views)
+    }
+    const viewId = `${owner}\u0000${row}`
     const getSnapshot = (): StoredSnapshot<T> => {
       const state = user.read(owner, row)
-      if (state === lastState && lastSnapshot !== undefined) return lastSnapshot
-      lastState = state
+      const view = views.get(viewId)
+      if (view?.state === state) return view.snapshot as StoredSnapshot<T>
+      const lastSnapshot = view?.snapshot as StoredSnapshot<T> | undefined
       const raw = state.pending !== undefined ? state.pending : state.row
       const decoded: Decoded =
         raw === null || raw === undefined ? { ok: true, value: key.defaultValue } : decode(raw)
@@ -234,14 +262,15 @@ export class StorageService {
                 : decoded.ok
                   ? { value, status: 'ready', error: undefined }
                   : { value, status: 'error', error: decoded.error }
-      lastSnapshot =
+      const snapshot =
         lastSnapshot !== undefined &&
         Object.is(lastSnapshot.value, next.value) &&
         lastSnapshot.status === next.status &&
         lastSnapshot.error === next.error
           ? lastSnapshot
           : Object.freeze(next)
-      return lastSnapshot
+      views.set(viewId, { state, snapshot })
+      return snapshot
     }
 
     const write = async (next: StoredUpdate<T> | typeof RESET): Promise<void> => {
@@ -257,7 +286,15 @@ export class StorageService {
       subscribe: listener => user.subscribe(owner, row, listener),
       set: next => write(next),
       reset: () => write(RESET),
-      retry: () => user.retry(owner, row),
+      // A failed load is anyone's to retry; a failed save only its writer's.
+      retry: async () => {
+        if (user.phase !== 'error') {
+          // A reader has nothing of its own to send again.
+          if (key.owner !== undefined) return
+          this.#assertWritable(caller, owner, key)
+        }
+        return await user.retry(owner, row)
+      },
       release: () => {},
     }
   }
@@ -292,19 +329,15 @@ export class StorageService {
     const writeId = `${area}|${bound.key}`
     this.#writeBindings.set(writeId, (this.#writeBindings.get(writeId) ?? 0) + 1)
 
-    const readErrors = new WeakMap<Error, StorageError>()
-    let lastInner: StorageSnapshot<T> | undefined
-    let lastWriteError: StorageError | undefined
-    let lastSnapshot: StoredSnapshot<T> | undefined
     const getSnapshot = (): StoredSnapshot<T> => {
       const inner = bound.getSnapshot()
       const writeError = this.#writeErrors.get(writeId)
-      if (inner === lastInner && writeError === lastWriteError && lastSnapshot !== undefined)
-        return lastSnapshot
-      lastInner = inner
-      lastWriteError = writeError
+      const view = this.#browserViews.get(writeId)
+      if (view !== undefined && view.inner === inner && view.writeError === writeError)
+        return view.snapshot as StoredSnapshot<T>
+      let snapshot: StoredSnapshot<T>
       if (inner.status === 'error') {
-        let error = readErrors.get(inner.error)
+        let error = this.#readErrors.get(inner.error)
         if (error === undefined) {
           error = createStorageError(
             'invalid-value',
@@ -314,20 +347,33 @@ export class StorageService {
             { observed: inner.error.message, repair: 'Write a new value, or reset() the key.' },
             inner.error,
           )
-          readErrors.set(inner.error, error)
+          this.#readErrors.set(inner.error, error)
         }
-        lastSnapshot = Object.freeze({ value: key.defaultValue, status: 'error', error })
-      } else if (writeError !== undefined) {
-        lastSnapshot = Object.freeze({ value: inner.value, status: 'error', error: writeError })
+        snapshot = Object.freeze({ value: key.defaultValue, status: 'error', error })
       } else {
-        lastSnapshot = Object.freeze({ value: inner.value, status: 'ready', error: undefined })
+        const next: StoredSnapshot<T> =
+          writeError !== undefined
+            ? { value: inner.value, status: 'error', error: writeError }
+            : { value: inner.value, status: 'ready', error: undefined }
+        // The key may have been torn down and read again since: an equal value keeps its object.
+        const previous = view?.snapshot
+        snapshot =
+          previous !== undefined &&
+          previous.status === next.status &&
+          previous.error === next.error &&
+          sameJson(previous.value, next.value)
+            ? (previous as StoredSnapshot<T>)
+            : Object.freeze(next)
       }
-      return lastSnapshot
+      this.#browserViews.set(writeId, { inner, writeError, snapshot })
+      return snapshot
     }
 
-    const write = (apply: () => void): Promise<void> => {
+    // `store` is only the store call: the caller is checked before it, so a retry by another
+    // binding of the key is checked against that binding's own caller.
+    const write = (store: () => void): Promise<void> => {
       try {
-        apply()
+        store()
       } catch (cause) {
         // A refused write (read-only key, invalid value, disposed caller) leaves the status as it is.
         if (
@@ -345,7 +391,7 @@ export class StorageService {
           cause,
         )
         this.#setWriteError(writeId, error)
-        this.#failedWrites.set(writeId, apply)
+        this.#failedWrites.set(writeId, store)
         return Promise.reject(error)
       }
       this.#setWriteError(writeId, undefined)
@@ -363,29 +409,52 @@ export class StorageService {
           outer()
         }
       },
-      set: next =>
-        write(() => {
-          this.#assertWritable(caller, owner, key)
-          const current = getSnapshot()
-          if (typeof next !== 'function') {
-            bound.set(this.#candidate(owner, key, current, next))
-            return
-          }
-          this.#assertUpdatable(owner, key, current)
-          // The store re-reads the stored value first, so an update made in another tab counts.
-          bound.set((stored: T) =>
-            this.#candidate(owner, key, { value: stored, status: 'ready', error: undefined }, next),
-          )
-        }),
-      reset: () =>
-        write(() => {
-          this.#assertWritable(caller, owner, key)
-          bound.remove()
-        }),
-      retry: () => {
+      // Async, so a refusal before the store call rejects rather than throws.
+      set: async next => {
+        this.#assertWritable(caller, owner, key)
+        const current = getSnapshot()
+        if (typeof next !== 'function') {
+          const value = this.#candidate(owner, key, current, next)
+          return await write(() => bound.set(value))
+        }
+        this.#assertUpdatable(owner, key, current)
+        // The store re-reads the stored value first, so an update made in another tab counts.
+        return await write(() =>
+          bound.set((stored: T) => {
+            try {
+              return this.#candidate(
+                owner,
+                key,
+                { value: stored, status: 'ready', error: undefined },
+                next,
+              )
+            } catch (cause) {
+              // The app's own update function threw: a refused write, not a failing store.
+              if (isMfeError(cause)) throw cause
+              throw createStorageError(
+                'invalid-value',
+                owner,
+                key.name,
+                'update a stored value',
+                {
+                  observed: describeThrown(cause),
+                  repair: 'Fix the update function. The stored value is unchanged.',
+                },
+                cause,
+              )
+            }
+          }),
+        )
+      },
+      reset: async () => {
+        this.#assertWritable(caller, owner, key)
+        return await write(() => bound.remove())
+      },
+      retry: async () => {
         const failed = this.#failedWrites.get(writeId)
-        if (failed === undefined) return Promise.resolve()
-        return write(failed)
+        if (failed === undefined) return
+        this.#assertWritable(caller, owner, key)
+        return await write(failed)
       },
       release: () => {
         if (released) return
@@ -561,4 +630,15 @@ function assertJson(owner: string, name: string, value: unknown): void {
     seen.delete(current as object)
   }
   check(value, '')
+}
+
+/** Browser values are JSON, so equal serialisations are equal values. */
+function sameJson(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true
+  if (a === null || b === null || typeof a !== 'object' || typeof b !== 'object') return false
+  try {
+    return JSON.stringify(a) === JSON.stringify(b)
+  } catch {
+    return false
+  }
 }

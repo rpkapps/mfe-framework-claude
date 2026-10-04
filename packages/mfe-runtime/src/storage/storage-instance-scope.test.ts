@@ -4,6 +4,14 @@ import { z } from 'zod'
 import { physicalStorageKey } from '@company/mfe-core'
 import { createMemoryStorageArea } from '../testing/memory-storage-area.ts'
 import { MfeStorageStore } from './storage-store.ts'
+import type { BoundStorageKey } from './types.ts'
+
+/** The current value, or the snapshot's error thrown. */
+function read<T>(key: BoundStorageKey<T>): T {
+  const snapshot = key.getSnapshot()
+  if (snapshot.status === 'error') throw snapshot.error
+  return snapshot.value
+}
 
 const schema = z.number()
 const local = createMemoryStorageArea()
@@ -39,10 +47,10 @@ describe('instance-scoped storage', () => {
     const shared = store.bind('chart', { name: 'zoom', schema, defaultValue: 1 })
     first.set(7)
 
-    expect(first.read()).toBe(7)
-    expect(second.read()).toBe(1)
-    expect(otherDefinition.read()).toBe(1)
-    expect(shared.read()).toBe(1)
+    expect(read(first)).toBe(7)
+    expect(read(second)).toBe(1)
+    expect(read(otherDefinition)).toBe(1)
+    expect(read(shared)).toBe(1)
     expect(first.key).not.toBe(second.key)
     expect(first.key).toBe(physicalStorageKey('chart', 'zoom', 'north:zoom'))
   })
@@ -54,8 +62,8 @@ describe('instance-scoped storage', () => {
     store.dispose()
     store = new MfeStorageStore({ areas: { local, session }, eventTarget: null })
 
-    expect(bind('north').read()).toBe(3)
-    expect(bind('south').read()).toBe(1)
+    expect(read(bind('north'))).toBe(3)
+    expect(read(bind('south'))).toBe(1)
   })
 
   it('rejects empty and host-scoped instance identities without falling back', () => {
@@ -79,8 +87,8 @@ describe('instance-scoped storage', () => {
       version: 2,
       migrate: value => Number(value) + 1,
     })
-    expect(migrated.read()).toBe(3)
-    expect(bind('north').read()).toBe(1)
+    expect(read(migrated)).toBe(3)
+    expect(read(bind('north'))).toBe(1)
     expect(session.getItem(key)).toBe(JSON.stringify({ v: 2, d: 3 }))
   })
 })

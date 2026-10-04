@@ -79,17 +79,32 @@ timestamp or a sequence works), so a copy of the state read before a change neve
 <Step>
 ### 3. Keep values fresh, if you need to
 
-```ts shared title="Illustrative adapter field"
+```ts shared title="Illustrative adapter fields"
+let saved = 0
+
+save: async (owner, key, value, signal) => {
+  const row = await api.put(
+    `/user-storage/${encodeURIComponent(owner)}/${encodeURIComponent(key)}`,
+    value,
+    { signal },
+  )
+  saved += 1
+  return row
+},
 sync: (storage, signal) => {
   const id = setInterval(async () => {
-    storage.replace(await api.get('/user-storage', { signal }))
+    const before = saved
+    const state = await api.get('/user-storage', { signal })
+    // A poll that was out while a save landed may predate it: skip it, the next one is newer.
+    if (saved === before) storage.replace(state)
   }, 60_000)
   signal.addEventListener('abort', () => clearInterval(id))
 },
 ```
 
 The framework never polls, opens sockets or syncs tabs on its own. A socket or server-sent events
-call `storage.replace` the same way. Without `sync`, values change only through this tab's saves
+call `storage.replace` the same way. A key missing from the state you pass is removed, so never
+pass a state read before a save the adapter already resolved. Without `sync`, values change only through this tab's saves
 and the next load.
 
 </Step>
@@ -114,7 +129,8 @@ failed load: Apps mount with defaults and status `error`, and `retry()` recovers
 - Saves are last-write-wins per key, with one save in flight per key. Saves to different keys go
   out in parallel; further changes to a busy key are coalesced and sent when it settles.
 - `replace` is safe at any time. A row older than the one held is ignored, and a key with a save in
-  flight keeps this tab's value until the save settles. A key missing from the state is removed.
+  flight keeps this tab's value until the save settles. A key missing from the state is removed, so
+  a state read before one of this tab's saves landed must not be passed.
 - Until a load succeeds, writes to `user` keys reject with `storage/not-ready`.
 
 The shell's own values are keys like any App's. Outside an App or Widget mount they belong to the
@@ -135,7 +151,7 @@ with its status, data and row. Change a value in an App, reload, and the value i
 defaults; call retry() to load again.
 ```
 
-**Fix.** Check the endpoint `load` calls. A consumer's `retry()`, or a later `replace`, recovers.
+**Fix.** Check the endpoint `load` calls. A consumer's `retry()` loads again.
 
 </Callout>
 

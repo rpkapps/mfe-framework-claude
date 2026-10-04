@@ -257,7 +257,6 @@ function LoadFailed({
           variant="outline"
           size="sm"
           onClick={() => {
-            // After a failed load, retry() loads the whole area again whatever key it names.
             void store.retryLoad()
           }}
         >

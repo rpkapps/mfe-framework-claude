@@ -7,6 +7,14 @@ import { DiagnosticsHub } from '../diagnostics.ts'
 
 import { createMemoryStorageArea, type MemoryStorageArea } from '../testing/memory-storage-area.ts'
 import { MfeStorageStore } from './storage-store.ts'
+import type { BoundStorageKey } from './types.ts'
+
+/** The current value, or the snapshot's error thrown. */
+function read<T>(key: BoundStorageKey<T>): T {
+  const snapshot = key.getSnapshot()
+  if (snapshot.status === 'error') throw snapshot.error
+  return snapshot.value
+}
 
 const ORDERS = 'acme-orders'
 const REPORTS = 'acme-reports'
@@ -132,7 +140,7 @@ describe('defaults', () => {
     })
 
     expect(theme.getSnapshot()).toEqual({ status: 'default', value: 'light' })
-    expect(theme.read()).toBe('light')
+    expect(read(theme)).toBe('light')
     expect(local.snapshot()).toEqual({})
     expect(local.calls.writes).toBe(0)
   })
@@ -166,8 +174,8 @@ describe('defaults', () => {
 
     expect(filters.getSnapshot().status).toBe('error')
     expect(theme.getSnapshot().status).toBe('error')
-    expect(() => filters.read()).toThrow(/not JSON/)
-    expect(() => theme.read()).toThrow(/declared schema/)
+    expect(() => read(filters)).toThrow(/not JSON/)
+    expect(() => read(theme)).toThrow(/declared schema/)
   })
 
   it('reports a missing key as null when no default is declared', () => {
@@ -176,7 +184,7 @@ describe('defaults', () => {
 
     const filters = store.bind(ORDERS, { name: 'filters', schema: filtersSchema })
     expect(filters.getSnapshot()).toEqual({ status: 'default', value: null })
-    expect(filters.read()).toBeNull()
+    expect(read(filters)).toBeNull()
   })
 
   it('persists only the schema version beside the payload', () => {
@@ -186,7 +194,7 @@ describe('defaults', () => {
     const theme = store.bind(ORDERS, { name: 'theme', schema: themeSchema })
     theme.set('dark')
 
-    expect(theme.read()).toBe('dark')
+    expect(read(theme)).toBe('dark')
     expect(JSON.parse(local.getItem('acme-orders:theme') ?? '')).toEqual({ v: 1, d: 'dark' })
   })
 })
@@ -260,7 +268,7 @@ describe('validation and failure', () => {
 
     const snapshot = filters.getSnapshot()
     expect(snapshot.status).toBe('error')
-    expect(() => filters.read()).toThrow(/never falls back/)
+    expect(() => read(filters)).toThrow(/never falls back/)
     expect(() => filters.set({ status: 'open', page: 2 })).toThrow(/storage to be available/)
     expect(session.snapshot()).toEqual({})
     expect(local.snapshot()).toEqual({})
@@ -306,7 +314,7 @@ describe('validation and failure', () => {
 
     expect(listener).toHaveBeenCalledTimes(1)
     expect(theme.getSnapshot().status).toBe('error')
-    expect(() => theme.read()).toThrow(/declared schema/)
+    expect(() => read(theme)).toThrow(/declared schema/)
   })
 
   it('reports a read failure to diagnostics as well as to the reader', () => {

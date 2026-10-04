@@ -132,16 +132,15 @@ export function useShellSurface(): ShellSurface | null {
 export type StoredSetter<T> = (next: StoredUpdate<T>) => void
 
 function useStoredValue<T>(key: StoredKey<T>): readonly [T, StoredSetter<T>] {
-  const stored = useStoredState(key)
+  const { value, set } = useStoredState(key)
   // Stable, as the hook's own `set` is, so a caller can list it in its dependencies.
-  const latest = useRef(stored)
-  useEffect(() => {
-    latest.current = stored
-  })
-  const write = useCallback<StoredSetter<T>>(next => {
-    latest.current.set(next).catch(() => undefined)
-  }, [])
-  return [stored.value, write]
+  const write = useCallback<StoredSetter<T>>(
+    next => {
+      set(next).catch(() => undefined)
+    },
+    [set],
+  )
+  return [value, write]
 }
 
 /** One key for every reader, so a Widget added from the palette is already on the canvas the page renders. */

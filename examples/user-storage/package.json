@@ -7,8 +7,7 @@
     "./wells": {
       "types": "./src/wells.d.ts",
       "default": "./src/wells.js"
-    },
-    "./server": "./server.mjs"
+    }
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

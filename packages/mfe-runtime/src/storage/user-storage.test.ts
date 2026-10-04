@@ -357,7 +357,7 @@ describe('replace', () => {
 })
 
 describe('replace racing saves', () => {
-  it('keeps a value just saved when a state read before the save lands arrives', async () => {
+  it('removes a key another tab removed, even right after this tab saved it', async () => {
     const { service, saves, handles, accept } = await loaded()
     const binding = service.bind(REPORTS, units)
     const saving = binding.set('imperial')
@@ -365,11 +365,7 @@ describe('replace racing saves', () => {
     await saving
 
     handles[0]?.replace({})
-    expect(binding.getSnapshot()).toMatchObject({ value: 'imperial', status: 'ready' })
-
-    // The next state is newer than the save; one without the key now means it was removed.
-    handles[0]?.replace({})
-    expect(binding.getSnapshot().value).toBe('metric')
+    expect(binding.getSnapshot()).toMatchObject({ value: 'metric', status: 'ready' })
   })
 
   it('does not bring back a removed row from a state read before the removal', async () => {
@@ -475,6 +471,8 @@ describe('owners and instances', () => {
       code: 'storage/unauthorized-owner',
     })
     await expect(binding.reset()).rejects.toMatchObject({ code: 'storage/unauthorized-owner' })
+    // A reader's retry has nothing of its own to send again.
+    await expect(binding.retry()).resolves.toBeUndefined()
     expect(saves).toHaveLength(0)
   })
 

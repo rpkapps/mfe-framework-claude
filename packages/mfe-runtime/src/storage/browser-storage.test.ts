@@ -177,6 +177,46 @@ describe('writing', () => {
     expect(service.bind(REPORTS, sidebarOpen).getSnapshot().status).toBe('ready')
   })
 
+  it('lets another binding of the key retry a write whose caller went away', async () => {
+    const { service, local } = setup()
+    const leaving = new AbortController()
+    const first = service.bind({ owner: 'reports', signal: leaving.signal }, sidebarOpen)
+    const second = service.bind(REPORTS, sidebarOpen)
+    local.full = true
+    await expect(first.set(false)).rejects.toBeDefined()
+    leaving.abort()
+    first.release()
+    local.full = false
+
+    await second.retry()
+
+    expect(second.getSnapshot()).toEqual({ value: false, status: 'ready', error: undefined })
+  })
+
+  it('refuses an update function that throws, without an error status', async () => {
+    const { service, storage } = setup()
+    const binding = service.bind(REPORTS, counter)
+
+    await expect(
+      storage.set(counter, () => {
+        throw new TypeError('bug')
+      }),
+    ).rejects.toMatchObject({ code: 'storage/invalid-value' })
+
+    expect(binding.getSnapshot().status).toBe('ready')
+  })
+
+  it('gives every binding of a key the same snapshot object', async () => {
+    const { service, storage } = setup()
+    const first = service.bind(REPORTS, counter)
+    await storage.set(counter, 2)
+    const before = first.getSnapshot()
+    first.release()
+
+    // Torn down and read again, as a component's render read is before it subscribes.
+    expect(service.bind(REPORTS, counter).getSnapshot()).toBe(before)
+  })
+
   it('applies a functional update to what is stored now, not what this tab last read', async () => {
     const { service, storage, session } = setup()
     const binding = service.bind(REPORTS, counter)

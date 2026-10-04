@@ -461,6 +461,29 @@ describe('the binding a render owns', () => {
     view.unmount()
   })
 
+  it('renders once on mount, since subscribing reads the same snapshot the render did', () => {
+    const env = setup()
+    const values: unknown[] = []
+    const objectKey = storedKey(
+      'mount-probe',
+      z.object({ open: z.boolean() }).default({ open: true }),
+    )
+
+    function Probe(): ReactNode {
+      const { value } = useStoredState(objectKey)
+      values.push(value)
+      return null
+    }
+
+    render(
+      <env.wrapper>
+        <Probe />
+      </env.wrapper>,
+    )
+
+    expect(values).toHaveLength(1)
+  })
+
   it('accepts a write from a child effect that runs before the parent subscribes', () => {
     const env = setup()
 

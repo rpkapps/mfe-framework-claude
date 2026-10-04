@@ -121,7 +121,6 @@ interface KeyEntry {
   snapshot: StorageSnapshot<unknown>
   readonly getSnapshot: () => StorageSnapshot<unknown>
   readonly subscribe: (listener: Listener) => Unsubscribe
-  readonly read: () => unknown
   readonly set: (next: unknown) => void
   readonly remove: () => void
 }
@@ -189,7 +188,6 @@ export class MfeStorageStore {
       version: resolved.version,
       getSnapshot: entry.getSnapshot,
       subscribe: entry.subscribe,
-      read: entry.read,
       set: entry.set,
       remove: entry.remove,
       release: () => {
@@ -267,20 +265,12 @@ export class MfeStorageStore {
     const name = declaration.name
 
     if (typeof name !== 'string' || name.length === 0) {
-      throw this.#fail(definitionId, area, 'bind', null, {
+      throw this.#fail(definitionId, area, 'bind', String(name), {
         expected: 'a non-empty storage key name',
         observed: describeValue(name),
         repair: "Give the key a stable name, e.g. bind(id, { name: 'filters', schema }).",
       })
     }
-    if (definitionId.length === 0 || definitionId.includes(':')) {
-      throw this.#fail(definitionId, area, 'bind', name, {
-        expected: 'a definition id without a colon',
-        observed: describeValue(definitionId),
-        repair: 'Use the registry definition id; the colon separates the id from the key name.',
-      })
-    }
-
     const instanceId = this.#resolveInstance(definitionId, area, declaration.instanceId, name)
 
     const version = declaration.version ?? DEFAULT_SCHEMA_VERSION
@@ -326,7 +316,7 @@ export class MfeStorageStore {
     const entryKey = entryKeyFor(declaration.area, physicalKey)
     const existing = this.#entries.get(entryKey)
     if (existing !== undefined) {
-      this.#assertCompatible(existing, declaration, true)
+      this.#assertCompatible(existing, declaration)
       return existing
     }
     const entry = this.#createEntry(definitionId, declaration, entryKey, physicalKey)
@@ -367,7 +357,6 @@ export class MfeStorageStore {
           this.#evictIfUnused(entry)
         }
       },
-      read: () => this.#readValue(entry, false, declaration.declaresDefault),
       set: (next: unknown) => {
         this.#setValue(entry, next)
       },
@@ -382,7 +371,7 @@ export class MfeStorageStore {
    * A disagreement is reported to the consumer that disagrees, not resolved in favour of whoever
    * rendered first.
    */
-  #assertCompatible(entry: KeyEntry, incoming: ResolvedDeclaration, compareDefault: boolean): void {
+  #assertCompatible(entry: KeyEntry, incoming: ResolvedDeclaration): void {
     const active = entry.declaration
     const shownDefault = (declaration: ResolvedDeclaration): string =>
       declaration.declaresDefault
@@ -405,7 +394,7 @@ export class MfeStorageStore {
         `version ${incoming.version}`,
       )
     }
-    if (compareDefault && active.defaultSignature !== incoming.defaultSignature) {
+    if (active.defaultSignature !== incoming.defaultSignature) {
       this.#incompatible(entry, 'defaultValue', shownDefault(active), shownDefault(incoming))
     }
   }
@@ -439,13 +428,13 @@ export class MfeStorageStore {
     entry.raw = null
   }
 
-  #refresh(entry: KeyEntry): boolean {
+  #refresh(entry: KeyEntry): void {
     let raw: string | null
     try {
       raw = this.#resolveArea(entry.area).getItem(entry.physicalKey)
     } catch (error) {
       this.#invalidateCache(entry)
-      return this.#publish(
+      this.#publish(
         entry,
         this.#errorSnapshot(entry, 'read', {
           expected: `${entry.area} storage to be readable`,
@@ -454,36 +443,24 @@ export class MfeStorageStore {
           cause: error,
         }),
       )
+      return
     }
-    return this.#applyRaw(entry, raw)
+    this.#applyRaw(entry, raw)
   }
 
   /** The only place a stored representation becomes a snapshot. */
-  #applyRaw(entry: KeyEntry, raw: string | null): boolean {
-    if (entry.rawKnown && entry.raw === raw) return false
+  #applyRaw(entry: KeyEntry, raw: string | null): void {
+    if (entry.rawKnown && entry.raw === raw) return
     const outcome = readEnvelope(this.#envelopeContext(entry), raw)
     entry.raw = outcome.raw
     entry.rawKnown = true
-    return this.#publish(entry, outcome.snapshot)
+    this.#publish(entry, outcome.snapshot)
   }
 
-  #publish(entry: KeyEntry, snapshot: StorageSnapshot<unknown>): boolean {
-    if (snapshotsEquivalent(entry.snapshot, snapshot)) return false
+  #publish(entry: KeyEntry, snapshot: StorageSnapshot<unknown>): void {
+    if (snapshotsEquivalent(entry.snapshot, snapshot)) return
     entry.snapshot = snapshot
     this.#listeners.notify(entry.entryKey)
-    return true
-  }
-
-  /**
-   * `declaresDefault` comes from the caller's own declaration, so a consumer that declared
-   * none reads `null` for a missing key whether or not another consumer is mounted.
-   */
-  #readValue(entry: KeyEntry, forceRead: boolean, declaresDefault: boolean): unknown {
-    if (forceRead) this.#refresh(entry)
-    const snapshot = entry.snapshot
-    if (snapshot.status === 'error') throw snapshot.error
-    if (snapshot.status === 'default') return declaresDefault ? snapshot.value : null
-    return snapshot.value
   }
 
   #setValue(entry: KeyEntry, next: unknown): void {
@@ -563,7 +540,7 @@ export class MfeStorageStore {
         expected: `${entry.area} storage to accept ${serialized.length} characters`,
         observed: describeThrown(error),
         repair:
-          'The store is full or blocked. Persist less, or clear this definition. The stored value is unchanged.',
+          'The store is full or blocked. Persist less, or free space in this browser. The stored value is unchanged.',
         cause: error,
       })
     }
@@ -589,7 +566,7 @@ export class MfeStorageStore {
     definitionId: string,
     area: BrowserStorageArea,
     verb: string,
-    name: string | null,
+    name: string,
   ): StorageAreaLike {
     try {
       return this.#resolveArea(area)
@@ -627,19 +604,19 @@ export class MfeStorageStore {
     definitionId: string,
     area: BrowserStorageArea,
     verb: string,
-    name: string | null,
+    name: string,
     detail: Detail,
   ): MfeError {
     const error = createMfeError({
       ...detail,
       code: 'storage/failure',
       id: definitionId,
-      operation: name === null ? `clear ${area} storage` : `${verb} the ${area} storage key`,
-      ...(name === null ? {} : { path: [name] }),
+      operation: `${verb} the ${area} storage key`,
+      path: [name],
     })
     this.#diagnostics?.report(error, {
       severity: 'error',
-      context: { definitionId, area, ...(name === null ? {} : { key: name }) },
+      context: { definitionId, area, key: name },
     })
     return error
   }

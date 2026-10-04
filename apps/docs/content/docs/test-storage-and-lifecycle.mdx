@@ -97,12 +97,10 @@ const env = environment
 ```ts title="src/storage.test.ts"
 environment = createMfeTestEnvironment({
   definitions: [definition],
-  storage: {
-    values: [
-      [visits, 3],
-      [draft, { note: 'rig 4', pinned: true }],
-    ],
-  },
+  storage: [
+    [visits, 3],
+    [draft, { note: 'rig 4', pinned: true }],
+  ],
 })
 const env = environment
 ```
@@ -207,7 +205,7 @@ await failing.dispose()
 const save = () => Promise.resolve(null)
 const failing = createMfeTestEnvironment({
   definitions: [definition],
-  storage: { user: { load: () => Promise.reject(new Error('down')), save } },
+  userStorage: { load: () => Promise.reject(new Error('down')), save },
 })
 ```
 
