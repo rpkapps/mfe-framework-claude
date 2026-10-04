@@ -8,11 +8,9 @@ import {
   createNavigationIntent,
   parseBoundaryLocation,
   type MfeRuntime,
+  type NavigationAction,
   type NavigationOutcome,
 } from '@company/mfe-react/host'
-
-/** How the page is moving; the runtime's own type, which the host entry does not re-export. */
-type NavigationAction = NonNullable<Parameters<typeof createNavigationIntent>[3]>
 
 /** Asks every mounted App that could lose something whether the page may go from `from` to `to`. */
 export function negotiateNavigation(

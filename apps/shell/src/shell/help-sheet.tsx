@@ -2,7 +2,8 @@
 
 import { useSyncExternalStore, type ReactNode } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { HOST_SCOPE, useApps, useMfeRuntime, type MfeRuntime } from '@company/mfe-react'
+import { HOST_SCOPE, useApps, useMfeRuntime } from '@company/mfe-react'
+import type { ActionEntry } from '@company/mfe-react/host'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
 import { Card, CardDescription, CardHeader, CardTitle } from '@tecton/react/components/card'
@@ -26,8 +27,6 @@ import {
 
 import { ShortcutKeys } from './shortcut-keys.tsx'
 import { shellUi } from './ui-store.ts'
-
-type ActionEntry = ReturnType<MfeRuntime['actions']['getSnapshot']>[number]
 
 const CONCEPTS: readonly {
   readonly icon: typeof AppWindowIcon

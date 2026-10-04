@@ -7,13 +7,10 @@ import { useMemo, useSyncExternalStore } from 'react'
 import type { ChatSnapshot } from '@company/mfe-agent'
 import { toolNameOf } from '@company/mfe-agent/actions'
 import { useMfeRuntime, type AgentSuggestionEntry } from '@company/mfe-react'
-import type { MfeRuntime } from '@company/mfe-react/host'
+import type { ActionEntry } from '@company/mfe-react/host'
 
 import type { ShellChat } from './shell-chat.ts'
 import type { PendingQuestion } from './tools/ask-user.ts'
-
-/** One action as the registry publishes it. */
-export type ActionEntry = ReturnType<MfeRuntime['actions']['getSnapshot']>[number]
 
 function useActions(): readonly ActionEntry[] {
   const runtime = useMfeRuntime('the chat')
