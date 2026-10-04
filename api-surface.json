@@ -1,5 +1,5 @@
 {
-  "$comment": "Read by tools/api/check-public-api.mjs (pnpm api:check). authoring: exports that containers call and the shell does not, each with the page that documents it. pendingDecision: exports that nothing ships calls, recorded when the check was introduced and awaiting a keep-or-remove decision. Never add to pendingDecision to pass the check: remove the export or document it as authoring API.",
+  "$comment": "Read by tools/api/check-public-api.mjs (pnpm api:check). authoring: exports that containers call and the shell does not, each with the page that documents it. generatedCallers: exports that only generated code calls, each with the generator that writes the call. pendingDecision: exports that nothing ships calls, recorded when the check was introduced and awaiting a keep-or-remove decision. Never add to pendingDecision to pass the check: remove the export or document it as authoring API.",
   "authoring": {
     "@company/mfe-angular#createApp": "apps/docs/content/docs/reference/angular-adapter.mdx",
     "@company/mfe-angular#createWidget": "apps/docs/content/docs/reference/angular-adapter.mdx",
@@ -37,6 +37,9 @@
     "@company/mfe-react/testing#mountApp": "apps/docs/content/docs/reference/testing-api.mdx",
     "@company/mfe-react/testing#mountWidget": "apps/docs/content/docs/reference/testing-api.mdx",
     "@company/mfe-rspack#pluginMfe": "apps/docs/content/docs/reference/error-codes.mdx"
+  },
+  "generatedCallers": {
+    "@company/mfe-build/env#checkConfigField": "packages/mfe-build/src/generate/host-config.ts"
   },
   "pendingDecision": [
     "@company/create-mfe#appTemplate",
@@ -86,7 +89,6 @@
     "@company/mfe-build#shareScopesOf",
     "@company/mfe-build#withFrameworkMetadata",
     "@company/mfe-build/env#ENV_NAME_RULE",
-    "@company/mfe-build/env#checkConfigField",
     "@company/mfe-build/env#checkValue",
     "@company/mfe-build/env#isEnvVarDescriptor",
     "@company/mfe-build/testing#cleanupContainers",

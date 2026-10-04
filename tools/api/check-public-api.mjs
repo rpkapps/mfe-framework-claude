@@ -9,6 +9,10 @@
  * must name the docs page that documents it, and an example must call it, so nothing is exported
  * only to be described.
  *
+ * Generated code ships too, but it exists only after `pnpm generate`, so the check never reads
+ * it and gives the same answer either way. An export only generated code calls is listed under
+ * "generatedCallers" with the generator that writes the call.
+ *
  * It also fails when the docs fall behind the code: an authoring entry whose page no longer
  * mentions it, and a reference heading that names an API which no longer exists.
  */
@@ -37,7 +41,7 @@ async function sourceFilesIn(directory, withTests, out = []) {
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name)
     if (entry.isDirectory()) {
-      if (entry.name === 'node_modules' || entry.name === 'dist') continue
+      if (['node_modules', 'dist', 'generated'].includes(entry.name)) continue
       if (!withTests && entry.name === '__tests__') continue
       await sourceFilesIn(path, withTests, out)
     } else if (SOURCE_EXTENSIONS.test(entry.name) && (withTests || !TEST_FILE.test(entry.name))) {
@@ -207,6 +211,7 @@ const usedByExamples = await symbolsImportedBy(
 const surface = JSON.parse(await readFile(surfacePath, 'utf8'))
 const authoring = surface.authoring ?? {}
 const pending = new Set(surface.pendingDecision ?? [])
+const generatedCallers = surface.generatedCallers ?? {}
 const symbolFor = key => {
   const [specifier, name] = key.split('#')
   const symbol = bySpecifier.get(specifier)?.values.get(name)
@@ -215,7 +220,7 @@ const symbolFor = key => {
 const problems = []
 
 for (const [symbol, { key }] of homes) {
-  if (used.has(symbol) || key in authoring || pending.has(key)) continue
+  if (used.has(symbol) || key in authoring || key in generatedCallers || pending.has(key)) continue
   problems.push(
     `${key} is exported, but nothing that ships calls it: no caller in apps/shell, apps/docs/src or another package. Remove the export. If containers are meant to call it, add it to "authoring" in api-surface.json with the page that documents it.`,
   )
@@ -248,6 +253,22 @@ for (const [key, page] of Object.entries(authoring)) {
   } else if (!new RegExp(`\\b${name}\\b`).test(await readFile(pagePath, 'utf8'))) {
     problems.push(
       `${key} is authoring API, but ${page} never mentions ${name}. Document it there, or point the entry at the page that does.`,
+    )
+  }
+}
+
+for (const [key, generator] of Object.entries(generatedCallers)) {
+  const symbol = symbolFor(key)
+  const name = key.split('#')[1]
+  if (symbol === undefined || used.has(symbol)) {
+    problems.push(
+      `${key} is in "generatedCallers" in api-surface.json, but it is not an export only generated code calls. Remove the entry.`,
+    )
+  } else if (!existsSync(join(repoRoot, generator))) {
+    problems.push(`${key} names ${generator} as its generator, but that file does not exist.`)
+  } else if (!new RegExp(`\\b${name}\\b`).test(await readFile(join(repoRoot, generator), 'utf8'))) {
+    problems.push(
+      `${key} names ${generator} as its generator, but that file never writes ${name}. Point the entry at the generator that does.`,
     )
   }
 }
