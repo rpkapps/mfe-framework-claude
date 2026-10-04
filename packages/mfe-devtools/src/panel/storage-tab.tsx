@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { Alert, AlertAction, AlertDescription, AlertTitle } from '@tecton/react/components/alert'
 import { Badge } from '@tecton/react/components/badge'
 import { Button } from '@tecton/react/components/button'
@@ -10,6 +10,7 @@ import {
   EmptyTitle,
 } from '@tecton/react/components/empty'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@tecton/react/components/input-group'
+import { Separator } from '@tecton/react/components/separator'
 import {
   Combobox,
   ComboboxContent,
@@ -59,6 +60,19 @@ const PHASE: Readonly<
   loading: { label: 'Loading', variant: 'info' },
   ready: { label: 'Loaded', variant: 'success' },
   error: { label: 'Load failed', variant: 'destructive' },
+}
+
+/** Entries arrive sorted by owner, so each owner's keys are one run. */
+function groupByOwner<T extends { readonly owner: string }>(
+  entries: readonly T[],
+): readonly { readonly owner: string; readonly entries: readonly T[] }[] {
+  const groups: { owner: string; entries: T[] }[] = []
+  for (const entry of entries) {
+    const last = groups.at(-1)
+    if (last?.owner === entry.owner) last.entries.push(entry)
+    else groups.push({ owner: entry.owner, entries: [entry] })
+  }
+  return groups
 }
 
 /** One label per row; owners are package names and keys are dotted or colon-separated, never `›`. */
@@ -182,48 +196,65 @@ export function StorageTab(): ReactNode {
                   aria-label="Stored keys"
                   className="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto overscroll-contain p-1"
                 >
-                  {entries.map((entry, index) => (
-                    <Fragment key={entryId(entry)}>
-                      {/* Rows are sorted by owner, so a heading starts each owner's group. */}
-                      {entry.owner === entries[index - 1]?.owner ? null : (
-                        <p
-                          className="truncate px-2 pt-2 pb-1 text-xs text-muted-foreground"
-                          title={entry.owner}
+                  {groupByOwner(entries).map(group => (
+                    <div
+                      key={group.owner}
+                      role="group"
+                      aria-label={`Owned by ${group.owner}`}
+                      className="flex flex-col gap-0.5 pb-2"
+                    >
+                      {/* A section heading, not a row: it names the app that owns the keys below. */}
+                      <div className="flex items-center gap-2 px-2 pt-2 pb-1" aria-hidden="true">
+                        <span
+                          className="min-w-0 truncate text-[0.6875rem] font-medium tracking-wider text-muted-foreground uppercase"
+                          title={group.owner}
                         >
-                          {entry.owner}
-                        </p>
-                      )}
-                      <Button
-                        variant={entry === selected ? 'secondary' : 'ghost'}
-                        size="sm"
-                        className="w-full min-w-0 justify-between"
-                        aria-pressed={entry === selected}
-                        aria-label={`Inspect ${entryId(entry)}`}
-                        title={entryId(entry)}
-                        tabIndex={entry === tabStop ? 0 : -1}
-                        onClick={() => setSelection(entryId(entry))}
-                        onKeyDown={event => {
-                          const target =
-                            event.key === 'ArrowDown'
-                              ? Math.min(index + 1, entries.length - 1)
-                              : event.key === 'ArrowUp'
-                                ? Math.max(index - 1, 0)
-                                : event.key === 'Home'
-                                  ? 0
-                                  : event.key === 'End'
-                                    ? entries.length - 1
-                                    : undefined
-                          const next = target === undefined ? undefined : entries[target]
-                          if (next === undefined) return
-                          event.preventDefault()
-                          setSelection(entryId(next))
-                          navigation.current?.querySelectorAll('button')[target ?? 0]?.focus()
-                        }}
-                      >
-                        <span className="min-w-0 truncate">{entry.key}</span>
-                        <StorageStatus entry={entry} />
-                      </Button>
-                    </Fragment>
+                          {group.owner}
+                        </span>
+                        <Separator emphasis="subtle" className="flex-1" />
+                        <span className="text-[0.6875rem] text-muted-foreground tabular-nums">
+                          {group.entries.length}
+                        </span>
+                      </div>
+                      <div className="flex flex-col gap-0.5 pl-2">
+                        {group.entries.map(entry => {
+                          const index = entries.indexOf(entry)
+                          return (
+                            <Button
+                              key={entryId(entry)}
+                              variant={entry === selected ? 'secondary' : 'ghost'}
+                              size="sm"
+                              className="w-full min-w-0 justify-between"
+                              aria-pressed={entry === selected}
+                              aria-label={`Inspect ${entryId(entry)}`}
+                              title={entryId(entry)}
+                              tabIndex={entry === tabStop ? 0 : -1}
+                              onClick={() => setSelection(entryId(entry))}
+                              onKeyDown={event => {
+                                const target =
+                                  event.key === 'ArrowDown'
+                                    ? Math.min(index + 1, entries.length - 1)
+                                    : event.key === 'ArrowUp'
+                                      ? Math.max(index - 1, 0)
+                                      : event.key === 'Home'
+                                        ? 0
+                                        : event.key === 'End'
+                                          ? entries.length - 1
+                                          : undefined
+                                const next = target === undefined ? undefined : entries[target]
+                                if (next === undefined) return
+                                event.preventDefault()
+                                setSelection(entryId(next))
+                                navigation.current?.querySelectorAll('button')[target ?? 0]?.focus()
+                              }}
+                            >
+                              <span className="min-w-0 truncate">{entry.key}</span>
+                              <StorageStatus entry={entry} />
+                            </Button>
+                          )
+                        })}
+                      </div>
+                    </div>
                   ))}
                 </nav>
               )}
