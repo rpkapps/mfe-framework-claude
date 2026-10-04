@@ -251,6 +251,15 @@ const config: Linter.Config[] = [
   },
 
   {
+    // Work is finished before it merges: a TODO or FIXME marks code that shipped half-done. No
+    // `files`, so it applies to everything the configurations above lint and adds nothing to it.
+    name: 'repo/no-unfinished-work',
+    rules: {
+      'no-warning-comments': ['error', { terms: ['todo', 'fixme', 'xxx'], location: 'start' }],
+    },
+  },
+
+  {
     name: 'repo/scaffold-cli',
     files: ['packages/create-mfe/src/**/*.ts'],
     rules: {
