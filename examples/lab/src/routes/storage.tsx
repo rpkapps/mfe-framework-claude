@@ -1,12 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { useMfeStorage, useStoredState } from '@company/mfe-react'
+import { useStoredState } from '@company/mfe-react'
 import { Button } from '@tecton/react/components/button'
 import { Field, FieldDescription, FieldLabel } from '@tecton/react/components/field'
 import { Input } from '@tecton/react/components/input'
 import { Switch } from '@tecton/react/components/switch'
-import { useId, useState, type ReactNode } from 'react'
+import { useId, type ReactNode } from 'react'
 
-import { DataList, DataRow, Fields, LabPage, LabSection, Value } from '../lab-page.tsx'
+import { Fields, LabPage, LabSection } from '../lab-page.tsx'
 import { draft as draftKey, visits as visitsKey } from '../storage.ts'
 
 export const Route = createFileRoute('/storage')({
@@ -16,8 +16,6 @@ export const Route = createFileRoute('/storage')({
 
 function Storage(): ReactNode {
   const id = useId()
-  const local = useMfeStorage()
-  const [readBack, setReadBack] = useState<unknown>(undefined)
 
   // A stored value belongs to the browser: it survives a sign-out, and the next person to sign in
   // on this browser reads it (§56).
@@ -97,38 +95,21 @@ function Storage(): ReactNode {
         </div>
       </LabSection>
 
-      <LabSection title="The imperative handle" note="useMfeStorage">
+      <LabSection title="Removing the key" note="reset()">
         <p className="text-sm text-muted-foreground">
-          For loaders, actions and explicit removal. <code className="font-mono">peek()</code> does
-          not subscribe, which is why rendering stored state uses the hook above instead.
+          <code className="font-mono">reset()</code> removes the stored entry, so the note and the
+          pin go back to the key&apos;s default.
         </p>
         <div className="flex gap-2">
           <Button
             variant="outline"
             onClick={() => {
-              setReadBack(local.peek(draftKey))
-            }}
-          >
-            Read it back
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => {
-              void local.reset(draftKey).then(() => {
-                setReadBack('removed')
-              })
+              void draftState.reset()
             }}
           >
             Remove the key
           </Button>
         </div>
-        {readBack === undefined ? null : (
-          <DataList>
-            <DataRow label="peek(draft)" hint="a read, not a subscription">
-              <Value value={readBack} />
-            </DataRow>
-          </DataList>
-        )}
       </LabSection>
     </LabPage>
   )

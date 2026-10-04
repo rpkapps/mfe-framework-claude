@@ -43,13 +43,7 @@ export {
 
 export { useGroups, useTheme, useUser } from './hooks/shell-state.ts'
 
-export {
-  useBasePath,
-  useMfeSignal,
-  useMfeStorage,
-  useScopeRoot,
-  useTelemetry,
-} from './hooks/services.ts'
+export { useBasePath, useMfeSignal, useScopeRoot, useTelemetry } from './hooks/services.ts'
 export { useAction } from './hooks/use-action.ts'
 export { useAgentContext, useAgentPrompt, useAgentSuggestions } from './hooks/use-agent-context.ts'
 

@@ -125,7 +125,7 @@ cleans up with the injector that created it.
 | `injectBreadcrumbs(items)`                        | overrides the App's own breadcrumbs                                |
 | `injectNavigationBlock(shouldBlock, options)`     | a pending intent to confirm, with `proceed()` and `stay()`         |
 | `injectTelemetry()`, `injectMfeSignal()`          | the mount's telemetry and its disposal signal                      |
-| `injectBasePath()`, `injectMfeStorage()`          | the boundary, `''` for a Widget, and the imperative storage handle |
+| `injectBasePath()`                                | the boundary, `''` for a Widget                                    |
 | `injectWidgetEmit()`                              | the Widget's validating emit                                       |
 | `injectMfeRuntime()`, `injectMfeMount()`          | the runtime, and the mount with its `scopeRoot` and `overlayRoot`  |
 
@@ -265,9 +265,10 @@ value, and `retry` loads again after a failed load or sends a failed save again.
 `storedKey.from` is read-only: the result has no `set` or `reset`. `select` narrows `value` to a
 part of the stored value.
 
-`injectMfeStorage()` returns the imperative handle, with `get`, `peek`, `set`, `reset`, `subscribe`
-and `status` by key. A resolver calls it before any `await`. Outside a mount, both read and write the
-host page's own values. [Store a value](/docs/remember-a-value) has the procedure.
+A resolver reads a value through `injectMfeMount().storage`, with `get`, `peek`, `set`, `reset`,
+`subscribe` and `status` by key, and captures it before any `await`. Outside a mount,
+`injectStoredState` reads and writes the host page's own values. [Store a value](/docs/remember-a-value)
+has the procedure.
 
 ## Host other definitions from Angular
 

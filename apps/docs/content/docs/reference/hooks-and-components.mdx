@@ -113,32 +113,6 @@ const observer = new ResizeObserver(onResize)
 observer.observe(scopeRoot)
 ```
 
-### useMfeStorage
-
-```ts
-useMfeStorage(): MfeStorage
-```
-
-Returns the imperative storage handle, keyed by the same keys `useStoredState` takes. Use it in handlers and effects; rendered values use `useStoredState`. Outside a mount it reads and writes the host page's own values, owned by `@host`.
-
-| Member                   | Does                                                                                  |
-| ------------------------ | ------------------------------------------------------------------------------------- |
-| `get(key)`               | Resolves with the value once user storage has loaded.                                 |
-| `peek(key)`              | Returns the value now: the default while user storage is loading.                     |
-| `set(key, next)`         | Writes a value or an updater result. Resolves once stored. Not on a read-only key.    |
-| `reset(key)`             | Removes the stored value, so the key reads its default again. Not on a read-only key. |
-| `subscribe(key, listen)` | Calls `listen(value)` when the value changes, and returns the unsubscribe.            |
-| `status(key)`            | `'loading'`, `'ready'`, `'saving'` or `'error'`.                                      |
-
-React route callbacks read the same handle from `context.mfe.storage`.
-
-```ts
-const storage = useMfeStorage()
-await storage.set(units, 'imperial')
-```
-
-Recipe: [Read or write storage outside render](/docs/remember-a-value#read-or-write-outside-render).
-
 ### useTelemetry
 
 ```ts
@@ -622,11 +596,11 @@ Recipe: [Runtime snapshots for a shell bug report](/docs/telemetry#runtime-snaps
 
 ## Where each hook may be called
 
-| Hook                                                                                                                                                             | Inside a mount | On the host page |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ---------------- |
-| `useUser`, `useGroups`, `useTheme`, `useAction`, `useAgentContext`, `useAgentPrompt`, `useAgentSuggestions`, `useBreadcrumbs`, `useStoredState`, `useMfeStorage` | yes            | yes              |
-| `useApps`, `useWidgets`, `useRegistryEntries`, `useCapabilityPages`, `useActiveDefinition`, `useMfeRuntime`                                                      | yes            | yes              |
-| `useBasePath`, `useMfeSignal`, `useScopeRoot`, `useTelemetry`, `useNavigationBlock`                                                                              | yes            | no               |
+| Hook                                                                                                                                            | Inside a mount | On the host page |
+| ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------- | ---------------- |
+| `useUser`, `useGroups`, `useTheme`, `useAction`, `useAgentContext`, `useAgentPrompt`, `useAgentSuggestions`, `useBreadcrumbs`, `useStoredState` | yes            | yes              |
+| `useApps`, `useWidgets`, `useRegistryEntries`, `useCapabilityPages`, `useActiveDefinition`, `useMfeRuntime`                                     | yes            | yes              |
+| `useBasePath`, `useMfeSignal`, `useScopeRoot`, `useTelemetry`, `useNavigationBlock`                                                             | yes            | no               |
 
 Called in the wrong place, a hook throws `mount/failure` and names itself.
 

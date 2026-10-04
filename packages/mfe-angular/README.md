@@ -274,7 +274,6 @@ initialiser — and clean up with the injector that created them.
 | `injectNavigationBlock(shouldBlock, options)`     | `{ pending: Signal<NavigationIntent \| null>, proceed(), stay() }`  | throws            |
 | `injectTelemetry()`, `injectMfeSignal()`          | the mount's telemetry and its disposal signal                       | throws            |
 | `injectBasePath()`                                | the boundary (`''` for a Widget)                                    | throws            |
-| `injectMfeStorage()`                              | the imperative storage handle, by key                               | host scope        |
 | `injectWidgetEmit<typeof contract>()`             | the Widget's validating emit                                        | throws            |
 | `injectMfeRuntime()`, `injectMfeMount()`          | the runtime; the mount (`injectOptionalMfeMount()` does not throw)  | runtime only      |
 

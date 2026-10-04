@@ -62,7 +62,7 @@ the fallback title and the tone that marks an override stay the host's.
 | to know which App a URL is inside    | `useActiveDefinition(pathname)`, or `boundaryDefinitionId(url)`                    |
 | where an App keeps a capability page | `capabilityRoute(entry, name)`                                                     |
 | what a Widget takes                  | `describeInputs(contract)`, `defaultInputsFor`, `coerceInputs`, `needsInputPrompt` |
-| to store what the page owns          | `useStoredState(key)` or `useMfeStorage()` outside a mount, owned by `@host`       |
+| to store what the page owns          | `useStoredState(key)` outside a mount, owned by `@host`                            |
 | to register the page's own actions   | `useAction` outside a mount, or `ActionRegistry.registerHost`                      |
 | the federation options for a host    | `hostFederation({ root })`, from `@company/mfe-rspack/federation`                  |
 

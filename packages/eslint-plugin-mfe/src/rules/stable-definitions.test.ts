@@ -18,7 +18,7 @@ createRuleTester().run('mfe/stable-definitions', rule, {
     "import { createWidget } from './local-factory.ts'\nexport function Panel() {\n  return createWidget({ id: 'a' })\n}",
     "import * as local from './local-factory.ts'\nexport function Panel() {\n  return local.createWidget({ id: 'a' })\n}",
     "import type { WidgetDefinition } from '@company/mfe-react'\nexport function use(w: WidgetDefinition) {\n  return w\n}",
-    "import { useMfeStorage } from '@company/mfe-react'\nexport function Panel() {\n  return useMfeStorage()\n}",
+    "import { useStoredState } from '@company/mfe-react'\nexport function Panel() {\n  return useStoredState(prefs)\n}",
     {
       code: `${REACT}export function Panel() {\n  return createWidget({ id: 'a' })\n}`,
       options: [{ modules: ['@company/other'] }],

@@ -353,7 +353,6 @@ describe('framework preset', () => {
       {
         allowedScopes: [],
         storedStateHook: 'injectStoredState()',
-        storageHook: 'injectMfeStorage()',
         adapterModule: '@company/mfe-angular',
       },
     ])

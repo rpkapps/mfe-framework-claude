@@ -1,10 +1,8 @@
 /** React hooks over the same mount-bound services `context.mfe` gives route callbacks. */
 
-import { HOST_SCOPE, type MfeStorage, type MfeTelemetry } from '@company/mfe-core'
-import { useMemo } from 'react'
+import type { MfeTelemetry } from '@company/mfe-core'
 
-import { useMfeMount, useOptionalMfeMount } from '../mount-context.tsx'
-import { useMfeRuntime } from '../runtime-context.tsx'
+import { useMfeMount } from '../mount-context.tsx'
 
 /** Stable for the mount's lifetime; emitting telemetry never causes a rerender. */
 export function useTelemetry(): MfeTelemetry {
@@ -19,16 +17,6 @@ export function useMfeSignal(): AbortSignal {
 /** The literal boundary prefix, for URLs into external systems; a Widget has none and gets `''`. */
 export function useBasePath(): string {
   return useMfeMount('useBasePath').basePath
-}
-
-/**
- * The imperative handle, for event handlers and effects: reading through it does not subscribe,
- * so rendered state uses `useStoredState`. Outside a mount it reaches the host page's values.
- */
-export function useMfeStorage(): MfeStorage {
-  const mount = useOptionalMfeMount()
-  const { storage } = useMfeRuntime('useMfeStorage()')
-  return useMemo(() => mount?.storage ?? storage.forCaller({ owner: HOST_SCOPE }), [mount, storage])
 }
 
 /**

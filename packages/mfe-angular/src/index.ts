@@ -23,12 +23,7 @@ export { MFE_MOUNT, MFE_RUNTIME, WIDGET_EMIT } from './inject/tokens.ts'
 export { injectMfeMount, injectMfeRuntime, injectOptionalMfeMount } from './inject/runtime.ts'
 export { injectGroups, injectTheme, injectUser } from './inject/shell-state.ts'
 export { injectSession, type MfeSession } from './inject/session.ts'
-export {
-  injectBasePath,
-  injectMfeSignal,
-  injectMfeStorage,
-  injectTelemetry,
-} from './inject/services.ts'
+export { injectBasePath, injectMfeSignal, injectTelemetry } from './inject/services.ts'
 export {
   injectStoredState,
   type InjectStoredStateOptions,

@@ -210,28 +210,26 @@ takes the whole value.
 <Tab value="React">
 
 ```tsx title="src/routes/wells.tsx"
-import { useMfeStorage } from '@company/mfe-react'
-
 // A route loader: get() waits for user storage to load.
 loader: async ({ context }) => {
   const selection = await context.mfe.storage.get(wellSelection)
   return fetchWell(selection.wellId)
 }
 
-// A handler: capture the handle inside your component.
-const storage = useMfeStorage()
-await storage.set(units, 'imperial')
+// A handler: use the setter the component already holds.
+const { set: setUnits } = useStoredState(units)
+await setUnits('imperial')
 ```
 
 </Tab>
 <Tab value="Angular">
 
 ```ts title="src/wells.resolver.ts"
-import { injectMfeStorage } from '@company/mfe-angular'
+import { injectMfeMount } from '@company/mfe-angular'
 
 export const wellResolver: ResolveFn<Well> = async () => {
   // Capture before any await.
-  const storage = injectMfeStorage()
+  const { storage } = injectMfeMount()
   const selection = await storage.get(wellSelection)
   return fetchWell(selection.wellId)
 }
@@ -240,7 +238,7 @@ export const wellResolver: ResolveFn<Well> = async () => {
 </Tab>
 </Tabs>
 
-The handle has `get`, `peek`, `set`, `reset`, `subscribe` and `status`, keyed by the same keys.
+The mount's `storage` has `get`, `peek`, `set`, `reset`, `subscribe` and `status`, keyed by the same keys.
 `peek` is synchronous and returns the default while user storage is still loading.
 
 ## Check it works

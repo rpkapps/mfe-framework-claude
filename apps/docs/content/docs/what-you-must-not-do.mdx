@@ -194,7 +194,7 @@ origin can read or overwrite it, it carries no version to migrate a changed shap
 failure escapes as an unhandled exception.
 ```
 
-**Fix.** React uses `useStoredState` and `useMfeStorage`. Angular uses `injectStoredState` and `injectMfeStorage` ([remember a value](/docs/remember-a-value)).
+**Fix.** Declare the value with `storedKey`. React reads and writes it with `useStoredState`, Angular with `injectStoredState` ([remember a value](/docs/remember-a-value)).
 
 </Callout>
 
@@ -230,14 +230,14 @@ file and the selector ([framework styling constraints](/docs/use-the-design-syst
 <Tab value="React">
 
 ```ts title="src/routes/storage.tsx"
-import { storedKey, useMfeStorage, useStoredState } from '@company/mfe-react'
+import { storedKey, useStoredState } from '@company/mfe-react'
 ```
 
 </Tab>
 <Tab value="Angular">
 
 ```ts title="src/settings.component.ts (Angular)"
-import { injectMfeStorage, injectStoredState, storedKey } from '@company/mfe-angular'
+import { injectStoredState, storedKey } from '@company/mfe-angular'
 ```
 
 </Tab>

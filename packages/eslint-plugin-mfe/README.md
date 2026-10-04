@@ -272,8 +272,8 @@ same general layers, with Angular's own APIs named in every message.
 - **Framework internals are off limits**, as in `author()`, pointing at
   `@company/mfe-angular`, its `/host` and its `/testing`.
 - **The five MFE rules**, `mfe/no-widget-global-router` included, naming
-  `injectMfeSignal()`, `injectStoredState()`, `injectMfeStorage()` and
-  `injectWidgetEmit()` in their messages.
+  `injectMfeSignal()`, `injectStoredState()` and `injectWidgetEmit()` in their
+  messages.
 
 ### Options
 
@@ -383,9 +383,8 @@ identifier text, so an aliased import is caught under its alias and a shadowing
 local binding is not caught at all. They work without type information, so they
 can run in a plain parser setup.
 
-None of them autofixes: no repair here preserves semantics. `mfe/no-raw-storage`
-offers a **suggestion**, which a human accepts; the others explain the
-repair in the message and leave it to you. The messages below are the React
+None of them autofixes or offers a suggestion: no repair here preserves
+semantics, so each explains the repair in the message and leaves it to you. The messages below are the React
 wording, which is each rule's default; the options that change it are how the
 `angular()` preset names the Angular adapter's APIs instead.
 
@@ -613,7 +612,7 @@ const raw = localStorage
 **Valid**
 
 ```ts
-import { storedKey, useMfeStorage, useStoredState } from '@company/mfe-react'
+import { storedKey, useStoredState } from '@company/mfe-react'
 import { z } from 'zod'
 
 // Module scope: one declaration per value, imported wherever it is read.
@@ -623,9 +622,8 @@ const prefs = storedKey(
 )
 const theme = storedKey('theme', z.enum(['light', 'dark', 'system']).default('system'))
 
-export function usePrefsReader() {
-  const storage = useMfeStorage()
-  return () => storage.peek(prefs)
+export function usePrefs() {
+  return useStoredState(prefs)
 }
 
 export function useThemePreference() {
@@ -659,17 +657,14 @@ by explicit scope:
 **What the message says.** The access bypasses the MFE storage boundary: the key
 is not namespaced, so another MFE in this origin can read or overwrite it, it
 carries no version to migrate a changed shape from, and a quota failure escapes
-as an unhandled exception. Use `useStoredState()` for component state or `useMfeStorage()` for
-imperative access, both from `@company/mfe-react`; the adapter and a documented
+as an unhandled exception. Declare the value with `storedKey` and read and write it through
+`useStoredState()` from `@company/mfe-react`; the adapter and a documented
 shell override bootstrap opt out through `allowedScopes`.
 
-**Suggestion.** A single local replacement of the storage object with the
-project's accessor — `localStorage.getItem('k')` becomes
-`storage.getItem('k')` — offered as a suggestion rather than a fix, because it
-rewrites the object and nothing else: the file still has to bind
-`const storage = useMfeStorage()`, declare the value once with
-`storedKey('k', schema.default(...))`, and read it the boundary's way,
-`storage.get(key)` or `storage.peek(key)`.
+**No suggestion.** The repair is a key declared once with
+`storedKey('k', schema.default(...))` and read through `useStoredState(key)`;
+a route loader reads it from `context.mfe.storage`. The right key and schema
+depend on the value, so the rule leaves them to you.
 
 **Options**
 
@@ -677,9 +672,7 @@ rewrites the object and nothing else: the file still has to bind
 'mfe/no-raw-storage': ['error', {
   allowedScopes: [],                            // globs; default: none
   objects: ['localStorage', 'sessionStorage'],
-  storageAccessor: 'storage',                   // what the suggestion rewrites to
   storedStateHook: 'useStoredState()',          // the wording, React's by default
-  storageHook: 'useMfeStorage()',
   adapterModule: '@company/mfe-react',
 }]
 ```
