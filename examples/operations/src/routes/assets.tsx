@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@tecton/react/components/select'
+import { Spinner } from '@tecton/react/components/spinner'
 import {
   Table,
   TableBody,
@@ -35,6 +36,7 @@ import {
 import { Panel, PanelContent, PanelFooter } from '@tecton/react/tecton/panel'
 import { Stat, StatGroup, StatLabel, StatValue } from '@tecton/react/tecton/stat'
 import { CopyButton } from '@tecton/react/tecton/copy-button'
+import { useBusyDelay } from '@tecton/react/tecton/use-busy-delay'
 import { PackageSearchIcon, RefreshCwIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { z } from 'zod'
@@ -66,6 +68,7 @@ function Assets(): ReactNode {
   const { site } = Route.useSearch()
   const navigate = useNavigate()
   const { data, isFetching, refetch } = useSuspenseQuery(assetsQueryOptions(site))
+  const busy = useBusyDelay(isFetching)
 
   const counts = {
     operational: data.filter(asset => asset.status === 'operational').length,
@@ -92,12 +95,18 @@ function Assets(): ReactNode {
           <Button
             variant="outline"
             size="sm"
-            disabled={isFetching}
+            disabled={isFetching || busy}
+            focusableWhenDisabled
             onClick={() => {
               void refetch()
             }}
           >
-            <RefreshCwIcon /> {isFetching ? 'Refreshing…' : 'Refresh'}
+            {busy ? (
+              <Spinner data-icon="inline-start" />
+            ) : (
+              <RefreshCwIcon data-icon="inline-start" />
+            )}
+            {busy ? 'Refreshing…' : 'Refresh'}
           </Button>
         </PageHeaderActions>
       </PageHeader>
