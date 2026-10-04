@@ -150,16 +150,16 @@ Each span and record says which App or Widget made it. The `review cart` step is
 Every App and Widget on the page shares one set of names. Two containers that both call their own work `checkout` would share a run by accident.
 Prefix the name with its domain, such as `orders.checkout`, and use the same name only where you mean to share the run.
 
-In development, when Apps or Widgets from separately built containers take part in one run, the first of them to join shows a warning once for that run:
+In development, when two different Apps or Widgets take part in one run under a name with no prefix, the second of them to join shows a warning once for that run:
 
 ```text shared
 payment@1.4.0 failed to join workflow "checkout": expected workflow "checkout" to be used by one
-deployed bundle, or shared on purpose, received a run shared by separately built cart and payment.
-Prefix the name with its domain, such as "orders.checkout", unless the run is meant to be shared.
-The run is still shared.
+App or Widget, or to have a prefixed name, received a run shared by cart and payment under an
+unprefixed name. Prefix the name with its domain, such as "orders.checkout", if the run is meant
+to be shared, or choose a name of your own. The run is still shared.
 ```
 
-The run is still shared. If you meant to share it, keep the name. Otherwise rename one of the workflows.
+The run is still shared. If you meant to share it, add the prefix. Otherwise rename one of the workflows.
 
 ## Check it works
 

@@ -34,7 +34,6 @@ const PAGE_WORKFLOWS = Symbol.for('@company/mfe.workflows')
 /** A mount taking part in a run, one per mount and run; told apart by identity. */
 interface Participant {
   readonly definitionId: string
-  readonly buildHash: string | undefined
 }
 
 /** A span as the page holds it; each function forwards to the span of the mount that started it. */
@@ -105,10 +104,9 @@ export function createWorkflow(
   tracer: MountTracer,
 ): MountWorkflow {
   const label = `workflow "${boundName(name)}"${key === undefined ? '' : ' with a key'}`
-  const self: Participant = Object.freeze({
-    definitionId: runtime.attribution.definitionId,
-    buildHash: runtime.attribution.buildHash,
-  })
+  const self: Participant = Object.freeze({ definitionId: runtime.attribution.definitionId })
+  // A domain prefix, as in "orders.checkout", says the name was chosen to be shared.
+  const prefixed = name.includes('.')
 
   function find(): SharedRun | undefined {
     return pageWorkflows().get(name)?.get(key)
@@ -169,28 +167,25 @@ export function createWorkflow(
   }
 
   /**
-   * One name used by two deployed bundles is more often a clash than a shared run, so the first
-   * participant from another build is reported. Without a build hash nothing can be compared.
+   * An unprefixed name shared by two Apps or Widgets is more often a clash than a shared run, so
+   * the first participant from another definition is reported, once per run. A prefixed name is
+   * taken as shared on purpose.
    */
   function reportCollision(run: SharedRun): void {
-    if (run.collisionReported || self.buildHash === undefined) return
+    if (prefixed || run.collisionReported) return
     const others = [...run.participants].filter(
-      participant =>
-        participant.buildHash !== undefined && participant.buildHash !== self.buildHash,
+      participant => participant.definitionId !== self.definitionId,
     )
     if (others.length === 0) return
     run.collisionReported = true
-    const ids = [...new Set([...others.map(other => other.definitionId), self.definitionId])]
-    const last = ids.pop() ?? self.definitionId
-    // Two builds of one definition collide too, as when two versions of it are deployed.
-    const named = ids.length === 0 ? `builds of ${last}` : `${ids.join(', ')} and ${last}`
+    const ids = [...new Set(others.map(other => other.definitionId))]
     runtime.diagnose({
       code: 'config/invalid',
       operation: `join ${label}`,
-      expected: `${label} to be used by one deployed bundle, or shared on purpose`,
-      observed: `a run shared by separately built ${named}`,
+      expected: `${label} to be used by one App or Widget, or to have a prefixed name`,
+      observed: `a run shared by ${ids.join(', ')} and ${self.definitionId} under an unprefixed name`,
       repair:
-        'Prefix the name with its domain, such as "orders.checkout", unless the run is meant to be shared. The run is still shared.',
+        'Prefix the name with its domain, such as "orders.checkout", if the run is meant to be shared, or choose a name of your own. The run is still shared.',
     })
   }
 

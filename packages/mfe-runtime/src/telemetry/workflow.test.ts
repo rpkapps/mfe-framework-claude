@@ -418,27 +418,27 @@ describe('a workflow shared across the page', () => {
   it('is one run for every mount that starts it, whichever starts first', () => {
     const { provider, cart, payment } = page()
 
-    payment.telemetry.workflow('checkout').start({ method: 'card' })
-    cart.telemetry.workflow('checkout').start({ items: 3 })
+    payment.telemetry.workflow('orders.checkout').start({ method: 'card' })
+    cart.telemetry.workflow('orders.checkout').start({ items: 3 })
 
-    const root = spanNamed(provider.spans, 'checkout')
-    expect(provider.spansNamed('checkout')).toHaveLength(1)
+    const root = spanNamed(provider.spans, 'orders.checkout')
+    expect(provider.spansNamed('orders.checkout')).toHaveLength(1)
     expect(root.attribution.definitionId).toBe('payment')
     expect(root.attributes).toMatchObject({ method: 'card', items: 3 })
     expect(root.endTime).toBeUndefined()
-    expect(cart.telemetry.workflow('checkout').headers()).toEqual({
+    expect(cart.telemetry.workflow('orders.checkout').headers()).toEqual({
       traceparent: traceparentOf(root),
     })
   })
 
   it('ends one mount’s step with another’s, under the shared workflow', () => {
     const { provider, cart, payment } = page()
-    cart.telemetry.workflow('checkout').start()
-    cart.telemetry.workflow('checkout').step('review cart')
+    cart.telemetry.workflow('orders.checkout').start()
+    cart.telemetry.workflow('orders.checkout').step('review cart')
 
-    payment.telemetry.workflow('checkout').step('pay', { method: 'card' })
+    payment.telemetry.workflow('orders.checkout').step('pay', { method: 'card' })
 
-    const root = spanNamed(provider.spans, 'checkout')
+    const root = spanNamed(provider.spans, 'orders.checkout')
     const review = spanNamed(provider.spans, 'review cart')
     const pay = spanNamed(provider.spans, 'pay')
     expect(review.endTime).toBeDefined()
@@ -452,25 +452,25 @@ describe('a workflow shared across the page', () => {
 
   it('is acted on by a mount that never started it, which then takes part', () => {
     const { provider, cart, payment } = page()
-    cart.telemetry.workflow('checkout').start()
-    payment.telemetry.workflow('checkout').step('pay')
+    cart.telemetry.workflow('orders.checkout').start()
+    payment.telemetry.workflow('orders.checkout').step('pay')
 
     cart.telemetry.dispose()
-    payment.telemetry.workflow('checkout').step('confirm')
+    payment.telemetry.workflow('orders.checkout').step('confirm')
 
-    expect(spanNamed(provider.spans, 'checkout').endTime).toBeUndefined()
+    expect(spanNamed(provider.spans, 'orders.checkout').endTime).toBeUndefined()
     expect(spanNamed(provider.spans, 'confirm').endTime).toBeUndefined()
   })
 
   it('is ended for everyone by any mount in it', () => {
     const { provider, cart, payment } = page()
-    const cartCheckout = cart.telemetry.workflow('checkout')
+    const cartCheckout = cart.telemetry.workflow('orders.checkout')
     cartCheckout.start()
     cartCheckout.step('review cart')
 
-    payment.telemetry.workflow('checkout').succeed({ total: 42 })
+    payment.telemetry.workflow('orders.checkout').succeed({ total: 42 })
 
-    const root = spanNamed(provider.spans, 'checkout')
+    const root = spanNamed(provider.spans, 'orders.checkout')
     expect(provider.openSpans()).toHaveLength(0)
     expect(root.status.code).toBe(SpanStatusCode.OK)
     expect(root.attributes['total']).toBe(42)
@@ -483,13 +483,13 @@ describe('a workflow shared across the page', () => {
 
   it('fails for everyone, reporting the error as the mount that failed it', () => {
     const { provider, cart, payment } = page()
-    cart.telemetry.workflow('checkout').start()
-    cart.telemetry.workflow('checkout').step('review cart')
+    cart.telemetry.workflow('orders.checkout').start()
+    cart.telemetry.workflow('orders.checkout').step('review cart')
     const declined = new Error('Card declined')
 
-    payment.telemetry.workflow('checkout').fail(declined)
+    payment.telemetry.workflow('orders.checkout').fail(declined)
 
-    const root = spanNamed(provider.spans, 'checkout')
+    const root = spanNamed(provider.spans, 'orders.checkout')
     for (const span of [root, spanNamed(provider.spans, 'review cart')]) {
       expect(span.status.code).toBe(SpanStatusCode.ERROR)
       expect(span.exceptions).toEqual([declined])
@@ -501,12 +501,12 @@ describe('a workflow shared across the page', () => {
 
   it('opens a fresh run, in a new trace, when started after it ended', () => {
     const { provider, cart, payment } = page()
-    cart.telemetry.workflow('checkout').start()
-    payment.telemetry.workflow('checkout').succeed()
+    cart.telemetry.workflow('orders.checkout').start()
+    payment.telemetry.workflow('orders.checkout').succeed()
 
-    payment.telemetry.workflow('checkout').start()
+    payment.telemetry.workflow('orders.checkout').start()
 
-    const [first, second] = provider.spansNamed('checkout')
+    const [first, second] = provider.spansNamed('orders.checkout')
     expect(first?.endTime).toBeDefined()
     expect(second?.endTime).toBeUndefined()
     expect(second?.attribution.definitionId).toBe('payment')
@@ -515,16 +515,16 @@ describe('a workflow shared across the page', () => {
 
   it('stays open when the mount that started it is disposed, without cancelling its spans', () => {
     const { provider, cart, payment } = page()
-    cart.telemetry.workflow('checkout').start()
-    cart.telemetry.workflow('checkout').step('review cart')
-    payment.telemetry.workflow('checkout').start()
+    cart.telemetry.workflow('orders.checkout').start()
+    cart.telemetry.workflow('orders.checkout').step('review cart')
+    payment.telemetry.workflow('orders.checkout').start()
 
     cart.telemetry.dispose()
-    const root = spanNamed(provider.spans, 'checkout')
+    const root = spanNamed(provider.spans, 'orders.checkout')
     const review = spanNamed(provider.spans, 'review cart')
     const stillOpen = [root.endTime, review.endTime]
-    payment.telemetry.workflow('checkout').step('pay')
-    payment.telemetry.workflow('checkout').succeed()
+    payment.telemetry.workflow('orders.checkout').step('pay')
+    payment.telemetry.workflow('orders.checkout').succeed()
 
     expect(stillOpen).toEqual([undefined, undefined])
     expect(provider.openSpans()).toHaveLength(0)
@@ -545,8 +545,8 @@ describe('a workflow shared across the page', () => {
 
   it('ends as abandoned once every mount in it is disposed', () => {
     const { provider, cart, payment } = page()
-    cart.telemetry.workflow('checkout').start()
-    payment.telemetry.workflow('checkout').step('pay')
+    cart.telemetry.workflow('orders.checkout').start()
+    payment.telemetry.workflow('orders.checkout').step('pay')
 
     cart.telemetry.dispose()
     const openAfterFirst = provider.openSpans().length
@@ -579,10 +579,10 @@ describe('a workflow shared across the page', () => {
 
   it('links records from any mount in it to the shared step, attributed to that mount', () => {
     const { provider, cart, payment } = page()
-    cart.telemetry.workflow('checkout').start()
-    cart.telemetry.workflow('checkout').step('review cart')
+    cart.telemetry.workflow('orders.checkout').start()
+    cart.telemetry.workflow('orders.checkout').step('review cart')
 
-    payment.telemetry.workflow('checkout').info('card form shown')
+    payment.telemetry.workflow('orders.checkout').info('card form shown')
 
     const record = at(provider.logs('info'))
     expect(record.attribution.definitionId).toBe('payment')
@@ -591,22 +591,22 @@ describe('a workflow shared across the page', () => {
 
   it('gives every mount the shared current step’s headers', () => {
     const { provider, cart, payment } = page()
-    cart.telemetry.workflow('checkout').start()
-    cart.telemetry.workflow('checkout').step('review cart')
+    cart.telemetry.workflow('orders.checkout').start()
+    cart.telemetry.workflow('orders.checkout').step('review cart')
 
-    expect(payment.telemetry.workflow('checkout').headers()).toEqual({
+    expect(payment.telemetry.workflow('orders.checkout').headers()).toEqual({
       traceparent: traceparentOf(spanNamed(provider.spans, 'review cart')),
     })
   })
 
   it('keeps a mount that only read its headers in it until that mount is disposed', () => {
     const { provider, cart, payment } = page()
-    cart.telemetry.workflow('checkout').start()
-    payment.telemetry.workflow('checkout').headers()
+    cart.telemetry.workflow('orders.checkout').start()
+    payment.telemetry.workflow('orders.checkout').headers()
 
     cart.telemetry.dispose()
 
-    expect(spanNamed(provider.spans, 'checkout').endTime).toBeUndefined()
+    expect(spanNamed(provider.spans, 'orders.checkout').endTime).toBeUndefined()
   })
 
   it('carries a request sent with another mount’s headers into the shared trace', async () => {
@@ -622,13 +622,13 @@ describe('a workflow shared across the page', () => {
       },
       tracer: createRequestTracer(provider, { definitionId: 'payment', definitionKind: 'widget' }),
     })
-    cart.telemetry.workflow('checkout').start()
-    const payCheckout = payment.telemetry.workflow('checkout')
+    cart.telemetry.workflow('orders.checkout').start()
+    const payCheckout = payment.telemetry.workflow('orders.checkout')
     payCheckout.step('pay')
 
     await fetch('payments', { method: 'POST', headers: payCheckout.headers() })
 
-    const root = spanNamed(provider.spans, 'checkout')
+    const root = spanNamed(provider.spans, 'orders.checkout')
     const pay = spanNamed(provider.spans, 'pay')
     const request = spanNamed(provider.spans, 'POST')
     expect(idsOf(request).traceId).toBe(idsOf(root).traceId)
@@ -639,14 +639,14 @@ describe('a workflow shared across the page', () => {
   it('is joined by a mount with tracing off, which marks steps without spans', () => {
     const cart = setup()
     const quiet = mountOn(cart.provider, PAYMENT, { tracing: false })
-    cart.telemetry.workflow('checkout').start()
-    cart.telemetry.workflow('checkout').step('review cart')
+    cart.telemetry.workflow('orders.checkout').start()
+    cart.telemetry.workflow('orders.checkout').step('review cart')
 
-    quiet.telemetry.workflow('checkout').step('pay')
-    const headers = quiet.telemetry.workflow('checkout').headers()
+    quiet.telemetry.workflow('orders.checkout').step('pay')
+    const headers = quiet.telemetry.workflow('orders.checkout').headers()
     cart.telemetry.dispose()
 
-    const root = spanNamed(cart.provider.spans, 'checkout')
+    const root = spanNamed(cart.provider.spans, 'orders.checkout')
     expect(cart.provider.spans).toHaveLength(2)
     expect(spanNamed(cart.provider.spans, 'review cart').endTime).toBeDefined()
     expect(headers).toEqual({ traceparent: traceparentOf(root) })
@@ -656,33 +656,28 @@ describe('a workflow shared across the page', () => {
   it('sends no headers when the mount that opened it had tracing off', () => {
     const quiet = setup({ tracing: false })
     const payment = mountOn(quiet.provider, PAYMENT)
-    quiet.telemetry.workflow('checkout').start()
+    quiet.telemetry.workflow('orders.checkout').start()
 
-    payment.telemetry.workflow('checkout').step('pay')
+    payment.telemetry.workflow('orders.checkout').step('pay')
 
-    expect(payment.telemetry.workflow('checkout').headers()).toEqual({})
+    expect(payment.telemetry.workflow('orders.checkout').headers()).toEqual({})
     expect(quiet.provider.spans).toHaveLength(0)
   })
 })
 
-describe('a workflow name used by separately built bundles', () => {
-  function built(definitionId: string, buildHash?: string): TelemetryAttribution {
-    return {
-      definitionId,
-      definitionKind: 'widget',
-      mountToken: `${definitionId}#1`,
-      ...(buildHash === undefined ? {} : { buildHash }),
-    }
+describe('an unprefixed workflow name shared by several definitions', () => {
+  function definition(definitionId: string): TelemetryAttribution {
+    return { definitionId, definitionKind: 'widget', mountToken: `${definitionId}#1` }
   }
 
   function collisions(diagnostics: readonly { error: { message: string } }[]): number {
-    return diagnostics.filter(d => d.error.message.includes('separately built')).length
+    return diagnostics.filter(d => d.error.message.includes('under an unprefixed name')).length
   }
 
   it('is diagnosed once per run, naming both and suggesting a prefix', () => {
     const { provider, cart } = page()
-    const reviews = mountOn(provider, built('reviews', 'f9e8d7c6'))
-    const ratings = mountOn(provider, built('ratings', '0a0b0c0d'))
+    const reviews = mountOn(provider, definition('reviews'))
+    const ratings = mountOn(provider, definition('ratings'))
     cart.telemetry.workflow('checkout').start()
 
     reviews.telemetry.workflow('checkout').start()
@@ -699,16 +694,18 @@ describe('a workflow name used by separately built bundles', () => {
     expect(collisions([...cart.diagnostics, ...reviews.diagnostics])).toBe(2)
   })
 
-  it('is not diagnosed for the same build or a participant without a build hash', () => {
-    const { provider, cart, payment } = page()
-    const sameBuild = mountOn(provider, built('reviews', 'a1b2c3d4'))
+  it('is not diagnosed for a prefixed name or one definition', () => {
+    const { provider, cart } = page()
+    const reviews = mountOn(provider, definition('reviews'))
+    const secondCart = mountOn(provider, cart.telemetry.attribution)
 
+    cart.telemetry.workflow('orders.checkout').start()
+    reviews.telemetry.workflow('orders.checkout').start()
     cart.telemetry.workflow('checkout').start()
-    payment.telemetry.workflow('checkout').start()
-    sameBuild.telemetry.workflow('checkout').start()
+    secondCart.telemetry.workflow('checkout').start()
 
     expect(
-      collisions([...cart.diagnostics, ...payment.diagnostics, ...sameBuild.diagnostics]),
+      collisions([...cart.diagnostics, ...reviews.diagnostics, ...secondCart.diagnostics]),
     ).toBe(0)
   })
 })

@@ -2174,8 +2174,10 @@ records are refused after it. The open runs live on the page under a registered 
 data and plain functions, because a container may run on another copy of the runtime (§55); a span
 is reached only through the functions its own copy put there. Because one name is shared by every
 container, two unrelated containers that both say `checkout` would share a run by accident, so
-names are prefixed by their domain, such as `orders.checkout`, and in development a run whose
-participants come from different builds, by their build hashes, is reported once.
+names are prefixed by their domain, such as `orders.checkout`, and in development a run with an
+unprefixed name whose participants come from different definitions is reported once. The prefix is
+the signal that sharing is meant; build hashes were not used, because separately built bundles
+sharing a run is the intended case, not the clash.
 
 **Cost:** a request whose author forgets `headers()` is not in the workflow's trace, and nothing
 detects it, as with `withSpan` before; it is still traced, as a trace of its own. A span on every
@@ -2184,7 +2186,7 @@ are gone: work that is not a named workflow with steps is a measurement or an ev
 workflow is held for the mount's life like any other, so a mount that keys thousands of runs keeps
 thousands of small objects until it unmounts. A shared run is only as good as its name: an
 unprefixed name can be joined by a container that meant a run of its own, which only a development
-warning catches, and only when both builds carry a hash. A mount that reads a run's headers once
+warning catches, and a prefixed name that two teams both chose is not caught at all. A mount that reads a run's headers once
 keeps the run from being abandoned until it unmounts.
 
 Every request through `#mfe/fetch` to a declared API is traced by default, because a request is
