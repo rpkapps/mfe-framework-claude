@@ -2,7 +2,7 @@ import * as React from 'react'
 import { act } from 'react'
 import { createRoot, hydrateRoot, type Root } from 'react-dom/client'
 import { renderToString } from 'react-dom/server'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type {
   DocsSharedCode as DocsSharedCodeComponent,
@@ -25,6 +25,10 @@ function Examples() {
 
 let root: Root | undefined
 let container: HTMLDivElement
+
+beforeAll(() => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
+})
 
 beforeEach(async () => {
   vi.resetModules()

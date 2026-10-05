@@ -37,6 +37,7 @@ import { counterContract } from './fixtures/counter.ts'
 
 /** The bundle's own exports, typed here because the test imports the built file, not the source. */
 interface ContainerB {
+  readonly act: (callback: () => Promise<void>) => Promise<void>
   readonly bundledVersions: { readonly react: string; readonly reactDom: string }
   readonly innerLive: { readonly count: number }
   readonly innerApp: ReturnType<typeof createApp>
@@ -141,14 +142,30 @@ const outerApp = createApp({
  */
 const SECOND_REACT = { timeout: 10_000 }
 
+/**
+ * Runs a step that renders or clicks inside the 19.2 React's `act` as well as the test React's.
+ * Each React's `act` covers only its own updates, and Testing Library wraps a step in the test
+ * React's alone, so an update the step causes in the 19.2 tree would otherwise land outside any
+ * `act` of its React.
+ */
+async function inSecondAct<T>(step: () => T | Promise<T>): Promise<T> {
+  let value!: T
+  await containerB.act(async () => {
+    value = await step()
+  })
+  return value
+}
+
 async function renderThreeLevels() {
   const memory = createPageRuntime({
     definitions: [outerApp, containerB.innerApp, counter],
     initialEntries: ['/outer/inner'],
   })
 
-  const view = await renderSuspending(
-    reactHostPage(memory.runtime, h(AppHost, { appId: 'outer', basePath: '/outer' })),
+  const view = await inSecondAct(() =>
+    renderSuspending(
+      reactHostPage(memory.runtime, h(AppHost, { appId: 'outer', basePath: '/outer' })),
+    ),
   )
   await screen.findByRole('button', { name: 'Counter: 1' }, SECOND_REACT)
 
@@ -191,13 +208,20 @@ describe('two React versions on one page', () => {
   it('runs hooks in both Reacts, each keeping its own state', async () => {
     const { outer, inner } = await renderThreeLevels()
 
-    fireEvent.click(within(outer).getByRole('button', { name: 'Outer clicks: 0' }))
-    // Each React schedules its own work, and the test's `act` flushes only the test's React, so
-    // the 19.2 App's update is awaited rather than read back synchronously.
-    fireEvent.click(within(inner).getByRole('button', { name: 'Inner clicks: 0' }))
-    fireEvent.click(
-      await within(inner).findByRole('button', { name: 'Inner clicks: 1' }, SECOND_REACT),
+    await inSecondAct(() =>
+      fireEvent.click(within(outer).getByRole('button', { name: 'Outer clicks: 0' })),
     )
+    // The 19.2 App renders on its own scheduler, so its update is awaited rather than read back
+    // synchronously.
+    await inSecondAct(() =>
+      fireEvent.click(within(inner).getByRole('button', { name: 'Inner clicks: 0' })),
+    )
+    const second = await within(inner).findByRole(
+      'button',
+      { name: 'Inner clicks: 1' },
+      SECOND_REACT,
+    )
+    await inSecondAct(() => fireEvent.click(second))
 
     await within(outer).findByRole('button', { name: 'Outer clicks: 1' })
     await within(inner).findByRole('button', { name: 'Inner clicks: 2' }, SECOND_REACT)
@@ -206,13 +230,17 @@ describe('two React versions on one page', () => {
   it('delivers the 19.3 Widget’s output to the 19.2 App, and the App’s answer back down', async () => {
     const { inner, widget } = await renderThreeLevels()
 
-    fireEvent.click(within(widget).getByRole('button', { name: 'Counter: 1' }))
+    await inSecondAct(() =>
+      fireEvent.click(within(widget).getByRole('button', { name: 'Counter: 1' })),
+    )
 
     await within(inner).findByText('Inner received: bumped to 2', undefined, SECOND_REACT)
     await within(widget).findByRole('button', { name: 'Counter: 2' }, SECOND_REACT)
     expect(within(widget).getByText('Widget presses: 1')).toBeInTheDocument()
 
-    fireEvent.click(within(widget).getByRole('button', { name: 'Counter: 2' }))
+    await inSecondAct(() =>
+      fireEvent.click(within(widget).getByRole('button', { name: 'Counter: 2' })),
+    )
 
     await within(inner).findByText('Inner received: bumped to 3', undefined, SECOND_REACT)
     await within(widget).findByRole('button', { name: 'Counter: 3' }, SECOND_REACT)
