@@ -22,61 +22,17 @@ async function readJson(file) {
   }
 }
 
-/** One registry entry per definition the container exports. */
+/**
+ * The build already wrote finished entries; only where it is served, and the shell's own
+ * presentation, are known here.
+ */
 function entriesFor(published, presentation, origin) {
-  // Every build names its framework and share scopes; nothing was deployed from before they did.
-  if (published.framework === undefined || published.shareScopes === undefined) {
-    throw new Error(
-      `${published.container}: its build names no framework or share scopes. Rebuild the container.`,
-    )
-  }
-  if (typeof published.requiresRuntime !== 'string' || published.requiresRuntime.trim() === '') {
-    throw new Error(
-      `${published.container}: its build names no runtime API requirement. Rebuild the container.`,
-    )
-  }
-
-  return published.definitions.map(definition => {
-    const expose = published.entries?.[definition.id]
-    if (typeof expose !== 'string') {
-      throw new Error(
-        `${definition.id}: its container's build names no expose path. Rebuild the container.`,
-      )
-    }
-
-    return {
-      id: definition.id,
-      kind: definition.kind,
-      // The framework picks the adapter that reads the entry, so it travels in the marker.
-      mfe: {
-        framework: published.framework,
-      },
-      manifestUrl: new URL(published.manifestUrl, origin).href,
-      container: published.container,
-      expose,
-      // A host registers the container with exactly these, so it links the framework scope its
-      // shares live in.
-      shareScopes: published.shareScopes,
-      requiresRuntime: published.requiresRuntime,
-      ...(definition.version === undefined ? {} : { version: definition.version }),
-      ...(definition.capabilities === undefined ? {} : { capabilities: definition.capabilities }),
-      ...(definition.routes === undefined ? {} : { routes: definition.routes }),
-      // The widget catalogue renders a form from this before anything is loaded, so it has to
-      // be in the registry rather than behind a container fetch (§16).
-      ...(definition.contract === undefined ? {} : { contract: definition.contract }),
-      // The build belongs to the container rather than to any definition it exports, so every
-      // entry from that build repeats it; a bug report is the only reader (§29).
-      ...(published.build === undefined ? {} : { build: published.build }),
-      // Declared by the author beside the id, and read statically like the contract above, so a
-      // catalogue can show and filter the definition without fetching its container (§16).
-      ...(definition.title === undefined ? {} : { title: definition.title }),
-      ...(definition.description === undefined ? {} : { description: definition.description }),
-      ...(definition.tags === undefined ? {} : { tags: definition.tags }),
-      ...(definition.icon === undefined ? {} : { icon: definition.icon }),
-      // Last, because this is the shell's own per-deployment override of what the author declared.
-      ...(presentation[definition.id] ?? {}),
-    }
-  })
+  return published.map(entry => ({
+    ...entry,
+    manifestUrl: new URL(entry.manifestUrl, origin).href,
+    // Last, because this is the shell's own per-deployment override of what the author declared.
+    ...(presentation[entry.id] ?? {}),
+  }))
 }
 
 async function main() {
@@ -107,6 +63,13 @@ async function main() {
     const port = manifest?.mfe?.port
     if (typeof port !== 'number') {
       throw new Error(`${name}: package.json declares no mfe.port, so its dev URL is unknown.`)
+    }
+
+    // A file generated before the build wrote entries holds one object rather than a list.
+    if (!Array.isArray(published)) {
+      throw new Error(
+        `${name}: .mfe/mfe-registry.json predates registry entries. Run \`pnpm run generate\` first.`,
+      )
     }
 
     entries.push(...entriesFor(published, source.presentation ?? {}, `http://localhost:${port}/`))

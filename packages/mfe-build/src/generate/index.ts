@@ -9,7 +9,7 @@ import {
   envExampleFile,
   frameworkMetadata,
   gitignoreFile,
-  registryDescriptorFile,
+  registryEntriesFile,
   runtimeConfigSchemaFile,
   tsconfigPathsFile,
   type FrameworkManifestMetadata,
@@ -78,7 +78,7 @@ export function generateContainerFiles(
   const files = [
     ...base,
     metaModule(recorded, buildHash),
-    registryDescriptorFile(recorded, descriptor),
+    registryEntriesFile(recorded, descriptor),
   ]
   files.push(inventoryFile(context.options.generatedDir, files))
 
@@ -114,8 +114,10 @@ function readPreviousBuild(context: GenerateContext): { hash: string; time: stri
     return null
   }
 
-  if (typeof parsed !== 'object' || parsed === null) return null
-  const build: unknown = (parsed as { build?: unknown }).build
+  // Every entry repeats the container's build, so the first one carries it.
+  const first: unknown = Array.isArray(parsed) ? parsed[0] : null
+  if (typeof first !== 'object' || first === null) return null
+  const build: unknown = (first as { build?: unknown }).build
   if (typeof build !== 'object' || build === null) return null
 
   const { hash, time } = build as { hash?: unknown; time?: unknown }

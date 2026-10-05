@@ -72,6 +72,7 @@ export type {
   NavigationIntent,
   OutputSchema,
   PublishedContract,
+  PublishedRegistryEntry,
   PublishedRoute,
   ReadonlyStoredKey,
   Registry,

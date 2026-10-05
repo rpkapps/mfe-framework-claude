@@ -155,7 +155,7 @@ It does not start the shell.
 ### 5. Register the container with the shell
 
 Hand `.mfe/mfe-registry.json` or the built `mfe-registry.json` to the shell owner.
-The shell's registry process combines that generated record with your container's manifest URL.
+The shell's registry process resolves each entry's manifest URL against where you deployed that file.
 It must list your definition before an App route or Widget mount can find it.
 
 Start the shell independently using its own repository's install and dev scripts.

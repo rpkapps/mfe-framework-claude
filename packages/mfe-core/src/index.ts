@@ -47,6 +47,7 @@ export {
   type JsonSchemaObject,
   type JsonSchemaValue,
   type PublishedContract,
+  type PublishedRegistryEntry,
 } from './definition.ts'
 
 export {

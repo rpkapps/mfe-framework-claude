@@ -610,10 +610,9 @@ export const alertPanel = createWidget({
 describe('the registry entry the build publishes', () => {
   it('uses the framework requirement for registry, manifest and generated definition metadata', () => {
     const { fileFor, plan } = planFixture({ 'src/mfe.ts': APP_ENTRY })
-    expect(JSON.parse(fileFor('mfe-registry.json'))).toHaveProperty(
-      'requiresRuntime',
-      RUNTIME_API_REQUIREMENT,
-    )
+    expect(JSON.parse(fileFor('mfe-registry.json'))).toEqual([
+      expect.objectContaining({ requiresRuntime: RUNTIME_API_REQUIREMENT }),
+    ])
     expect(plan.generated.frameworkMetadata.requiresRuntime).toBe(RUNTIME_API_REQUIREMENT)
     expect(fileFor('meta.ts')).toContain(
       `export const requiresRuntime = '${RUNTIME_API_REQUIREMENT}'`,
@@ -626,25 +625,24 @@ describe('the registry entry the build publishes', () => {
       { profile: WITH_CAPABILITIES },
     )
 
-    expect(JSON.parse(fileFor('mfe-registry.json'))).toEqual({
-      manifestUrl: 'mf-manifest.json',
-      container: 'acme_operations',
-      entries: { operations: './app' },
-      framework: 'acme',
-      shareScopes: ['default', 'acme@19.3.0'],
-      requiresRuntime: RUNTIME_API_REQUIREMENT,
-      definitions: [
-        {
-          id: 'operations',
-          kind: 'app',
-          version: '2.1.0',
-          capabilities: [
-            { name: 'settings', label: 'Order settings', icon: 'gear', path: '/settings' },
-          ],
-        },
-      ],
-      build: { hash: plan.generated.buildHash, time: BUILD_TIME },
-    })
+    // Already the entry a shell reads: only the manifest URL is left for the shell to resolve.
+    expect(JSON.parse(fileFor('mfe-registry.json'))).toEqual([
+      {
+        id: 'operations',
+        kind: 'app',
+        mfe: { framework: 'acme' },
+        manifestUrl: 'mf-manifest.json',
+        container: 'acme_operations',
+        expose: './app',
+        shareScopes: ['default', 'acme@19.3.0'],
+        requiresRuntime: RUNTIME_API_REQUIREMENT,
+        version: '2.1.0',
+        capabilities: [
+          { name: 'settings', label: 'Order settings', icon: 'gear', path: '/settings' },
+        ],
+        build: { hash: plan.generated.buildHash, time: BUILD_TIME },
+      },
+    ])
     expect(plan.generated.descriptor).not.toHaveProperty('contractMajor')
     expect(plan.generated.frameworkMetadata).not.toHaveProperty('major')
     expect(plan.generated.frameworkMetadata.requiresRuntime).toBe(RUNTIME_API_REQUIREMENT)
@@ -668,12 +666,41 @@ export const orderRow = createWidget({
       { profile: WITH_CAPABILITIES },
     )
 
-    const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
-      definitions: { id: string; capabilities?: unknown }[]
-    }
+    const entries = JSON.parse(fileFor('mfe-registry.json')) as {
+      id: string
+      capabilities?: unknown
+    }[]
 
-    expect(descriptor.definitions[0]?.capabilities).toHaveLength(1)
-    expect(descriptor.definitions[1]).not.toHaveProperty('capabilities')
+    expect(entries[0]?.capabilities).toHaveLength(1)
+    expect(entries[1]).not.toHaveProperty('capabilities')
+  })
+
+  it('writes one entry per definition, each with its own expose path and the shared container', () => {
+    const { fileFor } = planFixture({
+      'src/mfe.ts': `${APP_ENTRY}
+import { createWidget } from '@acme/mfe-adapter'
+import { z } from 'zod'
+
+export const orderRow = createWidget({
+  id: 'order-row',
+  title: 'Order row',
+  inputSchema: z.object({}),
+  outputSchema: z.object({}),
+  render: () => null,
+})
+`,
+    })
+
+    expect(JSON.parse(fileFor('mfe-registry.json'))).toEqual([
+      expect.objectContaining({ id: 'operations', expose: './app', container: 'acme_operations' }),
+      expect.objectContaining({
+        id: 'order-row',
+        kind: 'widget',
+        title: 'Order row',
+        expose: './widgets/order-row',
+        container: 'acme_operations',
+      }),
+    ])
   })
 
   it('hands the capability reader the container it is reading', () => {
@@ -704,16 +731,12 @@ export const orderRow = createWidget({
     const angular: ContainerProfile = { ...TEST_PROFILE, framework: 'angular' }
     const named = planFixture({ 'src/mfe.ts': APP_ENTRY }, { profile: angular })
 
-    const descriptor = JSON.parse(named.fileFor('mfe-registry.json')) as Record<string, unknown>
-    expect(Object.keys(descriptor).slice(0, 5)).toEqual([
-      'manifestUrl',
-      'container',
-      'framework',
-      'shareScopes',
-      'requiresRuntime',
+    expect(JSON.parse(named.fileFor('mfe-registry.json'))).toEqual([
+      expect.objectContaining({
+        mfe: { framework: 'angular' },
+        shareScopes: ['default', 'angular@19.3.0'],
+      }),
     ])
-    expect(descriptor['framework']).toBe('angular')
-    expect(descriptor['shareScopes']).toEqual(['default', 'angular@19.3.0'])
     expect(named.plan.generated.frameworkMetadata.framework).toBe('angular')
   })
 })
@@ -798,11 +821,11 @@ export const alertPanel = createWidget({
 
   it('publishes the inputs and the outputs as JSON Schema', () => {
     const { fileFor } = planFixture({ 'src/mfe.ts': WIDGET })
-    const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
-      definitions: { contract?: Record<string, unknown> }[]
-    }
+    const entries = JSON.parse(fileFor('mfe-registry.json')) as {
+      contract?: Record<string, unknown>
+    }[]
 
-    expect(descriptor.definitions[0]?.contract).toEqual({
+    expect(entries[0]?.contract).toEqual({
       outputSchema: {
         title: 'alert-panel outputs',
         type: 'object',
@@ -832,11 +855,9 @@ export const alertPanel = createWidget({
 
   it('publishes nothing of the kind for an App', () => {
     const { fileFor } = planFixture({ 'src/mfe.ts': APP_ENTRY })
-    const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
-      definitions: Record<string, unknown>[]
-    }
+    const entries = JSON.parse(fileFor('mfe-registry.json')) as Record<string, unknown>[]
 
-    expect(descriptor.definitions[0]).not.toHaveProperty('contract')
+    expect(entries[0]).not.toHaveProperty('contract')
   })
 
   it('publishes the outputs alone when the inputs schema is not statically readable', () => {
@@ -854,11 +875,11 @@ export const oddPanel = createWidget({
 `,
     })
 
-    const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
-      definitions: { contract?: Record<string, unknown> }[]
-    }
+    const entries = JSON.parse(fileFor('mfe-registry.json')) as {
+      contract?: Record<string, unknown>
+    }[]
 
-    expect(descriptor.definitions[0]?.contract).toEqual({
+    expect(entries[0]?.contract).toEqual({
       outputSchema: {
         title: 'odd-panel outputs',
         type: 'object',
@@ -887,11 +908,11 @@ export const oddPanel = createWidget({
 `,
     })
 
-    const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
-      definitions: { contract?: { outputSchema?: { properties?: Record<string, unknown> } } }[]
-    }
+    const entries = JSON.parse(fileFor('mfe-registry.json')) as {
+      contract?: { outputSchema?: { properties?: Record<string, unknown> } }
+    }[]
 
-    expect(descriptor.definitions[0]?.contract?.outputSchema?.properties).toEqual({
+    expect(entries[0]?.contract?.outputSchema?.properties).toEqual({
       picked: {},
       cleared: { type: 'object', properties: {}, additionalProperties: false },
     })
@@ -916,10 +937,10 @@ export const oddPanel = createWidget({
 `,
     })
 
-    const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
-      definitions: { contract?: { outputSchema?: { properties?: Record<string, unknown> } } }[]
-    }
-    const properties = descriptor.definitions[0]?.contract?.outputSchema?.properties
+    const entries = JSON.parse(fileFor('mfe-registry.json')) as {
+      contract?: { outputSchema?: { properties?: Record<string, unknown> } }
+    }[]
+    const properties = entries[0]?.contract?.outputSchema?.properties
 
     expect(properties?.['acknowledged']).toMatchObject({
       type: 'object',
@@ -953,13 +974,11 @@ export const oddPanel = createWidget({
 `,
     })
 
-    const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
-      definitions: { contract?: { outputSchema?: { properties?: Record<string, unknown> } } }[]
-    }
+    const entries = JSON.parse(fileFor('mfe-registry.json')) as {
+      contract?: { outputSchema?: { properties?: Record<string, unknown> } }
+    }[]
 
-    expect(
-      descriptor.definitions[0]?.contract?.outputSchema?.properties?.['acknowledged'],
-    ).toMatchObject({
+    expect(entries[0]?.contract?.outputSchema?.properties?.['acknowledged']).toMatchObject({
       type: 'object',
       properties: { at: { type: 'string' } },
     })
@@ -982,11 +1001,11 @@ export const oddPanel = createWidget({
 `,
     })
 
-    const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
-      definitions: { contract?: { outputSchema?: { properties?: Record<string, unknown> } } }[]
-    }
+    const entries = JSON.parse(fileFor('mfe-registry.json')) as {
+      contract?: { outputSchema?: { properties?: Record<string, unknown> } }
+    }[]
 
-    expect(descriptor.definitions[0]?.contract?.outputSchema?.properties).toEqual({
+    expect(entries[0]?.contract?.outputSchema?.properties).toEqual({
       acknowledged: {},
     })
   })
@@ -1008,11 +1027,11 @@ export const oddPanel = createWidget({
 `,
     })
 
-    const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
-      definitions: { contract?: Record<string, unknown> }[]
-    }
+    const entries = JSON.parse(fileFor('mfe-registry.json')) as {
+      contract?: Record<string, unknown>
+    }[]
 
-    expect(descriptor.definitions[0]?.contract).not.toHaveProperty('outputSchema')
+    expect(entries[0]?.contract).not.toHaveProperty('outputSchema')
   })
 
   it('publishes no outputSchema when a method adds outputs to the literal', () => {
@@ -1030,12 +1049,12 @@ export const oddPanel = createWidget({
 `,
     })
 
-    const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
-      definitions: { contract?: Record<string, unknown> }[]
-    }
+    const entries = JSON.parse(fileFor('mfe-registry.json')) as {
+      contract?: Record<string, unknown>
+    }[]
 
     // The literal names `picked` alone, so a schema read from it would close out `cleared`.
-    expect(descriptor.definitions[0]?.contract).not.toHaveProperty('outputSchema')
+    expect(entries[0]?.contract).not.toHaveProperty('outputSchema')
   })
 })
 

@@ -1,88 +1,59 @@
 ---
 title: 'Registry entry'
-description: 'The record your build writes, the entry a shell reads, and how one becomes the other.'
+description: 'The entries your build writes, the entry a shell reads, and how a shell assembles them.'
 ---
 
-Each container build publishes `mfe-registry.json` with its assets. Your platform or shell-repository pipeline converts its definitions into registry entries. The shell reads that assembled registry before loading containers.
+Each container build publishes `mfe-registry.json` with its assets. It holds one registry entry per App or Widget the container exports, already in the shape a shell reads. Only `manifestUrl` is left relative, so your shell repository or registry service resolves it and appends the entries to the registry the shell reads.
 
-## The record your build writes
+## The entries your build writes
 
 ```json title="mfe-registry.json (published container artifact)"
-{
-  "manifestUrl": "mf-manifest.json",
-  "container": "example_alert_panel",
-  "framework": "react",
-  "shareScopes": ["default", "react@19.3.0"],
-  "requiresRuntime": ">=1.1.0 <2.0.0",
-  "definitions": [
-    {
-      "id": "alert-panel",
-      "kind": "widget",
-      "version": "1.4.0",
-      "title": "Alert panel",
-      "description": "Open alerts for one asset, acknowledged or dismissed in place.",
-      "tags": ["alerts", "operations", "safety"],
-      "icon": {
-        "viewBox": "0 0 24 24",
-        "node": [["path", { "d": "M10.268 21a2 2 0 0 0 3.464 0" }]]
-      },
-      "contract": {
-        "inputSchema": { "type": "object", "properties": { "alertId": { "type": "string" } } },
-        "outputSchema": {
-          "type": "object",
-          "properties": {
-            "acknowledged": {
-              "type": "object",
-              "properties": {
-                "alertId": { "type": "string" },
-                "acknowledgedAt": { "type": "string" }
-              }
-            },
-            "dismissed": { "type": "object", "properties": { "alertId": { "type": "string" } } }
-          }
+[
+  {
+    "id": "alert-panel",
+    "kind": "widget",
+    "mfe": { "framework": "react" },
+    "manifestUrl": "mf-manifest.json",
+    "container": "example_alert_panel",
+    "expose": "./widgets/alert-panel",
+    "shareScopes": ["default", "react@19.3.0"],
+    "requiresRuntime": ">=1.1.0 <2.0.0",
+    "version": "1.4.0",
+    "contract": {
+      "inputSchema": { "type": "object", "properties": { "alertId": { "type": "string" } } },
+      "outputSchema": {
+        "type": "object",
+        "properties": {
+          "acknowledged": {
+            "type": "object",
+            "properties": {
+              "alertId": { "type": "string" },
+              "acknowledgedAt": { "type": "string" }
+            }
+          },
+          "dismissed": { "type": "object", "properties": { "alertId": { "type": "string" } } }
         }
       }
+    },
+    "build": { "hash": "1e485caec528f7fa", "time": "2026-09-21T05:54:21.786Z" },
+    "title": "Alert panel",
+    "description": "Open alerts for one asset, acknowledged or dismissed in place.",
+    "tags": ["alerts", "operations", "safety"],
+    "icon": {
+      "viewBox": "0 0 24 24",
+      "node": [["path", { "d": "M10.268 21a2 2 0 0 0 3.464 0" }]]
     }
-  ],
-  "entries": { "alert-panel": "./widgets/alert-panel" },
-  "build": { "hash": "1e485caec528f7fa", "time": "2026-09-21T05:54:21.786Z" }
-}
+  }
+]
 ```
 
-| Field             | Type                  | What it is                                                                                          |
-| ----------------- | --------------------- | --------------------------------------------------------------------------------------------------- |
-| `manifestUrl`     | `string`              | Where the container's `mf-manifest.json` sits, relative to it.                                      |
-| `container`       | `string`              | The Module Federation container name.                                                               |
-| `framework`       | `string`              | The framework the container was built with: `react` or `angular`.                                   |
-| `shareScopes`     | `string[]`            | The share scopes its shared packages live in, `default` first.                                      |
-| `requiresRuntime` | `string`              | Generated compatible shell runtime API range covering registry format, mount protocol and services. |
-| `definitions`     | array                 | One record per App or Widget the container exports.                                                 |
-| `entries`         | definition id to path | The generated path each definition is published at.                                                 |
-| `build`           | `{ hash?, time? }`    | Which build this came from. It never gates loading.                                                 |
-
-Each record in `definitions` holds `id` and `kind`, plus the optional `version`, `capabilities` and `routes` (Apps), `contract` (Widgets), `title`, `description`, `tags` and `icon`.
+Its type is `PublishedRegistryEntry`. A container that exports an App and a Widget writes two entries. They repeat the container's `mfe`, `manifestUrl`, `container`, `shareScopes`, `requiresRuntime` and `build`, and each has its own `expose`.
 
 ## The entry a shell reads
 
-```json title="registry.json (one entry in the shell registry array)"
-{
-  "id": "alert-panel",
-  "kind": "widget",
-  "mfe": { "framework": "react" },
-  "manifestUrl": "https://containers.example.com/alert-panel/1.4.0/mf-manifest.json",
-  "container": "example_alert_panel",
-  "expose": "./widgets/alert-panel",
-  "shareScopes": ["default", "react@19.3.0"],
-  "requiresRuntime": ">=1.1.0 <2.0.0",
-  "version": "1.4.0",
-  "contract": { "inputSchema": { "type": "object" }, "outputSchema": { "type": "object", "properties": { … } } },
-  "build": { "hash": "1e485caec528f7fa", "time": "2026-09-21T05:54:21.786Z" },
-  "title": "Alert panel",
-  "description": "Open alerts for one asset, acknowledged or dismissed in place.",
-  "tags": ["alerts", "operations", "safety"],
-  "icon": { "viewBox": "0 0 24 24", "node": [["path", { "d": "M10.268 21a2 2 0 0 0 3.464 0" }]] }
-}
-```
+A shell reads the same entry with `manifestUrl` made absolute, such as
+`https://containers.example.com/alert-panel/1.4.0/mf-manifest.json`, and with any presentation
+overrides your shell applies.
 
 | Field                                  | Required | What it is                                                                                                                 |
 | -------------------------------------- | -------- | -------------------------------------------------------------------------------------------------------------------------- |
@@ -135,29 +106,26 @@ A route is `{ path, search? }`. `path` is App-relative and written the same way 
 
 A layout that adds no URL segment, a redirect and the `**` catch-all are not listed. The index route inside such a layout is. A parameter with a prefix or a suffix in its segment, such as `{$id}.json`, has no neutral spelling, so its route is not listed. Angular routes with a `matcher` or on a named outlet are not listed. Nor are the routes a lazy `loadChildren` module declares; the route that loads them is.
 
-## How a published record becomes a shell entry
+## How a published file becomes registry entries
 
-Production assembly belongs to your platform or shell repository. Its release pipeline consumes each container's generated record from a published artifact or artifact URL. Container repositories need no checkout of the shell or framework source.
+Production assembly belongs to your platform or shell repository. Its release pipeline fetches each container's published `mfe-registry.json`. Container repositories need no checkout of the shell or framework source.
 
-For each definition, the integration:
+For each entry in the file, the integration:
 
-1. Resolves `manifestUrl` against that artifact's deployment base URL, including any path prefix.
-2. Copies the definition's `id` and `kind`, and maps `entries[id]` to `expose`.
-3. Places the record's `framework` in `mfe.framework` and copies `container` and `shareScopes`.
-4. Preserves `requiresRuntime`, build metadata, versions, capabilities, routes and Widget contracts.
-5. Copies the generated presentation fields, then applies any shell-owned presentation overrides.
+1. Resolves `manifestUrl` against the URL the file was fetched from, including any path prefix.
+2. Applies any shell-owned presentation overrides for that `id`.
 
-For a record at `https://containers.example.com/alert-panel/1.4.0/mfe-registry.json`, a relative `mf-manifest.json` resolves beside that record. Keep its release path when assembling the absolute manifest URL.
+It changes nothing else. For a file at `https://containers.example.com/alert-panel/1.4.0/mfe-registry.json`, `mf-manifest.json` resolves to `https://containers.example.com/alert-panel/1.4.0/mf-manifest.json`.
 
-Publish the resulting array of entries at the registry URL your shell fetches. The shell uses its configured adapters to read that array. Updating a container artifact and updating this registry are separate release operations.
+Publish every container's entries, concatenated into one array, at the registry URL your shell fetches. The shell uses its configured adapters to read that array. Updating a container artifact and updating this registry are separate release operations.
 
-A published definition must have an expose path in its generated `entries` map. Reject an incomplete record and rebuild its container. Preserve the generated contract rather than inventing replacement metadata.
+A file that holds an object rather than an array was written by a build before this format. Reject it and rebuild its container.
 
-The framework supplies the record format and registry reader. Your platform supplies production registration, storage and aggregation. There is no required production aggregator CLI or registration endpoint in this package.
+The framework supplies the entry format and registry reader. Your platform supplies production registration, storage and aggregation. There is no required production aggregator CLI or registration endpoint in this package.
 
 ### Framework demo harness
 
-`tools/dev/build-registry.mjs` is the framework repository's example implementation. It scans local `examples/` projects and reads their `.mfe/mfe-registry.json` files. It resolves URLs from their development ports and writes `apps/shell/public/registry.json`.
+`tools/dev/build-registry.mjs` is the framework repository's example implementation. It scans local `examples/` projects and reads their `.mfe/mfe-registry.json` files. It resolves each `manifestUrl` against the container's development port, applies the overrides below, and writes `apps/shell/public/registry.json`.
 
 That script also reads `apps/shell/registry.source.json` for demo presentation overrides and rejection fixtures. These paths and commands belong to the framework's combined demo harness. Independent container and shell repositories supply their own registry integration.
 
@@ -176,7 +144,7 @@ The framework demo stores its overrides in `apps/shell/registry.source.json`:
 }
 ```
 
-This demo file is not a required production configuration file. Its presentation block overrides only wording and icons. Contract fields come from each container’s generated record.
+This demo file is not a required production configuration file. Its presentation block overrides only wording and icons. Contract fields come from each container’s generated entries.
 
 ## Demo rejection fixtures
 

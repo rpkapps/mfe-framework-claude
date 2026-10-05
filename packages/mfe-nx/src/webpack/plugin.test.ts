@@ -313,8 +313,8 @@ describe('MfeWebpackPlugin on a production compile', () => {
 
       await build(angularLikeConfig(root, 'production'))
 
-      const registry = readJsonDist<{ shareScopes?: unknown }>(root, 'mfe-registry.json')
-      expect(registry.shareScopes).toEqual(['default', ANGULAR_SCOPE])
+      const [entry] = readJsonDist<{ shareScopes?: unknown }[]>(root, 'mfe-registry.json')
+      expect(entry?.shareScopes).toEqual(['default', ANGULAR_SCOPE])
       // The manifest names no scope, so the scope is read where the remote registers its shares.
       expect(registeredScopes(readDist(root, 'remoteEntry.js'))).toEqual({
         '@angular/core': ANGULAR_SCOPE,
@@ -332,7 +332,9 @@ describe('MfeWebpackPlugin on a production compile', () => {
 
       await build(angularLikeConfig(root, 'production'))
 
-      expect(readJsonDist(root, 'mfe-registry.json')).toMatchObject({ framework: 'angular' })
+      expect(readJsonDist(root, 'mfe-registry.json')).toEqual([
+        expect.objectContaining({ mfe: { framework: 'angular' } }),
+      ])
       expect(existsSync(join(root, 'dist/runtime-config.schema.json'))).toBe(true)
       expect(readJsonDist(root, 'runtime-config.json')).toEqual({ reportLimit: 20 })
     },
@@ -491,11 +493,8 @@ describe('MfeWebpackPlugin across compiles', () => {
         await close(compiler)
       }
 
-      const registry = readJsonDist<{ definitions: readonly { version: string }[] }>(
-        root,
-        'mfe-registry.json',
-      )
-      expect(registry.definitions.map(definition => definition.version)).toEqual(['1.3.0'])
+      const entries = readJsonDist<readonly { version: string }[]>(root, 'mfe-registry.json')
+      expect(entries.map(entry => entry.version)).toEqual(['1.3.0'])
     },
     COMPILE_TIMEOUT,
   )
