@@ -91,6 +91,10 @@ class HostComponent {
   @ViewChild('host') host: MfeAppHostComponent | undefined
 }
 
+/** The shell's root: an outlet for the host application's own router. */
+@Component({ selector: 'test-shell', imports: [RouterOutlet], template: '<router-outlet />' })
+class ShellComponent {}
+
 describe('<mfe-app-host>', () => {
   it('reports a placement error without adding UI and recovers after the host supplies an id', async () => {
     @Component({
@@ -185,8 +189,6 @@ describe('<mfe-app-host>', () => {
       readonly failures: MfeError[] = []
       @ViewChild('host') host: MfeAppHostComponent | undefined
     }
-    @Component({ selector: 'test-shell', imports: [RouterOutlet], template: '<router-outlet />' })
-    class ShellComponent {}
     const { definition, calls } = foreignApp('elsewhere')
     const environment = createMfeTestEnvironment({
       definitions: [definition],
@@ -393,9 +395,6 @@ describe('<mfe-app-host>', () => {
   })
 
   it('tells the App it routes to where the host’s own router took the page', async () => {
-    @Component({ selector: 'test-shell', imports: [RouterOutlet], template: '<router-outlet />' })
-    class ShellComponent {}
-
     const environment = createMfeTestEnvironment({
       definitions: [childApp],
       initialEntries: ['/reports'],
