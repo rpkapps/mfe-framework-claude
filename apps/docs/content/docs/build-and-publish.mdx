@@ -48,7 +48,7 @@ The current React scaffolder writes workspace/catalog references and extends a p
 | ------------------------------------------- | ---------------------------------------------- | ------------------------------- |
 | `remoteEntry.js`                            | the file a host loads your code from           | the shell's loader              |
 | `mf-manifest.json`                          | the federation manifest describing that file   | the shell's loader              |
-| `mfe-registry.json`                         | your container's description record            | whoever assembles the registry  |
+| `mfe-registry.json`                         | your container's registry entries              | whoever assembles the registry  |
 | `runtime-config.json`                       | the declared defaults, and nothing else        | the start-up script, then you   |
 | `runtime-config.schema.json`                | the shape of the deployment's values           | your deployment, before release |
 | one chunk per definition, and one CSS asset | your code, and the styles scoped to your roots | the browser                     |
@@ -80,44 +80,59 @@ container's environment.
 </Step>
 
 <Step>
-### 4. Hand the description record over
+### 4. Hand the registry entries over
 
 <Tabs items={['React', 'Angular']} defaultIndex={0}>
 <Tab value="React">
 
 ```json title="dist/mfe-registry.json (trimmed)"
-{
-  "manifestUrl": "mf-manifest.json",
-  "container": "alert_panel",
-  "framework": "react",
-  "requiresRuntime": ">=1.1.0 <2.0.0",
-  "definitions": [{ "id": "alert-panel", "kind": "widget", "version": "1.4.0" }],
-  "entries": { "alert-panel": "./widgets/alert-panel" }
-}
+[
+  {
+    "id": "alert-panel",
+    "kind": "widget",
+    "mfe": { "framework": "react" },
+    "manifestUrl": "mf-manifest.json",
+    "container": "alert_panel",
+    "expose": "./widgets/alert-panel",
+    "requiresRuntime": ">=1.1.0 <2.0.0",
+    "version": "1.4.0"
+  }
+]
 ```
 
 </Tab>
 <Tab value="Angular">
 
 ```json title="dist/apps/operations/mfe-registry.json (trimmed)"
-{
-  "manifestUrl": "mf-manifest.json",
-  "container": "operations",
-  "framework": "angular",
-  "requiresRuntime": ">=1.1.0 <2.0.0",
-  "definitions": [
-    { "id": "operations", "kind": "app", "version": "0.1.0" },
-    { "id": "well-inspection", "kind": "widget", "version": "0.1.0" }
-  ],
-  "entries": { "operations": "./app", "well-inspection": "./widgets/well-inspection" }
-}
+[
+  {
+    "id": "operations",
+    "kind": "app",
+    "mfe": { "framework": "angular" },
+    "manifestUrl": "mf-manifest.json",
+    "container": "operations",
+    "expose": "./app",
+    "requiresRuntime": ">=1.1.0 <2.0.0",
+    "version": "0.1.0"
+  },
+  {
+    "id": "well-inspection",
+    "kind": "widget",
+    "mfe": { "framework": "angular" },
+    "manifestUrl": "mf-manifest.json",
+    "container": "operations",
+    "expose": "./widgets/well-inspection",
+    "requiresRuntime": ">=1.1.0 <2.0.0",
+    "version": "0.1.0"
+  }
+]
 ```
 
 </Tab>
 </Tabs>
 
-`manifestUrl` is relative to your container, so whoever assembles the registry resolves it against
-the origin you deployed to.
+Each entry is already the one a shell reads. Only `manifestUrl` is relative to the file, so
+whoever assembles the registry resolves it against the URL you deployed the file to.
 
 `requiresRuntime` is generated from the build integration's compatibility metadata. One runtime
 API version covers this registry format, the mount protocol and shell-owned services. The shell
@@ -128,9 +143,9 @@ checks that requirement before selecting an adapter or parsing the registry shap
 <Step>
 ### 5. Update the shell registry
 
-Give the published `mfe-registry.json` and deployment origin to your platform's registry integration. The shell repository or registry service assembles its registry from those records. Resolve relative manifest URLs against the container's deployment origin.
+Give the published `mfe-registry.json` URL to your platform's registry integration. The shell repository or registry service resolves each entry's `manifestUrl` against that URL and adds the entries to its registry. See [Registry entry](/docs/reference/registry-entry#how-a-published-file-becomes-registry-entries).
 
-Deploy the resulting registry separately from the container. The framework provides the generated record and registry reader; your platform supplies registration and aggregation.
+Deploy the resulting registry separately from the container. The framework provides the generated entries and registry reader; your platform supplies registration and aggregation.
 
 </Step>
 

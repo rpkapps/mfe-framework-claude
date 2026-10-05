@@ -270,27 +270,25 @@ describe('the registry entry the build publishes', () => {
       'src/routes/settings.tsx': ROUTE,
     })
 
-    expect(JSON.parse(fileFor('mfe-registry.json'))).toEqual({
-      manifestUrl: 'mf-manifest.json',
-      container: 'acme_operations',
-      entries: { operations: './app' },
-      framework: 'react',
-      shareScopes: ['default', 'react@19.3.0'],
-      requiresRuntime: RUNTIME_API_REQUIREMENT,
-      definitions: [
-        {
-          id: 'operations',
-          kind: 'app',
-          version: '2.1.0',
-          capabilities: [
-            { name: 'settings', label: 'Order settings', icon: 'gear', path: '/settings' },
-          ],
-          // Every file route, so the shell can navigate there before the App is loaded.
-          routes: [{ path: '/settings' }],
-        },
-      ],
-      build: { hash: plan.generated.buildHash, time: BUILD_TIME },
-    })
+    expect(JSON.parse(fileFor('mfe-registry.json'))).toEqual([
+      {
+        id: 'operations',
+        kind: 'app',
+        mfe: { framework: 'react' },
+        manifestUrl: 'mf-manifest.json',
+        container: 'acme_operations',
+        expose: './app',
+        shareScopes: ['default', 'react@19.3.0'],
+        requiresRuntime: RUNTIME_API_REQUIREMENT,
+        version: '2.1.0',
+        capabilities: [
+          { name: 'settings', label: 'Order settings', icon: 'gear', path: '/settings' },
+        ],
+        // Every file route, so the shell can navigate there before the App is loaded.
+        routes: [{ path: '/settings' }],
+        build: { hash: plan.generated.buildHash, time: BUILD_TIME },
+      },
+    ])
     expect(plan.generated.descriptor).not.toHaveProperty('contractMajor')
     expect(plan.generated.frameworkMetadata).not.toHaveProperty('major')
     expect(plan.generated.frameworkMetadata.requiresRuntime).toBe(RUNTIME_API_REQUIREMENT)
@@ -312,21 +310,24 @@ export const orderRow = createWidget({
       'src/routes/settings.tsx': ROUTE,
     })
 
-    const descriptor = JSON.parse(fileFor('mfe-registry.json')) as {
-      definitions: { id: string; capabilities?: unknown }[]
-    }
+    const entries = JSON.parse(fileFor('mfe-registry.json')) as {
+      id: string
+      capabilities?: unknown
+    }[]
 
-    expect(descriptor.definitions[0]?.capabilities).toHaveLength(1)
-    expect(descriptor.definitions[1]).not.toHaveProperty('capabilities')
+    expect(entries[0]?.capabilities).toHaveLength(1)
+    expect(entries[1]).not.toHaveProperty('capabilities')
   })
 
   it('names React as its framework and the React it was built on as its share scope', () => {
     const { fileFor, plan } = planFixture({ 'src/mfe.ts': APP_ENTRY })
 
-    expect(JSON.parse(fileFor('mfe-registry.json'))).toMatchObject({
-      framework: 'react',
-      shareScopes: ['default', 'react@19.3.0'],
-    })
+    expect(JSON.parse(fileFor('mfe-registry.json'))).toEqual([
+      expect.objectContaining({
+        mfe: { framework: 'react' },
+        shareScopes: ['default', 'react@19.3.0'],
+      }),
+    ])
     expect(plan.generated.frameworkMetadata.framework).toBe('react')
     expect(plan.shared['react']?.shareScope).toBe('react@19.3.0')
   })

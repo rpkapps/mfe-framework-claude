@@ -113,6 +113,32 @@ export interface ContainerDescriptor {
   readonly build?: BuildProvenance
 }
 
+/**
+ * One registry entry exactly as a container build publishes it in `mfe-registry.json`, one per
+ * definition. It is already the entry a shell reads, except that `manifestUrl` is relative to the
+ * published file, so the same build can be promoted between environments. A shell resolves it
+ * against wherever that file was deployed and changes nothing else it does not own.
+ */
+export interface PublishedRegistryEntry extends DefinitionIdentity {
+  /** The framework that built it, which picks the one adapter that reads the entry. */
+  readonly mfe: { readonly framework: string }
+  /** Relative to `mfe-registry.json`; absolute once a shell has resolved it. */
+  readonly manifestUrl: string
+  readonly container: string
+  readonly expose: string
+  readonly shareScopes: readonly string[]
+  readonly requiresRuntime: string
+  readonly capabilities?: readonly CapabilityDescriptor[]
+  readonly routes?: readonly PublishedRoute[]
+  readonly contract?: PublishedContract
+  /** The container's build, repeated on every entry it published. */
+  readonly build?: BuildProvenance
+  readonly title?: string
+  readonly description?: string
+  readonly tags?: readonly string[]
+  readonly icon?: IconData
+}
+
 export interface ExportedDefinitionDescriptor extends DefinitionIdentity {
   /** App-only; extracted statically from routes marked with `staticData`. */
   readonly capabilities?: readonly CapabilityDescriptor[]

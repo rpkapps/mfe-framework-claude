@@ -59,7 +59,7 @@ to stage the correct files and supply each deployment's values.
 curl --fail "$CONTAINER_URL/mfe-registry.json" -o mfe-registry.json
 ```
 
-Your platform's registration pipeline consumes this generated record and its deployment origin. Resolve the record's relative `manifestUrl` against that origin. Preserve generated definitions and compatibility metadata.
+The file holds your container's registry entries. Your platform's registration pipeline resolves each entry's relative `manifestUrl` against `$CONTAINER_URL/mfe-registry.json` applies any shell-owned presentation overrides, and adds the entries to the shell's registry.
 
 The framework supplies no production registry aggregation CLI or registration endpoint. Use your platform's service or shell-repository pipeline.
 

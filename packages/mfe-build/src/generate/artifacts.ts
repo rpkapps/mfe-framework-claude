@@ -1,9 +1,14 @@
 /** Files the pipeline, the shell and the developer read; application code never imports them. */
 
-import { RUNTIME_API_REQUIREMENT, type ContainerDescriptor } from '@company/mfe-core'
+import {
+  defaultExposePath,
+  RUNTIME_API_REQUIREMENT,
+  type ContainerDescriptor,
+} from '@company/mfe-core'
 import type {
   CapabilityDescriptor,
   ExportedDefinitionDescriptor,
+  PublishedRegistryEntry,
   PublishedRoute,
 } from '@company/mfe-core'
 
@@ -105,13 +110,52 @@ export function frameworkMetadata(
   }
 }
 
-export function registryDescriptorFile(
+/**
+ * The entries a shell reads, so a shell repository assembles its registry from any container
+ * repository by resolving `manifestUrl` and nothing else.
+ */
+function registryEntries(descriptor: ContainerDescriptor): PublishedRegistryEntry[] {
+  return descriptor.definitions.map(definition => {
+    // `entries` is filled from these same definitions; the fallback only satisfies the index type.
+    const expose =
+      descriptor.entries[definition.id] ?? defaultExposePath(definition.kind, definition.id)
+
+    return {
+      id: definition.id,
+      kind: definition.kind,
+      // The framework picks the adapter that reads the entry, so it travels in the marker.
+      mfe: { framework: descriptor.framework },
+      manifestUrl: descriptor.manifestUrl,
+      container: descriptor.container,
+      expose,
+      // A host registers the container with exactly these, so it links the framework scope its
+      // shares live in.
+      shareScopes: descriptor.shareScopes,
+      requiresRuntime: descriptor.requiresRuntime,
+      ...(definition.version === undefined ? {} : { version: definition.version }),
+      ...(definition.capabilities === undefined ? {} : { capabilities: definition.capabilities }),
+      ...(definition.routes === undefined ? {} : { routes: definition.routes }),
+      // The widget catalogue renders a form from this before anything is loaded, so it has to
+      // be in the registry rather than behind a container fetch (§16).
+      ...(definition.contract === undefined ? {} : { contract: definition.contract }),
+      // The build belongs to the container rather than to any definition it exports, so every
+      // entry from that build repeats it; a bug report is the only reader (§29).
+      ...(descriptor.build === undefined ? {} : { build: descriptor.build }),
+      ...(definition.title === undefined ? {} : { title: definition.title }),
+      ...(definition.description === undefined ? {} : { description: definition.description }),
+      ...(definition.tags === undefined ? {} : { tags: definition.tags }),
+      ...(definition.icon === undefined ? {} : { icon: definition.icon }),
+    }
+  })
+}
+
+export function registryEntriesFile(
   context: GenerateContext,
   descriptor: ContainerDescriptor,
 ): GeneratedFile {
   return {
     path: generatedPath(context.options.generatedDir, context.options.registryFileName),
-    contents: jsonFile(descriptor),
+    contents: jsonFile(registryEntries(descriptor)),
     asset: context.options.registryFileName,
   }
 }
