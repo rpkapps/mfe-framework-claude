@@ -5,6 +5,8 @@
  * tests run on (see the package README).
  */
 
+import { readFileSync } from 'node:fs'
+
 import { NX_VERSION } from '@nx/devkit'
 
 export const ANGULAR_VERSION = '19.2.25'
@@ -40,11 +42,17 @@ export const ANALOG_VITE_PLUGIN_ANGULAR_VERSION = '^2.7.0'
 export const ANALOG_VITEST_ANGULAR_VERSION = '^2.7.0'
 
 /**
- * The framework packages this generator wires the container to. `^0.1.0` because that is their
- * current published version; a consumer workspace resolves the real range through its own
- * registry the way it resolves every other dependency.
+ * `@company/mfe-angular` and this package, at the version of this package. The framework packages
+ * are released together on one version, and on 0.x a caret range stops at the next minor, so a
+ * fixed range would pin every container scaffolded after a release to the framework before it.
  */
-export const FRAMEWORK_PACKAGE_VERSION = '^0.1.0'
+export const FRAMEWORK_PACKAGE_VERSION = `^${ownVersion()}`
+
+/**
+ * `@company/eslint-plugin-mfe` is released on its own version, so it cannot be read from here.
+ * `versions.test.ts` fails when this and the plugin's manifest in this repository disagree.
+ */
+export const ESLINT_PLUGIN_MFE_VERSION = '^0.1.0'
 
 /**
  * `@company/eslint-plugin-mfe`'s own peer range for these is `>=19 <23`; this pins the exact line
@@ -89,4 +97,11 @@ export function nxAngularVersionFor(nxVersion: string | undefined): string {
 /** Only an exact or patch-level 5.5–5.8 stays within the Angular 19.2 compiler's range. */
 export function isAngularCompatibleTypeScript(specifier: string): boolean {
   return /^~?5\.[5-8]\.\d+$/.test(specifier)
+}
+
+function ownVersion(): string {
+  // Resolved by name, through this package's own `exports`, so it is the same file from the
+  // compiled `dist/` and from the sources the tests run.
+  const manifest = readFileSync(require.resolve('@company/mfe-nx/package.json'), 'utf8')
+  return (JSON.parse(manifest) as { readonly version: string }).version
 }
