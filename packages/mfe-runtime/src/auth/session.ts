@@ -7,11 +7,17 @@
 
 import { toMfeError } from '@company/mfe-core'
 
+import { DEFAULT_DEADLINES, withDeadline } from '../deadline.ts'
+
 /** Attribution used when the host does not bind the helper to a definition. */
 export const DEFAULT_SESSION_ID = 'shell'
 
 export interface SessionCallContext {
-  /** Never one caller's signal: a caller that cancels must not cancel a refresh others await. */
+  /**
+   * Never one caller's signal: a caller that cancels must not cancel a refresh others await. It
+   * aborts when the renewal outlives the default load deadline, which every waiting request
+   * shares.
+   */
   readonly signal: AbortSignal
 }
 
@@ -84,18 +90,28 @@ export function createSessionTokenService(options: SessionTokenServiceOptions): 
   /** Its presence is what makes refresh single-flight. */
   let inFlight: Promise<string | null> | null = null
 
-  async function renew(seen: string | null, signal: AbortSignal): Promise<string | null> {
+  /**
+   * Bounded by the load deadline, because every request waiting on it is held until it settles:
+   * a refresh that never does would otherwise stall every authenticated request on the page.
+   */
+  async function renew(seen: string | null): Promise<string | null> {
     try {
-      // The shell's own store may already hold a token this helper has not seen, so using
-      // it avoids a refresh the session does not need.
-      const stored = normalizeToken(await options.getToken({ signal }))
-      token =
-        stored !== null && stored !== seen
-          ? stored
-          : normalizeToken(await options.refreshToken({ signal }))
+      token = await withDeadline(
+        async signal => {
+          // The shell's own store may already hold a token this helper has not seen, so using
+          // it avoids a refresh the session does not need.
+          const stored = normalizeToken(await options.getToken({ signal }))
+          return stored !== null && stored !== seen
+            ? stored
+            : normalizeToken(await options.refreshToken({ signal }))
+        },
+        DEFAULT_DEADLINES.load,
+        { id, operation: 'renew the access token', phase: 'load' },
+      )
     } catch {
-      // The shell's auth library owns the failure event; the helper only stops believing
-      // in the token it was holding, so the next call tries again.
+      // A failure is the shell's auth library's to report, and a renewal past the deadline
+      // reaches it as its aborted signal; the helper only stops believing in the token it was
+      // holding, so the next call tries again.
       token = null
     }
     return token
@@ -111,12 +127,12 @@ export function createSessionTokenService(options: SessionTokenServiceOptions): 
 
     let shared = inFlight
     if (shared === null) {
-      // The renewal runs on a controller this helper owns, never a caller's.
-      const started: Promise<string | null> = renew(cached, new AbortController().signal).finally(
-        () => {
-          if (inFlight === started) inFlight = null
-        },
-      )
+      // The renewal runs on a signal this helper owns, never a caller's. Measured against the
+      // token the caller reports refused as well: after a failed refresh nothing is cached, and
+      // the shell's store may still hold exactly that token.
+      const started: Promise<string | null> = renew(cached ?? rejected ?? null).finally(() => {
+        if (inFlight === started) inFlight = null
+      })
       inFlight = started
       shared = started
     }

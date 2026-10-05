@@ -396,7 +396,21 @@ export class UserStorageStore {
     const saving = new Promise<StoredRow | null>(resolve => {
       resolve(this.#adapter.save(owner, key, value, signal))
     })
-    void saving
+    // An aborted save may never settle, and its waiters would then wait forever: the abort
+    // settles it instead, as it does a load.
+    let stopWaiting = (): void => undefined
+    const abandoned = new Promise<never>((_resolve, reject) => {
+      const onAbort = (): void =>
+        reject(
+          createStorageError('disposed', owner, key, 'save a user value', {
+            observed: 'the signed-in user changed before this save settled',
+          }),
+        )
+      signal.addEventListener('abort', onAbort, { once: true })
+      stopWaiting = () => signal.removeEventListener('abort', onAbort)
+    })
+    void Promise.race([saving, abandoned])
+      .finally(stopWaiting)
       .then(row => {
         if (this.#disposed || generation !== this.#generation) throw signal.reason
         if (row !== null && !isRow(row))

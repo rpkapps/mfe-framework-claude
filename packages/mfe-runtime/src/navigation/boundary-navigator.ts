@@ -201,9 +201,23 @@ export class BoundaryNavigator {
     this.#emit([...this.#listeners], location)
   }
 
+  /**
+   * One listener's failure is reported and the rest are still told: the page has already moved,
+   * so a listener skipped here would keep rendering where it was until the next navigation.
+   */
   #emit(listeners: readonly LocationListener[], location: BoundaryLocation): void {
     this.#known = location
-    for (const listener of listeners) listener(location)
+    for (const listener of listeners) {
+      try {
+        listener(location)
+      } catch (error) {
+        this.#reportFailure(
+          error,
+          'tell a router where the page moved',
+          "Every other subscriber was still told. The cause's stack names the router adapter's location listener that threw; fix that listener.",
+        )
+      }
+    }
   }
 
   /**
@@ -354,7 +368,7 @@ export class BoundaryNavigator {
     this.#releaseDeferred('proceeded')
   }
 
-  #reportBlockerFailure(error: unknown, operation: string, repair: string): void {
+  #reportFailure(error: unknown, operation: string, repair: string): void {
     this.#diagnostics?.report(
       toMfeError(error, {
         code: 'app/invalid-router',
@@ -371,7 +385,7 @@ export class BoundaryNavigator {
       // the way TanStack treats one, rather than losing the prompt.
       return blocker.shouldBlockUnload?.() ?? true
     } catch (error) {
-      this.#reportBlockerFailure(
+      this.#reportFailure(
         error,
         'evaluate a navigation blocker for unload',
         'shouldBlockUnload must be a synchronous read of the MFE’s own state. The browser prompt was offered anyway, because losing it silently discards work.',
@@ -384,7 +398,7 @@ export class BoundaryNavigator {
     try {
       return blocker.shouldBlock(intent)
     } catch (error) {
-      this.#reportBlockerFailure(
+      this.#reportFailure(
         error,
         'evaluate a navigation blocker',
         'shouldBlockFn must be a synchronous read of the MFE’s own state. The navigation was allowed to proceed because the check could not be trusted.',
@@ -400,7 +414,7 @@ export class BoundaryNavigator {
     try {
       return await blocker.confirm(intent)
     } catch (error) {
-      this.#reportBlockerFailure(
+      this.#reportFailure(
         error,
         'resolve a navigation blocker',
         'The confirmation UI threw, so the navigation was cancelled to avoid discarding unsaved work. Fix the resolver and try again.',
