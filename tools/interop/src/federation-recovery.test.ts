@@ -73,6 +73,9 @@ function manifest(name: string): object {
 
 describe('real Module Federation recovery', () => {
   it('retries a rejected manifest through the real manifest cache', async () => {
+    // The federation runtime warns of the manifest it failed to get before the loader rejects; the
+    // warning is captured and checked rather than printed.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
     let remoteName = ''
     const fetchManifest = vi
       .fn<NonNullable<ModuleFederationRuntimePlugin['fetch']>>()
@@ -89,6 +92,12 @@ describe('real Module Federation recovery', () => {
     await expect(shared.load(registryEntry, { signal: liveSignal() })).rejects.toMatchObject({
       code: 'load/manifest-failure',
     })
+    expect(warn).toHaveBeenCalledOnce()
+    expect(warn).toHaveBeenCalledWith(
+      '[ Federation Runtime ]',
+      expect.objectContaining({ message: expect.stringContaining('#RUNTIME-003') }),
+    )
+    warn.mockRestore()
     await expect(shared.load(registryEntry, { signal: liveSignal() })).resolves.toMatchObject({
       identity: { id: 'counter' },
       module: counter,

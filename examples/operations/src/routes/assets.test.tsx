@@ -11,7 +11,7 @@ import {
 } from '@company/mfe-react/testing'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import operations from '../mfe.ts'
 
@@ -22,6 +22,7 @@ afterEach(async () => {
   const dispose = mounted
   mounted = null
   await dispose?.()
+  vi.restoreAllMocks()
 })
 
 function json(body: unknown, status = 200): Response {
@@ -37,6 +38,29 @@ const ASSETS = [
 ]
 
 const API = 'https://api.example.test/v1/'
+
+/**
+ * In development, React reports on the console the error a route's boundary caught, and the router
+ * the match that failed. A test of a failing load captures both and checks them, so the run prints
+ * only what fails unexpectedly.
+ */
+function captureBoundaryReport(): { expectReported(message: RegExp): void } {
+  const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
+  const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+  return {
+    expectReported(message) {
+      expect(error).toHaveBeenCalledOnce()
+      expect(error).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ message: expect.stringMatching(message) }),
+        expect.stringContaining('The above error occurred'),
+        expect.any(String),
+      )
+      expect(warn).toHaveBeenCalledOnce()
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('Error in route match: /assets'))
+    },
+  }
+}
 
 /** What the deployment would supply, and the base a relative request resolves against. */
 function configured(): void {
@@ -118,6 +142,7 @@ describe('the assets route', () => {
 
   it('surfaces an unsuccessful response as an error rather than an empty table', async () => {
     configured()
+    const report = captureBoundaryReport()
     setMfeFetch(() => new Response('', { status: 503, statusText: 'Service Unavailable' }))
 
     const rendered = renderApp(operations, { initialEntries: ['/assets'] })
@@ -126,10 +151,12 @@ describe('the assets route', () => {
     await waitFor(() => {
       expect(screen.getByText(/Loading assets for site north failed with 503/)).toBeInTheDocument()
     })
+    report.expectReported(/failed with 503 Service Unavailable/)
   })
 
   it('runs the loader again on Try again, so a recovered API renders its data', async () => {
     configured()
+    const report = captureBoundaryReport()
     let calls = 0
     setMfeFetch(() => {
       calls += 1
@@ -144,6 +171,7 @@ describe('the assets route', () => {
     await waitFor(() => {
       expect(screen.getByText('This page could not load its data')).toBeInTheDocument()
     })
+    report.expectReported(/failed with 503 Service Unavailable/)
 
     await userEvent.click(screen.getByRole('button', { name: 'Try again' }))
 
@@ -194,6 +222,7 @@ describe('the assets route', () => {
 describe('the generated-alias fixtures', () => {
   it('refuses a relative request when no base is configured', async () => {
     setMfeConfig({ apiBaseUrl: API, telemetryEnabled: false })
+    const report = captureBoundaryReport()
     // Deliberately no setMfeApiBaseUrl: this is the deployment that forgot to
     // supply the base, and it has to fail before any request goes out (§10.4).
     setMfeFetch(() => json([]))
@@ -205,5 +234,6 @@ describe('the generated-alias fixtures', () => {
       expect(screen.getByText(/apiBaseUrl/)).toBeInTheDocument()
     })
     expect(mfeRequests()).toHaveLength(0)
+    report.expectReported(/received the relative URL "assets\?site=north"/)
   })
 })
