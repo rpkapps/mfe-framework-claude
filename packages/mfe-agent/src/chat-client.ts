@@ -167,6 +167,8 @@ export class ChatClient {
   /** The last turn asked for. Each waits for the one before, so one run is in flight at a time. */
   #turn: Promise<void> = Promise.resolve()
   #approvals = 0
+  /** Set by `dispose`: a turn still queued never runs, and a page action is declined unasked. */
+  #disposed = false
   #snapshot: ChatSnapshot
 
   constructor(options: ChatClientOptions) {
@@ -363,6 +365,11 @@ export class ChatClient {
    */
   readonly requestApproval = (question: ApprovalQuestion): Promise<boolean> =>
     new Promise(resolve => {
+      // No view is left to show the card, so it would never be answered.
+      if (this.#disposed) {
+        resolve(false)
+        return
+      }
       const executing = this.#executing
       const toolCallId = executing?.name === question.toolName ? executing.callId : undefined
       this.#approvals += 1
@@ -406,6 +413,7 @@ export class ChatClient {
   }
 
   dispose(): void {
+    this.#disposed = true
     this.stop()
     this.#unsubscribeAgent()
     this.#listeners.clear()
@@ -420,6 +428,7 @@ export class ChatClient {
    */
   #enqueue(prepare: () => TurnInput | undefined): Promise<void> {
     const turn = this.#turn.then(async () => {
+      if (this.#disposed) return
       const input = prepare()
       if (input === undefined) return
       const generation = this.#generation
