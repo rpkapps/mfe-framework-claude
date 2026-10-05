@@ -211,17 +211,12 @@ describe('two React versions on one page', () => {
     await inSecondAct(() =>
       fireEvent.click(within(outer).getByRole('button', { name: 'Outer clicks: 0' })),
     )
-    // The 19.2 App renders on its own scheduler, so its update is awaited rather than read back
-    // synchronously.
     await inSecondAct(() =>
       fireEvent.click(within(inner).getByRole('button', { name: 'Inner clicks: 0' })),
     )
-    const second = await within(inner).findByRole(
-      'button',
-      { name: 'Inner clicks: 1' },
-      SECOND_REACT,
+    await inSecondAct(() =>
+      fireEvent.click(within(inner).getByRole('button', { name: 'Inner clicks: 1' })),
     )
-    await inSecondAct(() => fireEvent.click(second))
 
     await within(outer).findByRole('button', { name: 'Outer clicks: 1' })
     await within(inner).findByRole('button', { name: 'Inner clicks: 2' }, SECOND_REACT)

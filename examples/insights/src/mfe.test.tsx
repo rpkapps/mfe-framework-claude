@@ -98,7 +98,7 @@ describe('well-design', () => {
 
 describe('cost-vs-risk', () => {
   // jsdom lays nothing out, and the quadrant chart sizes itself to the box its container measures,
-  // so a zero box would render no chart. Its container measures what a card's column gives it.
+  // so a zero box would render no chart. 320×320 stands in for the box a card's column gives it.
   beforeEach(() => {
     const measure = HTMLElement.prototype.getBoundingClientRect
     vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (

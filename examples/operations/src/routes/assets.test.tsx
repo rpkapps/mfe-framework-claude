@@ -11,7 +11,7 @@ import {
 } from '@company/mfe-react/testing'
 import { screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 
 import operations from '../mfe.ts'
 
@@ -22,7 +22,6 @@ afterEach(async () => {
   const dispose = mounted
   mounted = null
   await dispose?.()
-  vi.restoreAllMocks()
 })
 
 function json(body: unknown, status = 200): Response {
@@ -41,23 +40,28 @@ const API = 'https://api.example.test/v1/'
 
 /**
  * In development, React reports on the console the error a route's boundary caught, and the router
- * the match that failed. A test of a failing load captures both and checks them, so the run prints
- * only what fails unexpectedly.
+ * the match that failed. A test of a failing load captures both until it has checked them, so the
+ * run prints only what fails unexpectedly.
  */
 function captureBoundaryReport(): { expectReported(message: RegExp): void } {
   const error = vi.spyOn(console, 'error').mockImplementation(() => undefined)
   const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
+  onTestFinished(() => {
+    error.mockRestore()
+    warn.mockRestore()
+  })
   return {
     expectReported(message) {
       expect(error).toHaveBeenCalledOnce()
-      expect(error).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.objectContaining({ message: expect.stringMatching(message) }),
-        expect.stringContaining('The above error occurred'),
-        expect.any(String),
-      )
+      // React's format string, the error, then where it occurred.
+      const report: readonly unknown[] = error.mock.calls[0] ?? []
+      expect(report[1]).toBeInstanceOf(Error)
+      expect((report[1] as Error).message).toMatch(message)
+      expect(report[2]).toContain('The above error occurred')
       expect(warn).toHaveBeenCalledOnce()
       expect(warn).toHaveBeenCalledWith(expect.stringContaining('Error in route match: /assets'))
+      error.mockRestore()
+      warn.mockRestore()
     },
   }
 }
