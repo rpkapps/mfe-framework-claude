@@ -154,7 +154,7 @@ function QuadrantTooltip({ point }: { point: DesignPoint }) {
         <span className="size-2.5 shrink-0 rounded-[2px]" style={{ background: point.color }} />
         {point.name}
         {point.isRecommended && (
-          <span className="ml-auto text-[0.625rem] text-muted-foreground">Recommended</span>
+          <span className="ml-auto text-2xs text-muted-foreground">Recommended</span>
         )}
       </div>
       <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-muted-foreground">

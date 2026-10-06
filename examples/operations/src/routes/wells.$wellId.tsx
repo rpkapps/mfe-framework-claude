@@ -170,7 +170,7 @@ function WellDetail(): ReactNode {
        * The card is fixed-width, so it gets a column of its own and the rest of the width goes to
        * the facts beside it.
        */}
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,--spacing(104))_minmax(0,1fr)]">
         <WellDesignCard design={design} />
 
         <Panel>
@@ -231,7 +231,7 @@ function Row({
   readonly children: ReactNode
 }): ReactNode {
   return (
-    <div className="grid gap-0.5 px-3 py-2 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] sm:items-baseline sm:gap-4">
+    <div className="grid gap-0.5 px-3 py-2 sm:grid-cols-[minmax(0,--spacing(48))_minmax(0,1fr)] sm:items-baseline sm:gap-4">
       <dt className="text-xs text-muted-foreground sm:text-sm">{label}</dt>
       <dd className="min-w-0 text-sm">{children}</dd>
     </div>

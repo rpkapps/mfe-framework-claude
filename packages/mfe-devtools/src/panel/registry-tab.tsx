@@ -37,7 +37,8 @@ import { useRegistryEntries } from './use-devtools.ts'
  * The overrides list's grid at a wider track, because these rows carry a contract under them.
  * `auto-rows-fr` is what makes every card match the tallest, without a height that would clip one.
  */
-const ENTRY_GRID = 'grid auto-rows-fr grid-cols-[repeat(auto-fill,minmax(min(100%,24rem),1fr))]'
+const ENTRY_GRID =
+  'grid auto-rows-fr grid-cols-[repeat(auto-fill,minmax(min(100%,--spacing(96)),1fr))]'
 
 /** A block of prose keeps a readable measure however wide the dock is opened. */
 const PROSE = 'max-w-3xl'
@@ -177,7 +178,7 @@ function AcceptedEntry({ entry }: { readonly entry: RegistryEntry }): ReactNode 
         )}
 
         {facts.length === 0 ? null : (
-          <dl className="mt-1 grid w-full grid-cols-[minmax(0,3.75rem)_minmax(0,1fr)] gap-x-2 text-[11px] leading-5">
+          <dl className="mt-1 grid w-full grid-cols-[minmax(0,--spacing(15))_minmax(0,1fr)] gap-x-2 text-[11px] leading-5">
             {facts.map(fact => (
               <Fragment key={fact.label}>
                 <dt className="truncate text-muted-foreground">{fact.label}</dt>

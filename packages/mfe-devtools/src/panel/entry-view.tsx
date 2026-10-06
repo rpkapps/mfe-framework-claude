@@ -16,7 +16,7 @@ export function EntryView({ source }: { readonly source: unknown }): ReactNode {
   }
 
   return (
-    <dl className="grid grid-cols-[minmax(0,7rem)_minmax(0,1fr)] gap-x-3 gap-y-1 text-[11px] leading-5">
+    <dl className="grid grid-cols-[minmax(0,--spacing(28))_minmax(0,1fr)] gap-x-3 gap-y-1 text-[11px] leading-5">
       {Object.entries(source as Record<string, unknown>).map(([name, value]) => (
         <Fragment key={name}>
           <dt className="truncate font-mono text-muted-foreground">{name}</dt>

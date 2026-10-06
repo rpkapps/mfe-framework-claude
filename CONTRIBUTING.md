@@ -83,6 +83,15 @@ unchanged sources produce unchanged bytes.
   abstraction, and an abstraction whose only consumer would be a hypothetical
   future adapter should not exist yet.
 
+- Size Tecton UI on Tecton's scale: a Tailwind step (`p-4`, `text-sm`, `text-2xs`)
+  or `--spacing(n)` in an arbitrary value (`grid-cols-[minmax(0,--spacing(48))_1fr]`,
+  `text-[length:--spacing(2.75)]`, `max-width: --spacing(96)` in CSS), never a
+  literal `rem`. Tecton's sizes follow `--tecton-rem`, which a shell that shrinks the root
+  font size for PrimeNG sets back to 16px; a literal `rem` shrinks with the root.
+  A size that takes no CSS variable (a panel size) is measured in pixels from
+  `--tecton-rem`. Media and container query breakpoints stay in `rem`, and
+  Angular and PrimeNG code follows the root font size on purpose.
+
 ## Errors and diagnostics
 
 Every developer-facing failure goes through `createMfeError` or `toMfeError`

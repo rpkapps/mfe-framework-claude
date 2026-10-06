@@ -95,8 +95,8 @@
     min-width: 100%;
   }
   .typeset .docs-table-scroll :is(th, td) {
-    max-width: 24rem;
-    min-width: 8rem;
+    max-width: --spacing(96);
+    min-width: --spacing(32);
     overflow-wrap: normal;
   }
   .typeset .docs-table-scroll code {
@@ -252,10 +252,10 @@
 
   [data-highlighted-chars] {
     border-radius: var(--radius-sm);
-    padding-inline: 0.3rem;
-    padding-block: 0.1rem;
+    padding-inline: --spacing(1.2);
+    padding-block: --spacing(0.4);
     font-family: var(--font-mono);
-    font-size: 0.8rem;
+    font-size: --spacing(3.2);
   }
 
   /* A search hit's matched words. */

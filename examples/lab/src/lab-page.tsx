@@ -129,7 +129,7 @@ export function DataRow({
   readonly children: ReactNode
 }): ReactNode {
   return (
-    <div className="grid gap-0.5 px-3 py-2 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)] sm:items-baseline sm:gap-4">
+    <div className="grid gap-0.5 px-3 py-2 sm:grid-cols-[minmax(0,--spacing(48))_minmax(0,1fr)] sm:items-baseline sm:gap-4">
       <dt className="flex flex-col">
         <span className="font-mono text-xs text-muted-foreground">{label}</span>
         {hint === undefined ? null : (
