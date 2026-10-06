@@ -92,31 +92,37 @@ useAction({
   name: 'copy-ranking',
   label: 'Reports: copy the ranking',
   placements: ['palette'],
-  execute: () => {
-    void navigator.clipboard.writeText(rows.join('\n'))
-  },
+  // rows holds the ranking as tab-separated lines, built from alternatives.
+  execute: () => navigator.clipboard.writeText(rows.join('\n')),
 })
 ```
 
 </Tab>
 <Tab value="Angular">
 
-```ts title="Illustrative Angular component constructor"
+```ts title="src/app/ranking.component.ts"
+import { Component, signal } from '@angular/core'
 import { injectAction } from '@company/mfe-angular'
 
-// Inside a component constructor; rows is your component's signal.
-injectAction(() => ({
-  name: 'copy-ranking',
-  label: 'Reports: copy the ranking',
-  placements: ['palette'],
-  execute: () => navigator.clipboard.writeText(this.rows().join('\n')),
-}))
+@Component({
+  selector: 'reports-ranking',
+  template: `<button (click)="copyRanking()">Copy the ranking</button>`,
+})
+export class RankingComponent {
+  readonly rows = signal<string[]>([])
+  readonly copyRanking = injectAction(() => ({
+    name: 'copy-ranking',
+    label: 'Reports: copy the ranking',
+    placements: ['palette'],
+    execute: () => navigator.clipboard.writeText(this.rows().join('\n')),
+  }))
+}
 ```
 
 </Tab>
 </Tabs>
 
-`placements` lists where the shell offers the action. Leave it out to offer the action in both places.
+`placements` lists where the shell offers the action. Left out, it offers the action in both places.
 
 | `placements`           | Command palette | Agent's tools |
 | ---------------------- | --------------- | ------------- |
@@ -126,13 +132,12 @@ injectAction(() => ({
 | `['agent']`            | no              | yes           |
 | `[]`                   | no              | no            |
 
-The shortcut and your own button run the action whatever `placements` lists.
-`'palette'` and `'agent'` are the only placements. Any other value throws `action/invalid-registration`.
+The agent gets the action only while `canExecute` allows it. The palette shows a denied action with its reason.
+Your shortcut and your own button ignore `placements`. Any other value throws `action/invalid-registration`.
 
 </Step>
 
 <Step>
-<span id="add-a-shortcut" />
 
 ### 3. Choose the lifetime and optional shortcut
 
@@ -169,10 +174,8 @@ this.logInspectionAction = injectAction(() => ({
 </Tabs>
 
 Register in a layout component for App-wide actions, or a page component for page actions.
-An App's shortcut fires while the page is inside your App. Widgets cannot register shortcuts.
-Use `+` for chords such as `mod+s`, and spaces for sequences such as `o w`. `mod` means Command on macOS and Control elsewhere.
-A shortcut without Control, Command or Alt does not fire while the user types in a field.
-Press `?` in the shell to see every key in use. The [shortcut syntax](/docs/reference/hooks-and-components#shortcut-syntax) lists every key name.
+An App's shortcut fires while the page is inside your App, and a Widget's is ignored.
+The [shortcut syntax](/docs/reference/hooks-and-components#shortcut-syntax) lists key names, the shell's own keys and what happens on a clash.
 
 </Step>
 
@@ -180,9 +183,10 @@ Press `?` in the shell to see every key in use. The [shortcut syntax](/docs/refe
 
 ## Check it works
 
-Open the palette with Command+K or Control+K while your component is mounted. Find “Acknowledge alert” under “From the mounted application”, then run it.
-Reopen the palette. The row is now disabled and reads “Already acknowledged.”
-If the action has a shortcut, press `?` and find it in the key list. Leave the component and confirm the action disappears.
+Open the palette with Command+K or Control+K while your component is mounted.
+Run “Acknowledge alert” from the “From the mounted application” group.
+Reopen the palette and confirm the row is disabled and reads “Already acknowledged.”
+Press `?` to find a shortcut in the key list, then leave the component and confirm the action disappears.
 
 ## Errors
 
@@ -228,7 +232,7 @@ live action can be pressed for at the same time, received 'orders:open-work' (o 
 them.
 ```
 
-**Fix.** Give one of the two actions different keys. Neither shortcut fires while both are registered. Both actions stay in the palette.
+**Fix.** Give one of the two actions different keys. Neither shortcut fires while both are registered.
 
 </Callout>
 

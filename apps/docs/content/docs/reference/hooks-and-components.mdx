@@ -213,14 +213,14 @@ Recipe: [Add an action to the palette](/docs/add-an-action).
 
 A `shortcut` is one chord, or a sequence of chords separated by spaces. A chord is modifiers and one key joined by `+`.
 
-| Part      | Write                                                                                                   |
-| --------- | ------------------------------------------------------------------------------------------------------- |
-| Modifier  | `mod` (Command on macOS, Control elsewhere), `ctrl`, `alt` or `option`, `shift`, `meta` or `cmd`        |
-| Key       | One character such as `s`, `?` or `/`, or a name: `escape`, `enter`, `tab`, `space`, `plus`, `f1`–`f24` |
-| More keys | `backspace`, `delete`, `insert`, `home`, `end`, `pageup`, `pagedown`, `arrowup` and the other arrows    |
-| Sequence  | Chords separated by spaces, such as `o w`. Each chord must follow the last within one second.           |
+| Part      | Write                                                                                                                    |
+| --------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Modifier  | `mod` (Command on macOS, Control elsewhere), `ctrl` or `control`, `alt` or `option`, `shift`, `meta`, `cmd` or `command` |
+| Key       | One character such as `s`, `?` or `/`, or a name: `escape`, `enter`, `tab`, `space`, `plus`, `f1`–`f24`                  |
+| More keys | `backspace`, `delete`, `insert`, `home`, `end`, `pageup`, `pagedown`, `arrowup` and the other arrows                     |
+| Sequence  | Chords separated by spaces, such as `o w`. Each chord must follow the last within one second.                            |
 
-Case does not matter, and `esc`, `return`, `up` and `del` are accepted aliases. A chord holds exactly one key, and `mod` cannot be combined with `ctrl` or `meta`. A shortcut the registry cannot read throws `action/invalid-registration`.
+Case does not matter. `esc`, `return`, `spacebar`, `del`, `up`, `down`, `left` and `right` are accepted aliases. A chord holds exactly one key, and `mod` cannot be combined with `ctrl` or `meta`. A shortcut the registry cannot read throws `action/invalid-registration`.
 
 A shortcut fires only while the user is not typing in a field, unless every chord holds `mod`, `ctrl`, `alt` or `meta`. The shell keeps its own keys. Press `?` in the shell to see every key in use. The shell currently uses these:
 
@@ -231,15 +231,13 @@ A shortcut fires only while the user is not typing in a field, unless every chor
 | `mod+j` | Switch the theme            |
 | `?`     | Help and keyboard shortcuts |
 | `g r`   | Open the registry           |
-| `g d`   | Open the devtools           |
+| `g d`   | Open the developer tools    |
 | `g s`   | Open settings               |
 | `g w`   | Go to the Widget dashboard  |
 
-Two shortcuts clash when one equals the other or begins it, so `g` alone clashes with `g r`. A refused shortcut reports `action/shortcut-refused` as a warning, and the action stays in the palette without its keys. The registry refuses a shortcut in these cases:
+Two shortcuts clash when one equals the other or begins it, so `g` alone clashes with `g r`. The registry refuses a shortcut that a Widget declares or that clashes with a shell shortcut. A refused shortcut reports `action/shortcut-refused` as a warning, and the action still runs without its keys.
 
-- A Widget declares it.
-- It clashes with a shell shortcut.
-- It clashes with another action of your App, or of an App nested inside yours or around it. Neither of the two fires while both are registered.
+Two App actions whose shortcuts clash both keep their keys, but neither fires while both are registered. That happens within one App, or between an App and one nested inside it or around it. The later registration reports `action/shortcut-refused`.
 
 ### allow and deny
 
