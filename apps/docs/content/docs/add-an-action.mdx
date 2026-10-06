@@ -1,9 +1,9 @@
 ---
 title: 'Add an action to the palette'
-description: 'Register actions from React or Angular, and run them through the shell palette or your own button.'
+description: 'Register an action from React or Angular, choose where it appears, and run it from the palette, a shortcut or your own button.'
 ---
 
-Apps and Widgets. Register an action to make it available in the shell command palette. Your container owns its implementation and availability.
+Apps and Widgets. An action is one operation your container offers to the shell. By default the shell lists it in the command palette and offers it to its agent. Your container owns its implementation and when it may run.
 
 <Diagram
   src="/diagrams/capability-actions.svg"
@@ -80,13 +80,99 @@ The registration ends when its component unmounts or injector is destroyed.
 </Step>
 
 <Step>
-### 2. Choose the lifetime and optional shortcut
+<span id="choose-where-it-appears" />
+
+### 2. Choose where it appears
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="examples/reports/src/routes/__root.tsx (trimmed)"
+useAction({
+  name: 'copy-ranking',
+  label: 'Reports: copy the ranking',
+  placements: ['palette'],
+  execute: () => {
+    void navigator.clipboard.writeText(rows.join('\n'))
+  },
+})
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="Illustrative Angular component constructor"
+import { injectAction } from '@company/mfe-angular'
+
+// Inside a component constructor; rows is your component's signal.
+injectAction(() => ({
+  name: 'copy-ranking',
+  label: 'Reports: copy the ranking',
+  placements: ['palette'],
+  execute: () => navigator.clipboard.writeText(this.rows().join('\n')),
+}))
+```
+
+</Tab>
+</Tabs>
+
+`placements` lists where the shell offers the action. Leave it out to offer the action in both places.
+
+| `placements`           | Command palette | Agent's tools |
+| ---------------------- | --------------- | ------------- |
+| left out, the default  | yes             | yes           |
+| `['palette', 'agent']` | yes             | yes           |
+| `['palette']`          | yes             | no            |
+| `['agent']`            | no              | yes           |
+| `[]`                   | no              | no            |
+
+The shortcut and your own button run the action whatever `placements` lists.
+`'palette'` and `'agent'` are the only placements. Any other value throws `action/invalid-registration`.
+
+</Step>
+
+<Step>
+<span id="add-a-shortcut" />
+
+### 3. Choose the lifetime and optional shortcut
+
+<Tabs items={['React', 'Angular']}>
+<Tab value="React">
+
+```tsx title="examples/operations/src/routes/__root.tsx (trimmed)"
+useAction({
+  name: 'open-wells',
+  label: 'Operations: open the wells inventory',
+  shortcut: 'o w',
+  execute: () => {
+    void navigate({ to: '/wells' })
+  },
+})
+```
+
+</Tab>
+<Tab value="Angular">
+
+```ts title="examples/fieldwork/src/overview.component.ts (trimmed)"
+this.logInspectionAction = injectAction(() => ({
+  name: 'log-inspection',
+  label: 'Fieldwork: log an inspection at the chosen pad',
+  shortcut: 'f l',
+  canExecute: () => (this.padId() === null ? deny('Choose a well pad first.') : allow()),
+  execute: () => {
+    this.logInspection()
+  },
+}))
+```
+
+</Tab>
+</Tabs>
 
 Register in a layout component for App-wide actions, or a page component for page actions.
-An App action can declare `shortcut: 'o w'`. Widgets cannot register shortcuts.
-Use `+` for chords such as `mod+s`, and spaces for sequences. `mod` means Command on macOS and Control elsewhere.
-Choose keys that do not conflict with shell shortcuts or other live actions.
-See the [shortcut rules](/docs/reference/hooks-and-components#useaction) before assigning keys.
+An App's shortcut fires while the page is inside your App. Widgets cannot register shortcuts.
+Use `+` for chords such as `mod+s`, and spaces for sequences such as `o w`. `mod` means Command on macOS and Control elsewhere.
+A shortcut without Control, Command or Alt does not fire while the user types in a field.
+Press `?` in the shell to see every key in use. The [shortcut syntax](/docs/reference/hooks-and-components#shortcut-syntax) lists every key name.
 
 </Step>
 
@@ -94,9 +180,9 @@ See the [shortcut rules](/docs/reference/hooks-and-components#useaction) before 
 
 ## Check it works
 
-Open the palette with Command+K or Control+K while your component is mounted. Find “Acknowledge alert”, then run it.
-Reopen the palette and confirm the reason reads “Already acknowledged.” Your button should use the same check.
-Leave the component and confirm its action disappears.
+Open the palette with Command+K or Control+K while your component is mounted. Find “Acknowledge alert” under “From the mounted application”, then run it.
+Reopen the palette. The row is now disabled and reads “Already acknowledged.”
+If the action has a shortcut, press `?` and find it in the key list. Leave the component and confirm the action disappears.
 
 ## Errors
 
@@ -134,9 +220,22 @@ string.
 
 </Callout>
 
+<Callout type="error" title="expected keys no other live action can be pressed for at the same time">
+
+```text shared
+operations failed to register the shortcut 'o w' for action 'open-wells': expected keys no other
+live action can be pressed for at the same time, received 'orders:open-work' (o w) already claims
+them.
+```
+
+**Fix.** Give one of the two actions different keys. Neither shortcut fires while both are registered. Both actions stay in the palette.
+
+</Callout>
+
 ## Related
 
-- [Action fields and results](/docs/reference/hooks-and-components#useaction) — exact contract and shortcut rules.
+- [Action fields and results](/docs/reference/hooks-and-components#useaction) — every field and result.
+- [Shortcut syntax](/docs/reference/hooks-and-components#shortcut-syntax) — key names, clashes and the shell's own keys.
 - [Angular injection](/docs/reference/angular-adapter#read-the-shell-from-inside-a-mount) — factory and lifecycle details.
 - [Offer an action to the agent](/docs/offer-an-action-to-the-agent) — schemas and approval behavior.
 - [Error codes](/docs/reference/error-codes) — registration and shortcut failures.
