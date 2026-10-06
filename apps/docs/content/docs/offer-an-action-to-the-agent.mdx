@@ -222,9 +222,9 @@ injectAction(() => ({
 </Tab>
 </Tabs>
 
-`placements` lists where the action is offered. Left out, it is `['palette', 'agent']`. List only
-`'palette'` to keep the action from the agent, or `[]` to list it nowhere. Its shortcut and your own
-button still run it either way.
+List only `'palette'` to keep the action from the agent. Left out, `placements` is
+`['palette', 'agent']`. Its shortcut and your own button still run it.
+[Choose where it appears](/docs/add-an-action#choose-where-it-appears) has every combination.
 
 </Step>
 
@@ -395,7 +395,7 @@ is `action/timeout`, and the agent is told the run failed.
 
 ## Related
 
-- [Add an action to the palette](/docs/add-an-action) — registering it, `canExecute` and shortcuts.
+- [Add an action to the palette](/docs/add-an-action) — registering it, placements, `canExecute` and shortcuts.
 - [Hooks and components](/docs/reference/hooks-and-components#useaction) — every field and result.
 - [Error codes](/docs/reference/error-codes) — every message, with its fix.
 - [Test an App](/docs/test-an-app) — the test environment the check uses.

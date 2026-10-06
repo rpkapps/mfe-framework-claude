@@ -93,8 +93,8 @@ Link to that home from other pages with a reason to follow it.
 Repeat a short prerequisite or warning where it prevents a mistake, such as storage surviving sign-out.
 Keep unique host contracts and framework limitations when consolidating duplicate examples.
 Distinguish shipped behavior from proposals. A decision entry records history and links to current guidance.
-Group navigation by feature: getting started, Apps, Widgets, storage, telemetry,
-shell integration, API, Env, and development and deployment. The top-level API group has three
+Group navigation by feature: getting started, Apps, Widgets, storage, telemetry, actions and
+agent, shell integration, API, Env, and development and deployment. The top-level API group has three
 guides: API requests, API URL and TanStack Query. Keep reference and architecture accessible.
 Use short sidebar labels through `NAV_LABELS` in `src/lib/source.ts`. Keep descriptive task titles
 in frontmatter for page headers and search.

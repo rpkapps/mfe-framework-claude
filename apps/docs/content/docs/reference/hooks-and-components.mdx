@@ -172,8 +172,8 @@ Publishes one action for as long as the component is rendered. The shell lists i
 | `parallelSafe`  | `boolean`, optional                                | Lets an agent's write run beside another. Without it, an agent's writes run one at a time.                                                |
 | `timeoutMs`     | `number`, optional                                 | How long an agent's call may run once `execute` starts, 30 seconds by default. Then it fails with `action/timeout`.                       |
 | `followUp`      | `boolean`, optional                                | Whether the agent carries on once it has the result. Defaults to `true`.                                                                  |
-| `placements`    | `('palette' \| 'agent')[]`, optional               | Where the action is offered. Absent is `['palette', 'agent']`, and `[]` lists it nowhere.                                                 |
-| `shortcut`      | `string`, optional                                 | A chord such as `'mod+s'` or a sequence such as `'g r'`. It fires while the page is inside your App. A Widget's is ignored.               |
+| `placements`    | `('palette' \| 'agent')[]`, optional               | Where the action is offered. Absent is `['palette', 'agent']`, and `[]` lists it nowhere. The shortcut fires either way.                  |
+| `shortcut`      | `string`, optional                                 | A chord such as `'mod+s'` or a sequence such as `'o w'`. It fires while the page is inside your App. A Widget's is ignored.               |
 
 ```ts title="examples/lab/src/routes/actions.tsx (trimmed)"
 const simulationInput = z.object({ runs: z.number().int().min(1).max(1000).default(100) })
@@ -208,6 +208,36 @@ A field changed on a later render is checked as it was at registration, and one 
 The promise never rejects: every outcome is one of these results, and every run is audited once. When a run is given up (an agent's call passed its deadline, the component unmounted, or the user pressed Stop), the `signal` `execute` received aborts, and whatever `execute` returns afterwards is dropped. Approval applies to an agent's calls only. A user who runs the action from the palette, a shortcut or your button is its approval, so none of those asks. `ActionEffect`, `ActionInputSchema`, `ActionRun` and `ActionExecutionResult` are exported as types.
 
 Recipe: [Add an action to the palette](/docs/add-an-action).
+
+### Shortcut syntax
+
+A `shortcut` is one chord, or a sequence of chords separated by spaces. A chord is modifiers and one key joined by `+`.
+
+| Part      | Write                                                                                                                    |
+| --------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Modifier  | `mod` (Command on macOS, Control elsewhere), `ctrl` or `control`, `alt` or `option`, `shift`, `meta`, `cmd` or `command` |
+| Key       | One character such as `s`, `?` or `/`, or a name: `escape`, `enter`, `tab`, `space`, `plus`, `f1`–`f24`                  |
+| More keys | `backspace`, `delete`, `insert`, `home`, `end`, `pageup`, `pagedown`, `arrowup` and the other arrows                     |
+| Sequence  | Chords separated by spaces, such as `o w`. Each chord must follow the last within one second.                            |
+
+Case does not matter. `esc`, `return`, `spacebar`, `del`, `up`, `down`, `left` and `right` are accepted aliases. A chord holds exactly one key, and `mod` cannot be combined with `ctrl` or `meta`. A shortcut the registry cannot read throws `action/invalid-registration`.
+
+A shortcut fires only while the user is not typing in a field, unless every chord holds `mod`, `ctrl`, `alt` or `meta`. The shell keeps its own keys. Press `?` in the shell to see every key in use. The shell currently uses these:
+
+| Keys    | Shell action                |
+| ------- | --------------------------- |
+| `mod+k` | Open the command palette    |
+| `mod+i` | Ask the assistant           |
+| `mod+j` | Switch the theme            |
+| `?`     | Help and keyboard shortcuts |
+| `g r`   | Open the registry           |
+| `g d`   | Open the developer tools    |
+| `g s`   | Open settings               |
+| `g w`   | Go to the Widget dashboard  |
+
+Two shortcuts clash when one equals the other or begins it, so `g` alone clashes with `g r`. The registry refuses a shortcut that a Widget declares or that clashes with a shell shortcut. A refused shortcut reports `action/shortcut-refused` as a warning, and the action still runs without its keys.
+
+Two App actions whose shortcuts clash both keep their keys, but neither fires while both are registered. That happens within one App, or between an App and one nested inside it or around it. The later registration reports `action/shortcut-refused`.
 
 ### allow and deny
 
