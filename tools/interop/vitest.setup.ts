@@ -27,6 +27,18 @@ declare module 'vitest' {
 
 expect.extend(jestDom)
 
+/*
+ * jsdom lays nothing out, so it implements no scrolling, and its `scrollTo` reports that on the
+ * console. The router resets the window's scroll after every navigation it renders. Nothing in a
+ * jsdom page can scroll, so doing nothing is what a browser would do for a page that fits.
+ * Bare `scrollTo(…)` reads the global, which the environment copied from the window, so both are replaced.
+ */
+if (typeof window !== 'undefined') {
+  const scrollTo = (): void => {}
+  window.scrollTo = scrollTo
+  globalThis.scrollTo = scrollTo
+}
+
 // A React tree or an Angular host application left rendered would keep every definition mounted
 // inside it, and their registrations, into the next test. This runs before the `onTestFinished`
 // hooks, so each page runtime is disposed only after everything mounted with it is gone.

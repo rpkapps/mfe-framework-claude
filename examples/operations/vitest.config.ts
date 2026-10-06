@@ -2,7 +2,11 @@ import { fileURLToPath } from 'node:url'
 
 import { defineConfig } from 'vitest/config'
 
-import { tectonResolveForTests, tectonServerForTests } from '../../tools/tecton/vitest.mjs'
+import {
+  singleCopyForTests,
+  tectonResolveForTests,
+  tectonServerForTests,
+} from '../../tools/tecton/vitest.mjs'
 
 /**
  * The repository's root config runs every example as one project. This is that
@@ -27,11 +31,11 @@ export default defineConfig({
         find: /^#mfe\/meta$/,
         replacement: fileURLToPath(new URL('./.mfe/meta.ts', import.meta.url)),
       },
-      // One copy of React, and of everything that carries React context: the
-      // design system is a link to a checkout with its own node_modules.
-      ...tectonResolveForTests.alias,
     ],
   },
+  // One copy of React, and of everything that carries React context: the
+  // design system is a link to a checkout with its own node_modules.
+  plugins: [singleCopyForTests],
   test: {
     environment: 'jsdom',
     setupFiles: ['../../packages/mfe-react/vitest.setup.ts'],

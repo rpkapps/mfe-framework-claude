@@ -14,6 +14,9 @@ import { createRootRouteWithContext, createRoute, createRouter } from '@tanstack
 import { createElement as h, useEffect, useState, version, type ReactNode } from 'react'
 import { version as domVersion } from 'react-dom'
 
+/** The bundle's own React's `act`, which the test's `act` cannot stand in for. */
+export { act } from 'react'
+
 /** What the bundle's own React and React DOM report, for the test to compare with its own. */
 export const bundledVersions = { react: version, reactDom: domVersion }
 

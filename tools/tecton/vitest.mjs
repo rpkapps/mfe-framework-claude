@@ -3,14 +3,11 @@
  * `link:` to a sibling checkout whose own React would otherwise be a second copy.
  */
 
-import { createRequire } from 'node:module'
-import { dirname, sep } from 'node:path'
+import { sep } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 import { sourceResolveForTests } from '../workspace/conditions.mjs'
 import { tectonCheckoutDirectory } from './location.mjs'
-
-/** Resolved from the shell, the only package here that declares every one of these. */
-const fromShell = createRequire(new URL('../../apps/shell/package.json', import.meta.url))
 
 /** Packages that carry React context, where a second copy is the same failure as React's own. */
 export const SINGLE_COPY = [
@@ -44,26 +41,34 @@ export const INLINE_DEPS = [
   /@react-(aria|stately|types)/,
 ]
 
-/** `dedupe` alone resolves from the project root, where these projects have no `node_modules`. */
-export const singleCopyAliases = SINGLE_COPY.flatMap(name => {
-  // A package only the design system depends on has one copy already.
-  let directory
-  try {
-    directory = dirname(fromShell.resolve(`${name}/package.json`))
-  } catch {
-    return []
-  }
-  return [
-    { find: new RegExp(`^${name.replace('/', '\\/')}$`), replacement: directory },
-    { find: new RegExp(`^${name.replace('/', '\\/')}\\/`), replacement: `${directory}/` },
-  ]
-})
+/** The shell, the only package here that declares every one of these, as an importer. */
+const shellImporter = fileURLToPath(new URL('../../apps/shell/package.json', import.meta.url))
+
+/** One of SINGLE_COPY, or a subpath of one. */
+const singleCopySpecifier = new RegExp(
+  `^(?:${SINGLE_COPY.map(name => name.replace('/', '\\/')).join('|')})(?:\\/|$)`,
+)
+
+/**
+ * `dedupe` alone resolves from the project root, where these projects have no `node_modules`, so
+ * each import of one of these is resolved again as if the shell made it. The specifier stays bare,
+ * which keeps the package's `exports`: an alias to its directory would fall back to `main`, which
+ * for @tanstack/react-router is the CommonJS build, whose router-core warns of a circular require.
+ */
+export const singleCopyForTests = {
+  name: 'single-copy-for-tests',
+  enforce: 'pre',
+  resolveId(source, _importer, options) {
+    if (!singleCopySpecifier.test(source)) return null
+    // A package only the design system depends on resolves to nothing here, and has one copy already.
+    return this.resolve(source, shellImporter, { ...options, skipSelf: true })
+  },
+}
 
 /** With the framework packages' TypeScript source rather than their dist/ (tools/workspace). */
 export const tectonResolveForTests = {
   ...sourceResolveForTests,
   dedupe: SINGLE_COPY,
-  alias: singleCopyAliases,
 }
 
 export const tectonServerForTests = { deps: { inline: INLINE_DEPS } }

@@ -2,7 +2,11 @@ import { resolve } from 'node:path'
 
 import { defineConfig, type TestProjectInlineConfiguration } from 'vitest/config'
 
-import { tectonResolveForTests, tectonServerForTests } from './tools/tecton/vitest.mjs'
+import {
+  singleCopyForTests,
+  tectonResolveForTests,
+  tectonServerForTests,
+} from './tools/tecton/vitest.mjs'
 import { sourceResolveForTests, sourceSsrForTests } from './tools/workspace/conditions.mjs'
 
 /**
@@ -47,6 +51,7 @@ export default defineConfig({
           server: tectonServerForTests,
         },
         resolve: tectonResolveForTests,
+        plugins: [singleCopyForTests],
       },
       {
         test: {
@@ -83,6 +88,7 @@ export default defineConfig({
           server: tectonServerForTests,
         },
         resolve: tectonResolveForTests,
+        plugins: [singleCopyForTests],
       },
       {
         test: {
@@ -94,6 +100,7 @@ export default defineConfig({
           server: tectonServerForTests,
         },
         resolve: tectonResolveForTests,
+        plugins: [singleCopyForTests],
       },
       {
         test: {
@@ -169,10 +176,9 @@ export default defineConfig({
             // under test keeps its production imports (§14).
             { find: /^#mfe\/config$/, replacement: '@company/mfe-react/testing/mfe-config' },
             { find: /^#mfe\/fetch$/, replacement: '@company/mfe-react/testing/mfe-fetch' },
-            ...tectonResolveForTests.alias,
           ],
         },
-        plugins: [mfeMeta],
+        plugins: [mfeMeta, singleCopyForTests],
       },
       {
         test: {
@@ -184,6 +190,7 @@ export default defineConfig({
           server: tectonServerForTests,
         },
         resolve: tectonResolveForTests,
+        plugins: [singleCopyForTests],
       },
       {
         test: {

@@ -3,7 +3,7 @@
 import { mountWidget, renderWidget } from '@company/mfe-react/testing'
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { costVsRisk, fdaSummary, wellDesign } from './mfe.tsx'
 
@@ -97,6 +97,23 @@ describe('well-design', () => {
 })
 
 describe('cost-vs-risk', () => {
+  // jsdom lays nothing out, and the quadrant chart sizes itself to the box its container measures,
+  // so a zero box would render no chart. 320×320 stands in for the box a card's column gives it.
+  beforeEach(() => {
+    const measure = HTMLElement.prototype.getBoundingClientRect
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.classList.contains('recharts-responsive-container')
+        ? new DOMRect(0, 0, 320, 320)
+        : measure.call(this)
+    })
+  })
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+  })
+
   it('mounts with the defaulted comparison and declares no outputs', () => {
     const rendered = renderWidget(costVsRisk, { props: {} })
     cleanup = rendered.dispose

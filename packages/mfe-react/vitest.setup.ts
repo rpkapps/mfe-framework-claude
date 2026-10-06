@@ -64,6 +64,18 @@ if (typeof Element !== 'undefined' && typeof Element.prototype.getAnimations !==
   Element.prototype.getAnimations = () => []
 }
 
+/*
+ * jsdom lays nothing out, so it implements no scrolling, and its `scrollTo` reports that on the
+ * console. The router resets the window's scroll after every navigation it renders. Nothing in a
+ * jsdom page can scroll, so doing nothing is what a browser would do for a page that fits.
+ * Bare `scrollTo(…)` reads the global, which the environment copied from the window, so both are replaced.
+ */
+if (typeof window !== 'undefined') {
+  const scrollTo = (): void => {}
+  window.scrollTo = scrollTo
+  globalThis.scrollTo = scrollTo
+}
+
 // Automatic cleanup after every test so no mount, root, subscription or
 // registration leaks into the next one. The generated-alias fixtures are
 // module state and would otherwise carry one test's configuration and request
