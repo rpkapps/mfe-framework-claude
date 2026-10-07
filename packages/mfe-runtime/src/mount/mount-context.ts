@@ -63,6 +63,8 @@ export interface CreateMountContextOptions {
   readonly definitionId: string
   readonly definitionVersion?: string
   readonly kind: DefinitionKind
+  /** The definition's `framework`, stamped on both roots as `data-mfe-adapter`. */
+  readonly framework?: string
   readonly instanceId?: string
   /** The assigned URL boundary, always `''` for a Widget. */
   readonly basePath?: string
@@ -102,7 +104,7 @@ export function createMountToken(definitionId: string): string {
 }
 
 export function createMountContext(options: CreateMountContextOptions): MountContextHandle {
-  const { runtime, definitionId, kind } = options
+  const { runtime, definitionId, kind, framework } = options
   const mountToken = createMountToken(definitionId)
   const disposal = new AbortController()
 
@@ -126,8 +128,13 @@ export function createMountContext(options: CreateMountContextOptions): MountCon
   // Both roots are created here, so the token stamped on them is always this context's own.
   const ownerDocument = options.document ?? document
   const scopeRoot = ownerDocument.createElement('div')
-  applyScopeAttributes(scopeRoot, { definitionId, mountToken, kind })
-  const overlay = createOverlayRoot(definitionId, mountToken, ownerDocument)
+  applyScopeAttributes(scopeRoot, {
+    definitionId,
+    mountToken,
+    kind,
+    ...withoutUndefined({ framework }),
+  })
+  const overlay = createOverlayRoot(definitionId, mountToken, ownerDocument, framework)
 
   const context: MountContext = {
     runtime,

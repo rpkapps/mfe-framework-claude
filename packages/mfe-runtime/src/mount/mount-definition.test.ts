@@ -43,6 +43,7 @@ import type {
   WidgetUpdateResult,
 } from './mountable-definition.ts'
 import {
+  ADAPTER_ATTRIBUTE,
   KIND_ATTRIBUTE,
   MOUNT_ATTRIBUTE,
   OVERLAY_ROOT_ATTRIBUTE,
@@ -446,6 +447,8 @@ describe('mounting', () => {
     expect(scopeRoot.getAttribute(SCOPE_ATTRIBUTE)).toBe('reports')
     expect(scopeRoot.getAttribute(MOUNT_ATTRIBUTE)).toBe(target.context.mountToken)
     expect(scopeRoot.getAttribute(KIND_ATTRIBUTE)).toBe('app')
+    expect(scopeRoot.getAttribute(ADAPTER_ATTRIBUTE)).toBe(FRAMEWORK)
+    expect(target.context.overlayRoot.getAttribute(ADAPTER_ATTRIBUTE)).toBe(FRAMEWORK)
     expect(target.element.parentElement).toBe(scopeRoot)
     expect(target.element.style.display).toBe('contents')
     expect(target.context.scopeRoot).toBe(scopeRoot)

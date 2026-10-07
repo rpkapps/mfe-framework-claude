@@ -57,10 +57,11 @@ chunk the browser parsed last.
 
 The runtime creates two roots per mount, whichever adapter built the definition. The scope root is a
 `display: contents` div around the definition's element, carrying `data-mfe-scope`,
-`data-mfe-mount` and `data-mfe-kind`. The overlay root is appended to `document.body`, with the same
-scope value, so a dialog at body level still matches the start selector. A definition renders
-inside the first, portals into the second, and adds no root of its own. A React container's
-generated style root renders inside the scope root.
+`data-mfe-mount`, `data-mfe-kind` and `data-mfe-adapter`, the definition's `framework` (`react`,
+`angular`). The overlay root is appended to `document.body`, with the same scope value and adapter,
+so a dialog at body level still matches the start selector and page-wide CSS can single out one
+adapter's overlays. A definition renders inside the first, portals into the second, and adds no
+root of its own. A React container's generated style root renders inside the scope root.
 
 Three more things happen to the sheet. Document-global at-rules are hoisted out of the scope
 unchanged. Every `@keyframes` the sheet defines is renamed after the container's ids, and its

@@ -376,6 +376,7 @@ class DefinitionAttempts implements MountOperations<MountableDefinition> {
       definitionId: definition.id,
       ...withoutUndefined({ definitionVersion: definition.version }),
       kind: definition.kind,
+      framework: definition.framework,
       ...(this.#request.kind === 'app' ? { basePath: this.#request.basePath } : {}),
       ...(this.#request.kind === 'widget'
         ? withoutUndefined({ instanceId: this.#request.instanceId })

@@ -14,6 +14,12 @@ export const MOUNT_ATTRIBUTE = 'data-mfe-mount'
 /** Which kind of definition a mount root belongs to, for a tool reading the page rather than the registry. */
 export const KIND_ATTRIBUTE = 'data-mfe-kind'
 
+/**
+ * Which adapter built the definition, as its `framework` names it, on both roots: page-wide CSS
+ * can then treat one framework's mounts differently, such as the shell scaling Angular's.
+ */
+export const ADAPTER_ATTRIBUTE = 'data-mfe-adapter'
+
 /** Marks the body-level root, which carries the same scope and mount but is not where the definition renders. */
 export const OVERLAY_ROOT_ATTRIBUTE = 'data-mfe-overlay-root'
 
@@ -21,6 +27,8 @@ export interface ScopeAttributes {
   readonly definitionId: string
   readonly mountToken: string
   readonly kind: DefinitionKind
+  /** The definition's `framework`; a mount made without a definition, as a test's is, has none. */
+  readonly framework?: string
 }
 
 /**
@@ -29,11 +37,12 @@ export interface ScopeAttributes {
  */
 export function applyScopeAttributes(
   element: HTMLElement,
-  { definitionId, mountToken, kind }: ScopeAttributes,
+  { definitionId, mountToken, kind, framework }: ScopeAttributes,
 ): void {
   element.setAttribute(SCOPE_ATTRIBUTE, definitionId)
   element.setAttribute(MOUNT_ATTRIBUTE, mountToken)
   element.setAttribute(KIND_ATTRIBUTE, kind)
+  if (framework !== undefined) element.setAttribute(ADAPTER_ATTRIBUTE, framework)
   element.style.display = 'contents'
 }
 
@@ -42,10 +51,12 @@ export function createOverlayRoot(
   definitionId: string,
   mountToken: string,
   document: Document,
+  framework?: string,
 ): { readonly element: HTMLElement; readonly dispose: () => void } {
   const element = document.createElement('div')
   element.setAttribute(SCOPE_ATTRIBUTE, definitionId)
   element.setAttribute(MOUNT_ATTRIBUTE, mountToken)
+  if (framework !== undefined) element.setAttribute(ADAPTER_ATTRIBUTE, framework)
   element.setAttribute(OVERLAY_ROOT_ATTRIBUTE, '')
   document.body.appendChild(element)
 

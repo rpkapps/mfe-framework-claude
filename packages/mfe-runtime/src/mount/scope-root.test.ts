@@ -6,6 +6,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 
 import {
+  ADAPTER_ATTRIBUTE,
   applyScopeAttributes,
   createOverlayRoot,
   KIND_ATTRIBUTE,
@@ -31,6 +32,22 @@ describe('applyScopeAttributes', () => {
     expect(element.getAttribute(SCOPE_ATTRIBUTE)).toBe('alert-panel')
     expect(element.getAttribute(MOUNT_ATTRIBUTE)).toBe('alert-panel#3')
     expect(element.getAttribute(KIND_ATTRIBUTE)).toBe('widget')
+  })
+
+  it('names the adapter that built the definition when it is known', () => {
+    const element = document.createElement('div')
+    const bare = document.createElement('div')
+
+    applyScopeAttributes(element, {
+      definitionId: 'fieldwork',
+      mountToken: 'fieldwork#1',
+      kind: 'app',
+      framework: 'angular',
+    })
+    applyScopeAttributes(bare, { definitionId: 'reports', mountToken: 'reports#1', kind: 'app' })
+
+    expect(element.getAttribute(ADAPTER_ATTRIBUTE)).toBe('angular')
+    expect(bare.hasAttribute(ADAPTER_ATTRIBUTE)).toBe(false)
   })
 
   /** The root anchors a selector; a box of its own would change the host's layout. */
@@ -65,6 +82,15 @@ describe('createOverlayRoot', () => {
     const overlay = createOverlayRoot('alert-panel', 'alert-panel#5', document)
 
     expect(overlay.element.hasAttribute(KIND_ATTRIBUTE)).toBe(false)
+  })
+
+  /** An overlay is still the framework's own DOM, so CSS aimed at one adapter reaches it too. */
+  it('names the adapter that built the definition when it is known', () => {
+    const overlay = createOverlayRoot('fieldwork', 'fieldwork#2', document, 'angular')
+    const bare = createOverlayRoot('reports', 'reports#2', document)
+
+    expect(overlay.element.getAttribute(ADAPTER_ATTRIBUTE)).toBe('angular')
+    expect(bare.element.hasAttribute(ADAPTER_ATTRIBUTE)).toBe(false)
   })
 
   it('removes only its own root when disposed', () => {

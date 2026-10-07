@@ -1,0 +1,25 @@
+/*
+ * Angular containers are designed at a larger scale than React ones, so the shell draws them at
+ * 0.875 to match, by `data-mfe-adapter`, which the runtime puts on each mount's roots. The scope
+ * root is `display: contents`, which has no box of its own but still passes its zoom to what
+ * renders inside it.
+ *
+ * Zoom compounds, so only an Angular mount with no Angular mount around it is scaled, and the
+ * first mount of another adapter inside one is scaled back. Further alternation (Angular in React
+ * in Angular) is not undone.
+ *
+ * Overlay roots are left at full scale: PrimeNG places a popup with pixel offsets measured from
+ * the page, which a zoomed overlay root would scale too, drawing the popup away from its anchor.
+ */
+
+[data-mfe-adapter='angular']:not([data-mfe-overlay-root], [data-mfe-adapter='angular'] *) {
+  zoom: 0.875;
+}
+
+[data-mfe-adapter='angular']
+  [data-mfe-adapter]:not(
+    [data-mfe-adapter='angular'],
+    [data-mfe-adapter='angular'] [data-mfe-adapter]:not([data-mfe-adapter='angular']) *
+  ) {
+  zoom: calc(1 / 0.875);
+}

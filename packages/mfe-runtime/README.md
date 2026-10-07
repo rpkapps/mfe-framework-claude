@@ -103,8 +103,8 @@ own included. The runtime:
 - checks that a Widget still declares every output name in the consumer's
   imported contract; input schemas are not compared before mounting;
 - creates the scope root (`data-mfe-scope`, `data-mfe-mount`, `data-mfe-kind`,
-  `display: contents`) with the definition's element inside it, and the
-  body-level overlay root, and hands both on in the `MountContext`;
+  `data-mfe-adapter`, `display: contents`) with the definition's element inside
+  it, and the body-level overlay root, and hands both on in the `MountContext`;
 - calls `definition.mount(target)` after an `await`, never from inside a host's
   render;
 - drops an input set shallow-equal to the last, and delivers inputs that

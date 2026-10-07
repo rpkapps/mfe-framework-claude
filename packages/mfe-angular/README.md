@@ -57,9 +57,9 @@ Every host places every definition the same way, through the runtime's
 `mountDefinition`, whichever framework the host and the definition are written
 in. `createApp` and `createWidget` return plain, branded records the build
 discovers statically, each carrying the `mount` the runtime calls. The runtime
-creates the scope root (`data-mfe-scope`, `data-mfe-mount`, `data-mfe-kind`) and
-the body-level overlay root, and hands the definition an element inside the
-scope root; the definition creates one application for that mount, renders into
+creates the scope root (`data-mfe-scope`, `data-mfe-mount`, `data-mfe-kind`,
+`data-mfe-adapter`) and the body-level overlay root, and hands the definition an
+element inside the scope root; the definition creates one application for that mount, renders into
 a child element of its own — Angular removes the element a component was
 created on when it is destroyed, and the runtime's element is the runtime's —
 and tears the whole application down on `dispose()`, or when the mount's signal
