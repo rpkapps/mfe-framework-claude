@@ -18,13 +18,22 @@ function page(html: string): void {
   document.body.innerHTML = html
 }
 
-/** The `zoom` of the rule that matches, or `''` when none does. */
-function zoom(id: string): string {
+/**
+ * What the sheet sets `property` to on the element, or `''` when nothing does. The last matching
+ * rule wins, which is the cascade here: every later rule is also the more specific one.
+ */
+function declared(id: string, property: string): string {
   const element = document.getElementById(id) as HTMLElement
   const rules = [...(document.styleSheets[0]?.cssRules ?? [])] as CSSStyleRule[]
-  const matching = rules.filter(rule => element.matches(rule.selectorText))
-  expect(matching.length).toBeLessThanOrEqual(1)
-  return matching[0]?.style.getPropertyValue('zoom') ?? ''
+  const values = rules
+    .filter(rule => element.matches(rule.selectorText))
+    .map(rule => rule.style.getPropertyValue(property))
+    .filter(value => value !== '')
+  return values.at(-1) ?? ''
+}
+
+function zoom(id: string): string {
+  return declared(id, 'zoom')
 }
 
 afterEach(() => {
@@ -58,9 +67,37 @@ describe('Angular scale', () => {
     expect(zoom('nested')).toBe('')
   })
 
-  it('leaves an Angular overlay root at full scale', () => {
-    page(`<div id="overlay" data-mfe-adapter="angular" data-mfe-overlay-root></div>`)
+  it('scales a popup in an Angular overlay root from the corner PrimeNG positioned', () => {
+    page(`<div id="overlay" data-mfe-adapter="angular" data-mfe-overlay-root>
+      <div id="below" style="transform-origin: center top; top: 300px; left: 40px"></div>
+      <div id="above" style="transform-origin: center bottom; top: 200px; left: 40px"></div>
+    </div>`)
 
     expect(zoom('overlay')).toBe('')
+    expect(zoom('below')).toBe('')
+    expect(declared('below', 'scale')).toBe('0.875')
+    expect(declared('below', 'transform-origin')).toBe('left top')
+    expect(declared('above', 'scale')).toBe('0.875')
+    expect(declared('above', 'transform-origin')).toBe('left bottom')
+  })
+
+  it('zooms a dialog inside its mask, and scales it from its corner once dragged', () => {
+    page(`<div data-mfe-adapter="angular" data-mfe-overlay-root>
+      <div id="mask" class="p-dialog-mask"><div id="dialog"></div></div>
+      <div class="p-dialog-mask"><div id="dragged" style="position: fixed; left: 90px"></div></div>
+    </div>`)
+
+    expect(declared('mask', 'scale')).toBe('')
+    expect(zoom('mask')).toBe('')
+    expect(zoom('dialog')).toBe('0.875')
+    expect(zoom('dragged')).toBe('normal')
+    expect(declared('dragged', 'scale')).toBe('0.875')
+    expect(declared('dragged', 'transform-origin')).toBe('left top')
+  })
+
+  it('leaves a React overlay root alone', () => {
+    page(`<div data-mfe-adapter="react" data-mfe-overlay-root><div id="popup"></div></div>`)
+
+    expect(declared('popup', 'scale')).toBe('')
   })
 })

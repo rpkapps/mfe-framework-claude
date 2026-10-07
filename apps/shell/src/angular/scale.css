@@ -7,9 +7,6 @@
  * Zoom compounds, so only an Angular mount with no Angular mount around it is scaled, and the
  * first mount of another adapter inside one is scaled back. Further alternation (Angular in React
  * in Angular) is not undone.
- *
- * Overlay roots are left at full scale: PrimeNG places a popup with pixel offsets measured from
- * the page, which a zoomed overlay root would scale too, drawing the popup away from its anchor.
  */
 
 [data-mfe-adapter='angular']:not([data-mfe-overlay-root], [data-mfe-adapter='angular'] *) {
@@ -22,4 +19,39 @@
     [data-mfe-adapter='angular'] [data-mfe-adapter]:not([data-mfe-adapter='angular']) *
   ) {
   zoom: calc(1 / 0.875);
+}
+
+/*
+ * The overlay root is never zoomed: PrimeNG places a popup with `top` and `left` in page pixels,
+ * which a zoom on the popup or anything around it would scale too, drawing it away from its
+ * anchor. `scale` shrinks what is drawn and leaves those offsets alone, so the popup's corner stays
+ * where PrimeNG put it. PrimeNG sizes a popup from its anchor's unzoomed width, so scaled it is the
+ * anchor's drawn width exactly. PrimeNG writes an inline `transform-origin` that is centred on the
+ * popup; the corner it positioned (top, or bottom when it opens upwards) has to be the one that
+ * stays put.
+ */
+[data-mfe-overlay-root][data-mfe-adapter='angular'] > :not(.p-dialog-mask, .p-drawer-mask) {
+  scale: 0.875;
+  transform-origin: left top !important;
+}
+
+[data-mfe-overlay-root][data-mfe-adapter='angular'] > [style*='transform-origin: center bottom'] {
+  transform-origin: left bottom !important;
+}
+
+/*
+ * A dialog or drawer is laid out by its full-page mask rather than placed in pixels, so it can be
+ * zoomed and keeps its centre or edge. Dragging a dialog gives it `position: fixed` and a `left`
+ * and `top` read from where it is drawn, so from then on it is scaled from its corner instead.
+ */
+[data-mfe-overlay-root][data-mfe-adapter='angular'] > :is(.p-dialog-mask, .p-drawer-mask) > * {
+  zoom: 0.875;
+}
+
+[data-mfe-overlay-root][data-mfe-adapter='angular']
+  > :is(.p-dialog-mask, .p-drawer-mask)
+  > [style*='position: fixed'] {
+  zoom: normal;
+  scale: 0.875;
+  transform-origin: left top;
 }
