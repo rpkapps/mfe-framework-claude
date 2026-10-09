@@ -514,6 +514,7 @@ and nothing paints unstyled; a page with no Angular container never fetches it
 | `primeng-tokens.css`   | PrimeNG's `--p-*` tokens, light and dark; PrimeNG itself is given no preset   |
 | `open-props.css`       | one `@import` per Open Props group, so a subset is a matter of deleting lines |
 | `material-symbols.css` | Material Symbols Rounded at weight 400, and its ligature class                |
+| `scale.css`            | Angular mounts and their popups drawn at 0.875, to match React's scale        |
 
 - **A new version** of Open Props or of the font is its version in the catalog
   of `pnpm-workspace.yaml`. New PrimeNG tokens are a new `primeng-tokens.css`:
@@ -527,6 +528,11 @@ and nothing paints unstyled; a page with no Angular container never fetches it
 - **Another weight, or a font of your own**, such as a subset of the icons you
   use, is an `@font-face` in `material-symbols.css`; list each face `index.ts`
   should wait for in `PAGE_FONTS`.
+- **Another scale** is every `0.875` in `scale.css`. The rules match the
+  `data-mfe-adapter` the runtime puts on each mount's roots. A mount is zoomed;
+  a popup in its overlay root is shrunk with `scale` instead, because PrimeNG
+  positions it in page pixels that a zoom would scale too, and a dialog is zoomed
+  inside its mask until it is dragged.
 
 It is a shell release, not a container one: the stylesheet is page-wide, so the
 page has one version of it, and every Angular container on the page uses the
