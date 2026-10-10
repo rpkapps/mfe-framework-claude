@@ -12,6 +12,7 @@ import {
   Suspense,
   use,
   useCallback,
+  useMemo,
   useRef,
   useState,
   type ComponentProps,
@@ -42,6 +43,7 @@ import { useAssistantWidth, useIsCompact } from '../shell/hooks.ts'
 import { useChatPanel, useShellChat } from './panel-hooks.ts'
 import type { LazyShellChat } from './instance.ts'
 import { ASSISTANT_BUTTON_ID } from './panel.ts'
+import { tectonRemInPixels } from './tecton-rem.ts'
 
 interface FrameProps {
   readonly onClose: () => void
@@ -161,14 +163,17 @@ type PanelHandle =
     ? NonNullable<T>
     : never
 
-/** The aside's width until the user picks one, and what Enter or a double-click goes back to. */
-const DEFAULT_WIDTH = '26rem'
+/** The aside's starting width in rem, and what Enter or a double-click goes back to. */
+const DEFAULT_WIDTH_REM = 26
+/** The narrowest the aside gets, in rem. */
+const ASIDE_MIN_REM = 20
 /** The least the page keeps, dragged or full width, in rem: the App's own navigation and a column. */
 const PAGE_MIN_REM = 30
 
-function remInPixels(): number {
-  return Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16
+function remSize(rem: number, remInPixels: number): string {
+  return `${String(rem * remInPixels)}px`
 }
+
 /**
  * The handle and the aside, mounted as the chat opens, so the width it starts at is read then: the
  * panel's size is its own from there, and writing the width back as it changes moves nothing.
@@ -177,16 +182,18 @@ function AssistantPanel({
   chat,
   aside,
   remembered,
+  remInPixels,
   width,
 }: {
   readonly chat: LazyShellChat
   readonly aside: RefObject<PanelHandle | null>
   readonly remembered: number | null
+  readonly remInPixels: number
   readonly width: ChatWidth
 }): ReactNode {
-  const [initial] = useState(() => remembered ?? DEFAULT_WIDTH)
+  const [initial] = useState(() => remembered ?? remSize(DEFAULT_WIDTH_REM, remInPixels))
   const reset = (): void => {
-    aside.current?.resize(DEFAULT_WIDTH)
+    aside.current?.resize(remSize(DEFAULT_WIDTH_REM, remInPixels))
   }
 
   return (
@@ -204,7 +211,7 @@ function AssistantPanel({
         id="assistant"
         panelRef={aside}
         defaultSize={initial}
-        minSize="20rem"
+        minSize={remSize(ASIDE_MIN_REM, remInPixels)}
         groupResizeBehavior="preserve-pixel-size"
       >
         <aside
@@ -242,18 +249,20 @@ export function ChatSplit({ children }: { readonly children: ReactNode }): React
   const [wide, setWide] = useState(false)
   const [width, setWidth] = useAssistantWidth()
   const open = !compact && panel.open && chat !== null
+  // Measured as the chat opens, so a `--tecton-rem` the host sets after boot is the one used.
+  const remInPixels = useMemo(() => (open ? tectonRemInPixels() : 16), [open])
 
   const toggleWide = useCallback(() => {
     const handle = aside.current
     if (handle === null) return
     if (wide) {
-      handle.resize(narrower.current ?? DEFAULT_WIDTH)
+      handle.resize(narrower.current ?? remSize(DEFAULT_WIDTH_REM, remInPixels))
     } else {
       narrower.current = handle.getSize().inPixels
       // As wide as the page's minimum lets it be.
       handle.resize('100%')
     }
-  }, [wide])
+  }, [wide, remInPixels])
 
   return (
     <AppShellSplit
@@ -264,17 +273,23 @@ export function ChatSplit({ children }: { readonly children: ReactNode }): React
         if (size === undefined || across === undefined) return
         // `inPixels` is still the size before this change here; the percentage is already the new one.
         const pixels = Math.round((size.asPercentage / 100) * across)
-        const isWide = across - pixels <= PAGE_MIN_REM * remInPixels() + 2
+        const isWide = across - pixels <= PAGE_MIN_REM * remInPixels + 2
         setWide(isWide)
         // Full width is a moment, not a preference: the width to come back to stays the dragged one.
         if (!isWide && pixels !== width) setWidth(pixels)
       }}
     >
-      <AppShellSplitPanel id="page" minSize={`${String(PAGE_MIN_REM)}rem`}>
+      <AppShellSplitPanel id="page" minSize={remSize(PAGE_MIN_REM, remInPixels)}>
         <AppShellMain className="flex">{children}</AppShellMain>
       </AppShellSplitPanel>
       {open && (
-        <AssistantPanel chat={chat} aside={aside} remembered={width} width={{ wide, toggleWide }} />
+        <AssistantPanel
+          chat={chat}
+          aside={aside}
+          remembered={width}
+          remInPixels={remInPixels}
+          width={{ wide, toggleWide }}
+        />
       )}
     </AppShellSplit>
   )

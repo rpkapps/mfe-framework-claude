@@ -203,7 +203,7 @@ function Row({
   readonly children: ReactNode
 }): ReactNode {
   return (
-    <div className="grid gap-0.5 px-3 py-2 sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)] sm:items-baseline sm:gap-4">
+    <div className="grid gap-0.5 px-3 py-2 sm:grid-cols-[minmax(0,--spacing(40))_minmax(0,1fr)] sm:items-baseline sm:gap-4">
       <dt className="text-xs text-muted-foreground sm:text-sm">{label}</dt>
       <dd className="min-w-0 text-sm">{children}</dd>
     </div>

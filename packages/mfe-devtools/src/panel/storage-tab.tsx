@@ -206,13 +206,13 @@ export function StorageTab(): ReactNode {
                       {/* A section heading, not a row: it names the app that owns the keys below. */}
                       <div className="flex items-center gap-2 px-2 pt-2 pb-1" aria-hidden="true">
                         <span
-                          className="min-w-0 truncate text-[0.6875rem] font-medium tracking-wider text-muted-foreground uppercase"
+                          className="min-w-0 truncate text-[length:--spacing(2.75)] font-medium tracking-wider text-muted-foreground uppercase"
                           title={group.owner}
                         >
                           {group.owner}
                         </span>
                         <Separator emphasis="subtle" className="flex-1" />
-                        <span className="text-[0.6875rem] text-muted-foreground tabular-nums">
+                        <span className="text-[length:--spacing(2.75)] text-muted-foreground tabular-nums">
                           {group.entries.length}
                         </span>
                       </div>

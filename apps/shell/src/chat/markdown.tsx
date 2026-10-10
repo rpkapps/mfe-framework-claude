@@ -116,7 +116,7 @@ function CodeBlock({ children }: { readonly children?: ReactNode }): ReactNode {
   const code = textOf(children).replace(/\n$/, '')
   return (
     <div className="group/code relative">
-      <pre className="overflow-x-auto rounded-md bg-muted p-3 font-mono text-[0.6875rem] leading-relaxed">
+      <pre className="overflow-x-auto rounded-md bg-muted p-3 font-mono text-[length:--spacing(2.75)] leading-relaxed">
         <code>{code}</code>
       </pre>
       <CopyButton

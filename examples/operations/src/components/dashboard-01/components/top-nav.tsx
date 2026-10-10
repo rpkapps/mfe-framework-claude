@@ -92,7 +92,7 @@ function TopNav({ className, activeId = 'overview', onNavigate, ...props }: TopN
             }
           >
             <Avatar size="sm">
-              <AvatarFallback className="text-[0.625rem]">{currentUser.initials}</AvatarFallback>
+              <AvatarFallback className="text-2xs">{currentUser.initials}</AvatarFallback>
             </Avatar>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">

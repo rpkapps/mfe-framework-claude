@@ -26,7 +26,7 @@ import type { TreePage, TreeSidebarSection } from '../lib/tree.ts'
 import type * as PageTree from 'fumadocs-core/page-tree'
 
 const itemClassName =
-  'relative h-auto min-h-[30px] w-fit overflow-visible border border-transparent text-[0.8rem] font-medium after:absolute after:inset-x-0 after:-inset-y-1 after:z-0 after:rounded-md data-active:border-accent data-active:bg-accent'
+  'relative h-auto min-h-[30px] w-fit overflow-visible border border-transparent text-[length:--spacing(3.2)] font-medium after:absolute after:inset-x-0 after:-inset-y-1 after:z-0 after:rounded-md data-active:border-accent data-active:bg-accent'
 
 function SidebarLink({
   href,
@@ -201,7 +201,7 @@ export function DocsSidebar({
 
   return (
     <Sidebar
-      className="sticky top-[calc(var(--header-height)+0.6rem)] z-30 hidden h-[calc(100svh-10rem)] overflow-hidden overscroll-none bg-transparent [--sidebar-menu-width:--spacing(56)] lg:flex"
+      className="sticky top-[calc(var(--header-height)+--spacing(2.4))] z-30 hidden h-[calc(100svh-(--spacing(40)))] overflow-hidden overscroll-none bg-transparent [--sidebar-menu-width:--spacing(56)] lg:flex"
       collapsible="none"
       {...props}
     >

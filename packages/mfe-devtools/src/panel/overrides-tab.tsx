@@ -58,7 +58,7 @@ type RowState = 'default' | 'overridden' | 'pending' | 'invalid'
  * `auto-fill` rather than `auto-fit`, which collapses the empty tracks and stretches two entries
  * back to half the panel each.
  */
-const ROW_GRID = 'grid grid-cols-[repeat(auto-fill,minmax(min(100%,22rem),1fr))]'
+const ROW_GRID = 'grid grid-cols-[repeat(auto-fill,minmax(min(100%,--spacing(88)),1fr))]'
 
 /** Every row declares the border, so nothing shifts as a row changes state. */
 const ROW_ACCENT: Readonly<Record<RowState, string>> = {

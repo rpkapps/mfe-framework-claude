@@ -162,14 +162,14 @@ function ToolCard({
         <div className="flex flex-col gap-2 border-t border-border-subtle px-3 py-2">
           <div>
             <p className="mb-1 font-medium text-muted-foreground">Inputs</p>
-            <pre className="overflow-x-auto font-mono text-[0.6875rem] whitespace-pre-wrap">
+            <pre className="overflow-x-auto font-mono text-[length:--spacing(2.75)] whitespace-pre-wrap">
               {part.input === undefined ? part.arguments || '…' : json(part.input)}
             </pre>
           </div>
           {part.output !== undefined && (
             <div>
               <p className="mb-1 font-medium text-muted-foreground">Result</p>
-              <pre className="overflow-x-auto font-mono text-[0.6875rem] whitespace-pre-wrap">
+              <pre className="overflow-x-auto font-mono text-[length:--spacing(2.75)] whitespace-pre-wrap">
                 {json(part.output)}
               </pre>
             </div>

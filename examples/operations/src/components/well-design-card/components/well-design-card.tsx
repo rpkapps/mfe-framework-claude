@@ -106,7 +106,7 @@ function WellDesignCard({
               </Badge>
             )}
           </div>
-          <span className="absolute top-2 right-2 font-mono text-[0.625rem] text-muted-foreground">
+          <span className="absolute top-2 right-2 font-mono text-2xs text-muted-foreground">
             {design.well}
           </span>
           <TrajectorySketch design={design} className="mt-4" />
