@@ -2,7 +2,6 @@
 '@company/mfe-core': minor
 '@company/mfe-runtime': minor
 '@company/mfe-react': minor
-'@company/mfe-legacy-angular': minor
 '@company/mfe-rspack': patch
 ---
 

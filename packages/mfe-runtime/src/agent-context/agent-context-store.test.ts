@@ -206,6 +206,24 @@ describe('the URL layer', () => {
     )
   })
 
+  it('redacts search params that carry a credential, as the action audit does', () => {
+    const jwt = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxIn0.c2lnbmF0dXJl'
+    const { store } = setup({
+      readLocation: at(
+        '/reports',
+        `?access_token=abc&apiKey=k&status=open&next=${jwt}&tag=a&tag=Bearer%20xyz`,
+      ),
+    })
+
+    expect(store.read().url.search).toEqual({
+      access_token: '[redacted]',
+      apiKey: '[redacted]',
+      status: 'open',
+      next: '[redacted]',
+      tag: ['a', '[redacted]'],
+    })
+  })
+
   it('reads the page when a turn is sent, not when the App mounted', () => {
     let pathname = '/operations'
     const { store } = setup({ readLocation: () => ({ pathname, search: '', hash: '' }) })

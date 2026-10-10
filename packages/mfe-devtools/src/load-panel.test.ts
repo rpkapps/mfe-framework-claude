@@ -1,8 +1,9 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { forgetPanel, loadPanel } from './load-panel.ts'
 
 afterEach(() => {
+  vi.doUnmock('./panel/devtools-panel.tsx')
   forgetPanel()
 })
 
@@ -16,6 +17,18 @@ describe('loading the panel chunk', () => {
     forgetPanel()
 
     expect(loadPanel()).not.toBe(first)
+  })
+
+  it('fetches again after a load that failed', async () => {
+    vi.resetModules()
+    vi.doMock('./panel/devtools-panel.tsx', () => {
+      throw new TypeError('Failed to fetch dynamically imported module')
+    })
+    const fresh = await import('./load-panel.ts')
+    const failed = fresh.loadPanel()
+    await expect(failed).rejects.toThrow()
+
+    expect(fresh.loadPanel()).not.toBe(failed)
   })
 
   // That the specifier resolves to a real component is left to the shell's build and

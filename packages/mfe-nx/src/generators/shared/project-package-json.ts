@@ -15,6 +15,7 @@ import {
   ANGULAR_DEVKIT_VERSION,
   ANGULAR_ESLINT_VERSION,
   ANGULAR_VERSION,
+  ESLINT_PLUGIN_MFE_VERSION,
   ESLINT_VERSION,
   FRAMEWORK_PACKAGE_VERSION,
   JITI_VERSION,
@@ -84,7 +85,7 @@ export function projectDependencies(nxAngularVersion: string): ProjectDependenci
       // withMfe() and the generate executor run at build time.
       '@company/mfe-nx': FRAMEWORK_PACKAGE_VERSION,
       // The generated eslint.config.ts imports its `angular` subpath.
-      '@company/eslint-plugin-mfe': FRAMEWORK_PACKAGE_VERSION,
+      '@company/eslint-plugin-mfe': ESLINT_PLUGIN_MFE_VERSION,
       '@nx/angular': nxAngularVersion,
       eslint: ESLINT_VERSION,
       // How ESLint loads the generated eslint.config.ts.

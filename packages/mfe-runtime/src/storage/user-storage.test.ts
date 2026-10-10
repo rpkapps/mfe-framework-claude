@@ -285,12 +285,13 @@ describe('saving', () => {
   })
 
   it('saves different keys in parallel', async () => {
-    const { storage, saves } = await loaded()
+    const { storage, saves, accept } = await loaded()
 
-    void storage.set(units, 'imperial')
-    void storage.set(density, 'compact')
+    const saved = [storage.set(units, 'imperial'), storage.set(density, 'compact')]
 
     expect(saves.map(save => save.key)).toEqual(['units', 'density'])
+    for (const save of saves) accept(save)
+    await Promise.all(saved)
   })
 
   it('applies a functional update to the value shown, and removes the row on reset', async () => {
@@ -452,6 +453,19 @@ describe('changing user', () => {
   })
 })
 
+describe('a save the adapter never settles', () => {
+  it('rejects its waiters when the user changes, without waiting for the adapter', async () => {
+    const { service, saves, storage } = await loaded()
+    const inFlight = storage.set(units, 'imperial')
+
+    service.resetUser()
+
+    // The adapter ignores the abort and never settles saves[0].
+    expect(saves[0]?.signal.aborted).toBe(true)
+    await expect(inFlight).rejects.toMatchObject({ code: 'storage/disposed' })
+  })
+})
+
 describe('owners and instances', () => {
   it('reads another app’s value through storedKey.from and refuses writes to it', async () => {
     const labUnits = storedKey.from(
@@ -539,12 +553,14 @@ describe('versions', () => {
   })
 
   it('migrates a row written at an older version, and writes the new version back on save', async () => {
-    const { storage, saves } = await loaded({ reports: { units: row('si', 1, 1) } })
+    const { storage, saves, accept } = await loaded({ reports: { units: row('si', 1, 1) } })
 
     expect(storage.peek(v2)).toBe('metric')
     expect(storage.status(v2)).toBe('ready')
-    void storage.set(v2, 'imperial')
+    const saved = storage.set(v2, 'imperial')
     expect(saves[0]?.value).toEqual({ v: 2, d: 'imperial' })
+    accept(saves[0])
+    await saved
   })
 
   it('reads a row written at a newer version as an error, with the default', async () => {

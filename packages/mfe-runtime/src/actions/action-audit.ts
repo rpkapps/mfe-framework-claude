@@ -100,6 +100,11 @@ function isSecretKey(key: string): boolean {
 const SECRET_VALUE =
   /^(bearer|basic)\s+[\w.~+/=-]+$|^ey[\w-]+\.ey[\w-]+\.[\w-]+$|-----BEGIN [A-Z ]*PRIVATE KEY-----/i
 
+/** One named text value, such as a URL's search param, redacted by the same rule as an input. */
+export function redactNamedText(key: string, value: string): string {
+  return isSecretKey(key) || SECRET_VALUE.test(value.trim()) ? REDACTED : value
+}
+
 /** How deep the redaction walks; deeper input is not what an action takes. */
 const MAX_DEPTH = 8
 

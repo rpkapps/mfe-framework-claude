@@ -775,6 +775,33 @@ describe('turns that overlap', () => {
     expect(client.getHistory().filter(message => message.role === 'tool')).toHaveLength(2)
   })
 
+  it('runs no turn still queued when the client is disposed', async () => {
+    const backend = scriptedBackend(calls(acknowledge), says('Done.'), says('Two.'))
+    const { execute, release } = held()
+    const client = new ChatClient({ connection: backend.connection, tools: [tool(execute)] })
+
+    const first = client.sendMessage('Acknowledge A-7')
+    const second = client.sendMessage('Second')
+    await vi.waitFor(() => {
+      expect(execute).toHaveBeenCalledOnce()
+    })
+    client.dispose()
+    release({ acknowledged: true })
+    await Promise.all([first, second])
+
+    expect(backend.requests).toHaveLength(1)
+  })
+
+  it('declines a page action asked for after the client is disposed', async () => {
+    const backend = scriptedBackend()
+    const client = new ChatClient({ connection: backend.connection })
+
+    client.dispose()
+
+    await expect(client.requestApproval({ toolName: 'navigate', input: {} })).resolves.toBe(false)
+    expect(client.getInterrupts()).toEqual([])
+  })
+
   it('keeps a tool that finishes after clear out of the new conversation', async () => {
     const backend = scriptedBackend(calls(acknowledge))
     const { execute, release } = held()
