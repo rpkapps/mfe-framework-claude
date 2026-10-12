@@ -56,15 +56,15 @@ A shell is the one consumer that reads the registry instead of being listed in
 it. What it gets is deliberately small, and never anything renderable: the icon,
 the fallback title and the tone that marks an override stay the host's.
 
-| You need                             | What there is                                                                      |
-| ------------------------------------ | ---------------------------------------------------------------------------------- |
-| to list what the registry holds      | `useRegistryEntries`, `useApps`, `useWidgets`, `useCapabilityPages(name?)`         |
-| to know which App a URL is inside    | `useActiveDefinition(pathname)`, or `boundaryDefinitionId(url)`                    |
-| where an App keeps a capability page | `capabilityRoute(entry, name)`                                                     |
-| what a Widget takes                  | `describeInputs(contract)`, `defaultInputsFor`, `coerceInputs`, `needsInputPrompt` |
-| to store what the page owns          | `useStoredState(key)` outside a mount, owned by `@host`                            |
-| to register the page's own actions   | `useAction` outside a mount, or `ActionRegistry.registerHost`                      |
-| the federation options for a host    | `hostFederation({ root })`, from `@company/mfe-rspack/federation`                  |
+| You need                             | What there is                                                                                             |
+| ------------------------------------ | --------------------------------------------------------------------------------------------------------- |
+| to list what the registry holds      | `useRegistryEntries`, `useApps`, `useWidgets`, `useCapabilityPages(name?)`                                |
+| to know which App a URL is inside    | `useActiveDefinition(pathname)`, or `boundaryDefinitionId(url)`                                           |
+| where an App keeps a capability page | `capabilityRoute(entry, name)`                                                                            |
+| what a Widget takes                  | `describeInputs(contract)`, `defaultInputsFor`, `coerceInputs`, `needsInputPrompt`, `isReservedInputName` |
+| to store what the page owns          | `useStoredState(key)` outside a mount, owned by `@host`                                                   |
+| to register the page's own actions   | `useAction` outside a mount, or `ActionRegistry.registerHost`                                             |
+| the federation options for a host    | `hostFederation({ root })`, from `@company/mfe-rspack/federation`                                         |
 
 A React shell boots from `@company/mfe-react/host`, which re-exports the whole
 runtime beside `MfeProvider`, and lists every adapter it reads the registry
@@ -114,8 +114,10 @@ user, owner and key on disk.
 
 ### Prerequisites
 
-- **Node 22.18 or newer.** The build and the tooling run TypeScript sources
-  directly, which needs Node's type stripping — on by default from 22.18.
+- **Node 22.22.2, 24.15 or 26, or newer on those lines.** The build and the tooling run
+  TypeScript sources directly, which needs Node's type stripping (on by default from 22.18), and
+  the test environment, jsdom 30, needs one of these. `.npmrc` sets `engine-strict`, so
+  `pnpm install` refuses an older Node rather than installing a test setup that cannot run.
 - **pnpm 10 or newer.** The repository is a pnpm workspace and uses `catalog:`
   versions. No `packageManager` field pins it, deliberately (`docs/decisions.md`
   8).
@@ -131,8 +133,9 @@ user, owner and key on disk.
 
   It has to be on a revision that ships what this framework composes:
   `styles/scoped.css`, `tecton/theme-root`, `postcss/scope`,
-  `federation/shared` and, for the shell's chat, `tecton/composer`, which
-  `main` does. It also has to be built:
+  `federation/shared` and, for the shell's chat, `tecton/composer`. CI builds
+  the commit pinned as `tecton-ref` in `.github/actions/setup/action.yml`, so
+  that commit, or a newer `main`, is what to check out. It also has to be built:
 
   ```sh
   cd ../tecton-ui-1 && pnpm install && pnpm --filter @tecton/react build

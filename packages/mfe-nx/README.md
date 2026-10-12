@@ -50,7 +50,10 @@ nx g @company/mfe-nx:widget my-widget --port 3103
 Unless `skipPackageJson` is set, the generator adds the container's dependencies to the workspace
 `package.json` — `@nx/angular` at the workspace's own Nx version — and pins the workspace's
 TypeScript to 5.8.3 when it is outside the Angular 19.2 compiler's `>=5.5 <5.9`, saying so in the
-log: an Nx workspace has one TypeScript for every project in it.
+log: an Nx workspace has one TypeScript for every project in it. `@company/mfe-angular` and
+`@company/mfe-nx` are written at `^` and the version of the `@company/mfe-nx` that runs the
+generator, since the framework packages are released together; `@company/eslint-plugin-mfe` has a
+version of its own and is written at the range pinned in `src/generators/shared/versions.ts`.
 
 ## What gets generated
 

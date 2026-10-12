@@ -12,6 +12,7 @@ export {
   describeInputs,
   describeOutputs,
   HOST_SCOPE,
+  isReservedInputName,
   needsInputPrompt,
   outputNameToHandlerProp,
   outputPayloadSchema,

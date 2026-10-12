@@ -687,6 +687,41 @@ describe('announce', () => {
     expect(heard).toEqual(['/billing'])
   })
 
+  it('still tells every other subscriber when one subscriber throws, and diagnoses it', () => {
+    const { hub, records } = recordingDiagnostics()
+    const bridge = createMemoryNavigationBridge(['/reports'])
+    const navigator = new BoundaryNavigator({ bridge, diagnostics: hub })
+    const heard: string[] = []
+    navigator.subscribe(() => {
+      throw new Error('router state was disposed')
+    })
+    navigator.subscribe(location => heard.push(location.pathname))
+
+    bridge.push('/reports/42')
+    navigator.announce()
+
+    expect(heard).toEqual(['/reports/42'])
+    expect(records).toHaveLength(1)
+    expect(records[0]?.error.message).toContain('router state was disposed')
+  })
+
+  it('isolates a throwing subscriber on a navigation the bridge reports', async () => {
+    const { hub, records } = recordingDiagnostics()
+    const bridge = createMemoryNavigationBridge(['/reports', '/reports/42'])
+    const navigator = new BoundaryNavigator({ bridge, diagnostics: hub })
+    const heard: string[] = []
+    navigator.subscribe(() => {
+      throw new Error('router state was disposed')
+    })
+    navigator.subscribe(location => heard.push(location.pathname))
+
+    bridge.back()
+    await Promise.resolve()
+
+    expect(heard).toEqual(['/reports'])
+    expect(records).toHaveLength(1)
+  })
+
   it('announces nothing to a listener that unsubscribed', () => {
     const { bridge, navigator, heard, unsubscribe } = announcing()
 

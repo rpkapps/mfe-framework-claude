@@ -50,9 +50,11 @@ if (result.error) {
 
 const output = `${result.stdout}${result.stderr}`.trim()
 
-if (output !== '') {
-  console.log(output)
-  console.error(`\nErrors in ${label}.`)
+// Any output is an error, and so is a non-zero status: a tsc killed by a signal prints nothing.
+if (result.status !== 0 || output !== '') {
+  if (output !== '') console.log(output)
+  const ended = result.signal === null ? `exit code ${result.status}` : `signal ${result.signal}`
+  console.error(`\nErrors in ${label} (tsc ended with ${ended}).`)
   process.exit(1)
 }
 

@@ -3,7 +3,6 @@
 '@company/mfe-runtime': minor
 '@company/mfe-react': minor
 '@company/mfe-devtools': patch
-'@company/mfe-legacy-angular': patch
 ---
 
 What a host can read off the registry without importing a container: a Widget's inputs and events, an App's capability pages, and the build an entry came from.

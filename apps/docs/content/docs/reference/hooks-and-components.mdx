@@ -494,7 +494,11 @@ Three helpers work on the input fields:
 - `coerceInputs(fields, values)` converts text from a form into the JSON types the schema asks for.
 - `needsInputPrompt(contract)` says whether to ask for inputs before mounting.
 
-`@company/mfe-angular` exports all five too.
+`isReservedInputName(name)` says whether a name is a host control prop (`instanceId`, `fallback`,
+`pending`, `inputFallback`, `key`, `ref`) or an `onX` handler rather than an input. Drop those names
+from inputs your host did not write, such as an agent's, before spreading them onto the Widget.
+
+`@company/mfe-angular` exports all six too.
 
 Recipe: [Render a Widget chosen at run time](/docs/render-a-widget-at-run-time).
 

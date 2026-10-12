@@ -3,7 +3,6 @@
 '@company/mfe-rspack': patch
 '@company/mfe-react': patch
 '@company/mfe-devtools': patch
-'@company/mfe-legacy-angular': patch
 ---
 
 These packages publish compiled JavaScript and declarations. Their `exports` and `bin` named TypeScript source, which Node refuses to run from `node_modules` (`ERR_UNSUPPORTED_NODE_MODULES_TYPE_STRIPPING`), so `pnpm create @company/mfe`, `mfe-generate` and an `rsbuild.config.ts` importing `pluginMfe()` failed as soon as they were installed.

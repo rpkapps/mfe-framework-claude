@@ -294,7 +294,9 @@ and changes it by navigating.
 ## Check it works
 
 Render the component in a test, then read the published snapshots. There is one entry per
-published value, and none once the component unmounts.
+published value, and none once the component unmounts. A search param named with a credential word
+(`token`, `apiKey`, `signature`) or holding a credential reaches the agent as `[redacted]`, so name
+filters and cursors without those words.
 
 <Tabs items={['React', 'Angular']}>
 <Tab value="React">

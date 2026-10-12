@@ -30,6 +30,7 @@ import {
 } from '@company/mfe-core'
 import { z } from 'zod'
 
+import { redactNamedText } from '../actions/action-audit.ts'
 import type { DiagnosticsHub } from '../diagnostics.ts'
 import { SnapshotSource } from '../observable.ts'
 
@@ -518,11 +519,13 @@ function pathBelow(basePath: string, pathname: string): string {
 /**
  * The URL names the keys, so they are gathered in a map and defined, never assigned: `constructor`
  * or `toString` read off an object would be taken for a value already there, and assigning
- * `__proto__` would drop it, and reading the page must not throw on whatever a link carries.
+ * `__proto__` would drop it, and reading the page must not throw on whatever a link carries. A
+ * link can also carry a token, which is redacted as an action's input is before it is audited.
  */
 function searchRecord(search: string): Readonly<Record<string, string | readonly string[]>> {
   const values = new Map<string, string[]>()
-  for (const [key, value] of new URLSearchParams(search)) {
+  for (const [key, raw] of new URLSearchParams(search)) {
+    const value = redactNamedText(key, raw)
     const existing = values.get(key)
     if (existing) existing.push(value)
     else values.set(key, [value])

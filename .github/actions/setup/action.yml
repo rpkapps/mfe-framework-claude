@@ -8,9 +8,11 @@ inputs:
   tecton-repository:
     description: The repository holding the Tecton design system.
     default: rpkapps/tecton-ui-1
+  # A commit rather than a branch, so a run is reproducible and a design-system change reaches CI
+  # only in the PR that moves this pin. Move it with any change here that needs a newer Tecton.
   tecton-ref:
-    description: The branch, tag or commit of it to build. Empty for its default branch.
-    default: ''
+    description: The branch, tag or commit of it to build.
+    default: 2ef25ec9c85d45652189e386480c6102d4c192e0
   tecton-package:
     description: Where @tecton/react sits inside that repository.
     default: packages/tecton-react

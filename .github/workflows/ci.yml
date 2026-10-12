@@ -40,7 +40,15 @@ jobs:
       # means a generated file was committed stale.
       - name: No uncommitted generated changes
         working-directory: mfe-framework-claude
-        run: git diff --exit-code
+        # `git diff` alone misses a generated file that is new rather than changed.
+        run: |
+          git diff --exit-code
+          untracked=$(git ls-files --others --exclude-standard)
+          if [ -n "$untracked" ]; then
+            echo "::error::The check generated files that are not committed:"
+            echo "$untracked"
+            exit 1
+          fi
 
       # A change to a published package carries a changeset. One that needs no release note says
       # so with `pnpm changeset --empty`.
@@ -48,6 +56,16 @@ jobs:
         if: github.event_name == 'pull_request'
         working-directory: mfe-framework-claude
         run: pnpm changeset status --since=origin/${{ github.base_ref }}
+
+      # The step above reads only the changesets a PR adds, so one already on the base branch that
+      # names a package no longer in the workspace would otherwise surface only when releasing.
+      # Without `--since` it compares against the `dev` branch by its local name, which a pull
+      # request's checkout does not create.
+      - name: Every pending changeset names a workspace package
+        working-directory: mfe-framework-claude
+        run: |
+          git rev-parse --verify --quiet refs/heads/dev >/dev/null || git branch dev origin/dev
+          pnpm changeset status
 
   verify-page:
     name: Verify the page in a browser

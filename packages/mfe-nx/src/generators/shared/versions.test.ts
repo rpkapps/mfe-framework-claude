@@ -1,7 +1,24 @@
 import { NX_VERSION } from '@nx/devkit'
 import { describe, expect, it } from 'vitest'
 
-import { isAngularCompatibleTypeScript, nxAngularVersionFor } from './versions.ts'
+import eslintPluginManifest from '../../../../eslint-plugin-mfe/package.json'
+import ownManifest from '../../../package.json'
+import {
+  ESLINT_PLUGIN_MFE_VERSION,
+  FRAMEWORK_PACKAGE_VERSION,
+  isAngularCompatibleTypeScript,
+  nxAngularVersionFor,
+} from './versions.ts'
+
+describe('the framework packages a scaffold depends on', () => {
+  it('ranges over the version of this release, which the adapter shares', () => {
+    expect(FRAMEWORK_PACKAGE_VERSION).toBe(`^${ownManifest.version}`)
+  })
+
+  it("ranges over the lint plugin's version in this repository", () => {
+    expect(ESLINT_PLUGIN_MFE_VERSION).toBe(`^${eslintPluginManifest.version}`)
+  })
+})
 
 describe('nxAngularVersionFor', () => {
   it.each(['20.8.4', '^21.5.0', '~22.7.12', '22.7.12'])(

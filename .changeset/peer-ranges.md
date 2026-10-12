@@ -5,7 +5,6 @@
 '@company/mfe-build': patch
 '@company/mfe-core': patch
 '@company/mfe-devtools': patch
-'@company/mfe-legacy-angular': patch
 '@company/mfe-react': patch
 '@company/mfe-rspack': minor
 '@company/mfe-runtime': patch

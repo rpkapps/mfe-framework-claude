@@ -50,6 +50,7 @@ import { SHELL_TOOLS } from './tools/names.ts'
 import { readRenderWidgetInput } from './tools/render-widget.ts'
 import { ChartInput, SummaryInput, TableInput } from './tools/renderers.ts'
 import { focusAfterAnswer, useFocusWhenWaiting, WAITING } from './waiting-focus.ts'
+import { widgetInputsOnly } from '../shell/widget-inputs.ts'
 
 export function ToolCallView({
   chat,
@@ -220,15 +221,6 @@ function RendererCall({ part }: { readonly part: ToolCallPart }): ReactNode {
 
 // ─── A Widget in the chat ─────────────────────────────────────────────────────
 
-/** Props the host sets itself, never taken from the agent's inputs. */
-const HOST_PROPS = new Set(['widgetId', 'fallback', 'pending', 'key', 'ref', 'children'])
-
-function inputsOnly(inputs: Readonly<Record<string, unknown>>): Record<string, unknown> {
-  return Object.fromEntries(
-    Object.entries(inputs).filter(([name]) => !HOST_PROPS.has(name) && !/^on[A-Z]/.test(name)),
-  )
-}
-
 function WidgetSkeleton(): ReactNode {
   return (
     <div
@@ -262,7 +254,7 @@ function WidgetCall({
       role="group"
     >
       <DynamicWidget
-        {...inputsOnly(input.inputs)}
+        {...widgetInputsOnly(input.inputs)}
         widgetId={input.widgetId}
         // The passive way back: the latest value of each output, for later turns (agentic plan, F).
         onOutput={(output: string, payload: unknown) => {

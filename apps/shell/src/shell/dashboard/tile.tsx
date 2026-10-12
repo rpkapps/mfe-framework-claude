@@ -38,6 +38,7 @@ import {
 import { pixelsFromCells, type Rect, type ResizeEdge } from './grid.ts'
 import { summarizeInputs } from './input-schema.ts'
 import type { DashboardTile } from './layout-store.ts'
+import { widgetInputsOnly } from '../widget-inputs.ts'
 
 /** The sizes worth one click. Anything between them is a drag. */
 export const TILE_PRESETS = [
@@ -227,7 +228,7 @@ const MountedWidget = memo(function TileWidget({
   return (
     <DynamicWidget
       widgetId={tile.widgetId}
-      {...tile.inputs}
+      {...widgetInputsOnly(tile.inputs)}
       /* The shell was never compiled against this Widget and knows its outputs only as strings, so it subscribes to all of them. */
       onOutput={onOutput}
       pending={<MountingSkeleton />}

@@ -12,8 +12,11 @@ export function loadPanel(): Promise<DevtoolsPanelModule> {
   if (pending) return pending
 
   const load = import('./panel/devtools-panel.tsx')
-  // Marks the rejection handled without dropping it, so a failed fetch is not an unhandled rejection.
-  load.catch(() => {})
+  // A failed fetch is forgotten, so the next mount fetches again rather than failing for good. The
+  // handler also marks the rejection handled without dropping it from `load`.
+  load.catch(() => {
+    if (pending === load) pending = null
+  })
   pending = load
   return load
 }

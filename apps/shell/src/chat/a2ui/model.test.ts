@@ -234,6 +234,21 @@ describe('values', () => {
     expect(regex('^a*$', 'a'.repeat(1000))).toBe(true)
   })
 
+  it('fail a pattern whose quantifiers in a row would backtrack for seconds, rather than run it', () => {
+    const started = performance.now()
+    // No quantified group, so no exponential blow-up, but each unbounded quantifier multiplies
+    // the work by the value's length: unchecked, this took nine seconds.
+    expect(regex(`${'a*'.repeat(8)}!`, 'a'.repeat(35))).toBe(false)
+    expect(regex('a*a*a*!', 'a'.repeat(1000))).toBe(false)
+    // Generous for a loaded runner: unchecked, the first alone takes seconds.
+    expect(performance.now() - started).toBeLessThan(1000)
+
+    const email = `${'someone.with.a.long.name.'.repeat(4)}x@example.com`
+    expect(email.length).toBeGreaterThan(100)
+    expect(regex('^\\S+@\\S+\\.\\S+$', email)).toBe(true)
+    expect(regex('^\\d+$', '1'.repeat(1000))).toBe(true)
+  })
+
   it('call only the functions the client implements, never an object’s own methods', () => {
     for (const call of ['constructor', 'hasOwnProperty', 'valueOf', 'toString', '__proto__']) {
       expect(resolve({ call, args: {} }, scope)).toBeNull()

@@ -189,25 +189,50 @@ function text(value: JsonValue | undefined): string {
 
 /**
  * A `regex` check runs the agent's pattern on the page's thread while the surface renders, so a
- * pattern that backtracks exponentially (`^(a+)+$` against a few dozen characters takes seconds)
- * freezes the whole shell. The pattern and the value it tests are capped in length, and a pattern
- * with a repeated group that itself repeats or alternates, the shape behind that blow-up, is
- * refused. Either way the check fails, as it does for a pattern that does not compile.
+ * pattern that backtracks for seconds freezes the whole shell. Two shapes do that:
+ *
+ * - a repeated group that itself repeats or alternates (`^(a+)+$`), which is exponential in the
+ *   value's length, and is refused;
+ * - unbounded quantifiers in sequence (`a*a*a*!`), which can try every way of splitting the value
+ *   between them: for k of them over n characters, about n^k / k! ways. A value is tested only
+ *   while that stays within a budget. Patterns whose quantified parts cannot match the same
+ *   characters are slowed by nothing, but telling them apart is not worth the parser.
+ *
+ * The pattern and the value are capped in length too. Either way the check fails, as it does for
+ * a pattern that does not compile.
  */
 const MAX_PATTERN_LENGTH = 200
 const MAX_TESTED_LENGTH = 1000
+/**
+ * About a tenth of a second at worst: `.*.*!` against 707 characters that never match, and less
+ * for more quantifiers. Two unbounded quantifiers then test values of up to 707 characters, three
+ * (an email pattern such as `^\S+@\S+\.\S+$`) up to 114, and four up to 49.
+ */
+const MAX_BACKTRACKING = 250_000
+
+/** The ways `count` unbounded quantifiers in a row can split `length` characters, roughly. */
+function backtracking(length: number, count: number): number {
+  let ways = 1
+  for (let quantifier = 1; quantifier <= count; quantifier += 1) ways *= length / quantifier
+  return ways
+}
+
+/** A quantifier that repeats without bound: `*`, `+` or `{n,}`. */
+const UNBOUNDED = /^(?:[*+]|\{\d+,\})/
 
 /** A quantifier after a group that makes it repeat without bound: `*`, `+` or `{n,…}`. */
 const REPEATS = /^(?:[*+]|\{\d+(?:,\d*)?\})/
 
-function isBoundedPattern(pattern: string): boolean {
-  if (pattern.length > MAX_PATTERN_LENGTH) return false
+/** How many unbounded quantifiers the pattern holds, or `undefined` when it is refused outright. */
+function unboundedQuantifiers(pattern: string): number | undefined {
+  if (pattern.length > MAX_PATTERN_LENGTH) return undefined
   // Per open group: whether it holds a quantifier or an alternation.
   const groups: { varies: boolean }[] = [{ varies: false }]
+  let unbounded = 0
   for (let index = 0; index < pattern.length; index += 1) {
     const char = pattern[index]
     const group = groups.at(-1)
-    if (group === undefined) return false
+    if (group === undefined) return undefined
     if (char === '\\') {
       index += 1
     } else if (char === '[') {
@@ -224,14 +249,15 @@ function isBoundedPattern(pattern: string): boolean {
     } else if (char === ')') {
       const closed = groups.pop()
       const parent = groups.at(-1)
-      if (closed === undefined || parent === undefined) return false
-      if (closed.varies && REPEATS.test(pattern.slice(index + 1))) return false
+      if (closed === undefined || parent === undefined) return undefined
+      if (closed.varies && REPEATS.test(pattern.slice(index + 1))) return undefined
       parent.varies ||= closed.varies
     } else if (char === '*' || char === '+' || char === '?' || char === '{' || char === '|') {
       group.varies = true
+      if (UNBOUNDED.test(pattern.slice(index))) unbounded += 1
     }
   }
-  return true
+  return unbounded
 }
 
 /** The catalogue's functions this client implements; any other call resolves to null. */
@@ -248,8 +274,10 @@ const FUNCTIONS: Readonly<Record<string, Fn>> = {
   regex: (args, scope) => {
     const pattern = resolve(args['pattern'], scope)
     const value = text(resolve(args['value'], scope))
-    if (typeof pattern !== 'string' || !isBoundedPattern(pattern)) return false
-    if (value.length > MAX_TESTED_LENGTH) return false
+    if (typeof pattern !== 'string') return false
+    const unbounded = unboundedQuantifiers(pattern)
+    if (unbounded === undefined || value.length > MAX_TESTED_LENGTH) return false
+    if (unbounded > 1 && backtracking(value.length, unbounded) > MAX_BACKTRACKING) return false
     try {
       return new RegExp(pattern).test(value)
     } catch {

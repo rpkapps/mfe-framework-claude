@@ -10,7 +10,11 @@ import {
   readTreeFiles,
   targetOf,
 } from '../../testing/tree-helpers.ts'
+import packageJson from '../../../package.json'
 import appGenerator from './generator.ts'
+
+/** What a scaffold depends on the framework with: the range of this package's own release. */
+const FRAMEWORK_RANGE = `^${packageJson.version}`
 
 let tree: Tree
 
@@ -288,7 +292,7 @@ describe('the app generator', () => {
       '@angular/cdk': '^19.2.0',
       '@angular/core': '19.2.25',
       '@angular/forms': '19.2.25',
-      '@company/mfe-angular': '^0.1.0',
+      '@company/mfe-angular': FRAMEWORK_RANGE,
       primeng: '19.1.4',
     })
     expect(pkg.dependencies).not.toHaveProperty('@primeng/themes')
@@ -308,7 +312,7 @@ describe('the app generator', () => {
     expect(pkg.devDependencies).toMatchObject({
       '@angular-devkit/build-angular': '19.2.27',
       '@angular/compiler-cli': '19.2.25',
-      '@company/mfe-nx': '^0.1.0',
+      '@company/mfe-nx': FRAMEWORK_RANGE,
       '@nx/angular': '22.7.12',
       typescript: '5.8.3',
     })
@@ -405,7 +409,7 @@ describe('the app generator', () => {
     await appGenerator(tree, { name: 'operations', skipFormat: true })
 
     const root = readJson<ProjectManifest>(tree, 'package.json')
-    expect(root.dependencies['@company/mfe-angular']).toBe('^0.1.0')
+    expect(root.dependencies['@company/mfe-angular']).toBe(FRAMEWORK_RANGE)
     expect(root.dependencies['primeng']).toBe('19.1.4')
     expect(root.devDependencies['@nx/angular']).toBe('22.7.12')
   })
@@ -446,6 +450,6 @@ describe('the app generator', () => {
     // The project's own manifest still declares what it needs; only the workspace-level install
     // step is skipped.
     const pkg = readJson<ProjectManifest>(tree, 'apps/operations/package.json')
-    expect(pkg.dependencies['@company/mfe-angular']).toBe('^0.1.0')
+    expect(pkg.dependencies['@company/mfe-angular']).toBe(FRAMEWORK_RANGE)
   })
 })

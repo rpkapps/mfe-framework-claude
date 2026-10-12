@@ -6,6 +6,7 @@ import {
   type SessionCallContext,
 } from './session.ts'
 import { deferred } from '../__tests__/harness.ts'
+import { DEFAULT_DEADLINES } from '../deadline.ts'
 
 type TokenCall = (context: SessionCallContext) => Promise<string | null>
 
@@ -258,6 +259,40 @@ describe('createSessionTokenService: a refresh the shell cannot complete', () =>
 
     session.store.current = 'after-login'
     await expect(tokens.getAccessToken()).resolves.toBe('after-login')
+  })
+
+  it('refreshes rather than handing back the token a caller reports rejected, after a failure', async () => {
+    const session = createFakeSession('stored-token')
+    const tokens = serviceFor(session)
+    await tokens.getAccessToken()
+    session.refreshToken.mockRejectedValueOnce(new Error('network down'))
+    await tokens.getAccessToken({ rejectedToken: 'stored-token' })
+
+    // The shell's store still holds the token the server refused.
+    await expect(tokens.getAccessToken({ rejectedToken: 'stored-token' })).resolves.toBe(
+      'rotated-1',
+    )
+  })
+
+  it('gives up on a refresh that never settles, aborts it and lets the next call try again', async () => {
+    vi.useFakeTimers()
+    try {
+      const session = createFakeSession(null)
+      session.refreshToken.mockImplementationOnce(context => {
+        session.refreshSignals.push(context.signal)
+        return new Promise(() => undefined)
+      })
+      const tokens = serviceFor(session)
+
+      const waiting = tokens.getAccessToken()
+      await vi.advanceTimersByTimeAsync(DEFAULT_DEADLINES.load)
+
+      await expect(waiting).resolves.toBeNull()
+      expect(session.refreshSignals[0]?.aborted).toBe(true)
+      await expect(tokens.getAccessToken()).resolves.toBe('rotated-1')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('keeps token material out of the error a cancelled caller is handed', async () => {

@@ -2,7 +2,6 @@
 '@company/mfe-core': minor
 '@company/mfe-runtime': minor
 '@company/mfe-react': minor
-'@company/mfe-legacy-angular': minor
 '@company/mfe-devtools': minor
 ---
 
@@ -30,12 +29,6 @@ Exactly one adapter must recognise an entry. If none does, the entry is rejected
 - `reactAdapter` is new, an `MfeAdapter<'react', ReactRegistryEntry>`. `ReactRegistryEntry` carries `container` and `expose` as typed fields. Its `parse` validates with zod after checking the runtime requirement; unsupported runtime ranges report `contract/runtime-incompatible` before registry shape validation.
 - `createMfeRuntime({ adapters })` replaces `createMfeRuntime({ rules })`. `reactAdapter` is always registered, and `adapters` names the extras. Later in this release `createMfeRuntime` moved to `@company/mfe-react/host` and registers no adapter implicitly, so `adapters` names every one, `reactAdapter` included.
 - `MfeAdapter`, `Registry`, `RegistryEntry` and `RejectedRegistryEntry` are re-exported for a shell author; `AdapterSelectionRule` is not.
-
-**`@company/mfe-legacy-angular`**
-
-- `legacyAngularAdapter` replaces `createLegacyAdapterRule()`. Register it with `createMfeRuntime({ adapters: [legacyAngularAdapter] })`.
-- **Breaking:** `readLegacyAdapterData` and `LegacyAdapterData` are gone. The legacy fields — `containerName`, `exposeName`, `navigationOwnership`, `onboardingType`, `categories`, `externalUrl`, `routes`, `settingsRoutes` — are typed on `LegacyRegistryEntry` and read after `legacyAngularAdapter.is(entry)`. `tags` is now the common `RegistryEntry.tags`.
-- `deriveLegacyDefinitionId` is now exported from the package root.
 
 **`@company/mfe-devtools`**
 

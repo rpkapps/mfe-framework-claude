@@ -3,7 +3,6 @@
 '@company/mfe-runtime': minor
 '@company/mfe-react': minor
 '@company/mfe-rspack': minor
-'@company/mfe-legacy-angular': minor
 '@company/eslint-plugin-mfe': minor
 ---
 

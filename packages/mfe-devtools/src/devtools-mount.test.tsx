@@ -14,7 +14,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import type { ReactNode } from 'react'
 
+import { createMemoryRuntime, type MemoryRuntime } from '@company/mfe-runtime/testing'
+
 import type * as DevtoolsMount from './devtools-mount.tsx'
+import type * as DevtoolsStore from './devtools-store.ts'
 import { DEVTOOLS_STORAGE_KEY } from './devtools-settings.ts'
 
 /** A counter, not an implementation: `stubPanel` records the call through it. */
@@ -33,12 +36,29 @@ function stubPanel(): Promise<{ DevtoolsPanel: () => ReactNode }> {
   return panelModule
 }
 
-async function mount(): Promise<typeof DevtoolsMount> {
+let memory: MemoryRuntime
+
+/**
+ * The mount and its store, fresh for each case, with the mount rendered inside a provider from the
+ * same fresh module graph, since a provider from another copy of the adapter is not its context.
+ */
+async function mount(): Promise<typeof DevtoolsMount & Pick<typeof DevtoolsStore, 'devtools'>> {
   vi.resetModules()
-  return await import('./devtools-mount.tsx')
+  const [{ MfeDevtools: Mount }, { devtools }, { MfeProvider }] = await Promise.all([
+    import('./devtools-mount.tsx'),
+    import('./devtools-store.ts'),
+    import('@company/mfe-react'),
+  ])
+  const MfeDevtools = (): ReactNode => (
+    <MfeProvider runtime={memory.runtime}>
+      <Mount />
+    </MfeProvider>
+  )
+  return { MfeDevtools, devtools }
 }
 
 beforeEach(() => {
+  memory = createMemoryRuntime()
   panelModule = Promise.resolve({
     DevtoolsPanel: () => <button type="button">Open the developer tools</button>,
   })
@@ -48,6 +68,7 @@ beforeEach(() => {
 })
 
 afterEach(() => {
+  memory.dispose()
   window.localStorage.clear()
 })
 
@@ -96,6 +117,37 @@ describe('the devtools mount', () => {
     })
 
     expect(loadPanel).toHaveBeenCalled()
+  })
+
+  it('reports a panel chunk that fails to load, renders nothing, and fetches it again when reopened', async () => {
+    window.localStorage.setItem(DEVTOOLS_STORAGE_KEY, '1')
+    const failed = Promise.reject(new TypeError('Failed to fetch dynamically imported module'))
+    // Handled here, as the real loader handles it, so only `use` sees the rejection.
+    failed.catch(() => undefined)
+    panelModule = failed
+    const { MfeDevtools, devtools } = await mount()
+
+    let container = document.body
+    await act(async () => {
+      container = render(<MfeDevtools />).container
+      await failed.catch(() => undefined)
+    })
+
+    expect(container.innerHTML).toBe('')
+    expect(memory.diagnostics.map(diagnostic => diagnostic.error.code)).toEqual(['mount/failure'])
+
+    panelModule = Promise.resolve({
+      DevtoolsPanel: () => <button type="button">Open the developer tools</button>,
+    })
+    act(() => {
+      devtools.disable()
+    })
+    await act(async () => {
+      devtools.open()
+      await panelModule
+    })
+
+    expect(screen.queryByRole('button', { name: 'Open the developer tools' })).not.toBeNull()
   })
 
   it('renders nothing when the browser refuses storage, rather than throwing', async () => {
